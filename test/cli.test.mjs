@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -43,6 +50,8 @@ test('scan JSON is structured and never echoes the secret value', () => {
     const report = JSON.parse(result.stdout);
     assert.equal(report.schemaVersion, 2);
     assert.equal(report.summary.total, 1);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.equal(report.summary.pathsSkipped, 0);
     assert.equal(report.findings[0].file, file);
     assert.equal(report.findings[0].line, 2);
     assert.equal(report.findings[0].column, 1);
@@ -51,6 +60,134 @@ test('scan JSON is structured and never echoes the secret value', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('directory scan recursively finds secrets and applies safe default exclusions', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'flare-redact-cli-'));
+  try {
+    const nested = join(dir, 'src');
+    const ignored = join(dir, 'node_modules', 'fixture');
+    mkdirSync(nested, { recursive: true });
+    mkdirSync(ignored, { recursive: true });
+    writeFileSync(join(nested, 'config.ts'), `export const token = '${githubToken}';\n`);
+    writeFileSync(join(ignored, 'secret.js'), githubToken);
+
+    const result = run(['--scan', '--format', 'json', dir]);
+    assert.equal(result.status, 1, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.summary.total, 1);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.deepEqual(report.summary.skipped, {
+      excluded: 1,
+      binary: 0,
+      oversized: 0,
+      symlink: 0,
+    });
+    assert.match(report.findings[0].file, /src[/\\]config\.ts$/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('directory scan skips excluded, binary, and oversized paths', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'flare-redact-cli-'));
+  try {
+    mkdirSync(join(dir, 'fixtures'), { recursive: true });
+    writeFileSync(join(dir, 'safe.txt'), 'SAFE=true\n');
+    writeFileSync(join(dir, 'fixtures', 'secret.txt'), githubToken);
+    writeFileSync(join(dir, 'root.generated'), githubToken);
+    writeFileSync(join(dir, 'binary.dat'), Buffer.from([0, 1, 2, 3]));
+    writeFileSync(join(dir, 'large.txt'), `SAFE=${'x'.repeat(64)}`);
+
+    const result = run([
+      '--scan', '--format', 'json',
+      '--exclude', 'fixtures/**',
+      '--exclude', '**/*.generated',
+      '--max-file-size', '32b',
+      dir,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.summary.total, 0);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.equal(report.summary.skipped.excluded, 2);
+    assert.equal(report.summary.skipped.binary, 1);
+    assert.equal(report.summary.skipped.oversized, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('directory scan deduplicates overlapping inputs and never follows symlinks', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'flare-redact-cli-'));
+  const outside = mkdtempSync(join(tmpdir(), 'flare-redact-outside-'));
+  try {
+    const source = join(dir, 'src');
+    mkdirSync(source);
+    writeFileSync(join(source, 'secret.txt'), githubToken);
+    writeFileSync(join(outside, 'linked-secret.txt'), githubToken);
+    symlinkSync(outside, join(dir, 'external'));
+
+    const result = run(['--scan', '--format', 'json', dir, source]);
+    assert.equal(result.status, 1, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.summary.total, 1);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.equal(report.summary.skipped.symlink, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test('--no-default-excludes opts into dependency directory scanning', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'flare-redact-cli-'));
+  try {
+    const dependency = join(dir, 'node_modules', 'fixture');
+    mkdirSync(dependency, { recursive: true });
+    writeFileSync(join(dependency, 'secret.js'), githubToken);
+
+    const result = run(['--scan', '--format', 'json', '--no-default-excludes', dir]);
+    assert.equal(result.status, 1, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.summary.total, 1);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.equal(report.summary.skipped.excluded, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('explicit files preserve legacy behavior across directory safety limits', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'flare-redact-cli-'));
+  try {
+    const file = join(dir, 'large-secret.txt');
+    writeFileSync(file, `${githubToken}\n${'x'.repeat(128)}`);
+    const result = run(['--scan', '--format', 'json', '--max-file-size', '8b', file]);
+    assert.equal(result.status, 1, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.summary.total, 1);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.equal(report.summary.skipped.oversized, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--max-file-size validates human-readable sizes', () => {
+  const result = run(['--scan', '--max-file-size', 'huge'], { input: 'safe' });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--max-file-size/);
+});
+
+test('large JSON reports flush completely before the CLI exits', () => {
+  const input = Array.from({ length: 400 }, (_, index) => `user${index}@example.com`).join('\n');
+  const result = run(['--scan', '--format', 'json'], { input });
+  assert.equal(result.status, 1, result.stderr);
+  assert.ok(result.stdout.length > 64 * 1024);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.summary.total, 400);
+  assert.equal(report.findings.length, 400);
 });
 
 test('SARIF output contains a GitHub-compatible source location', () => {

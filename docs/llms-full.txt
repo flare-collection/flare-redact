@@ -127,6 +127,8 @@ Enable inline: `redact(text, { enable: ['high_entropy'], refineConfidence: true,
 
 ```bash
 npx flare-redact --scan config.env             # findings + why; exit 1 if any
+npx flare-redact --scan .                      # recursive project scan; safe skips
+npx flare-redact --scan . --exclude 'test/**' --max-file-size 2mb
 npx flare-redact --scan --format json .env     # machine-readable, values omitted
 npx flare-redact --sarif .env > results.sarif  # GitHub code scanning
 npx flare-redact --min-confidence 0.9 --scan app.log

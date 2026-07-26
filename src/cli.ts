@@ -1,8 +1,9 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { discoverScanFiles, type SkipSummary } from './file-discovery.js';
 import {
   redact,
-  scan,
   summary,
+  compilePolicy,
   createVault,
   restore,
   sealVault,
@@ -55,6 +56,12 @@ OPTIONS
   --disable <ids>   turn off detectors (e.g. email)
   --mask <str>      replace every secret with this string
   --allow <vals>    never redact these exact values (comma-separated)
+  --exclude <glob>  skip matching paths during directory scans (repeatable)
+  --max-file-size <size>
+                    largest directory-discovered file to scan (default: 1mb)
+                    accepts bytes or kb/mb/gb suffixes
+  --no-default-excludes
+                    also walk .git, .hg, .svn, node_modules, and vendor
   --term <word>     also catch this exact word/phrase (repeatable)
   --terms <file>    also catch every word/phrase in this file (one per line)
   --vault <file>    reversible: write an AES-GCM encrypted map to <file>
@@ -70,6 +77,8 @@ OPTIONS
 EXAMPLES
   tail -f app.log | flare-redact
   flare-redact --scan config.env
+  flare-redact --scan .
+  flare-redact --scan . --exclude 'fixtures/**' --max-file-size 2mb
   flare-redact --scan --format json .env app.log
   flare-redact --sarif .env > flare-redact.sarif
   flare-redact --json --mode hash < event.json
@@ -93,6 +102,9 @@ interface ParsedArgs {
   secretEnv: string;
   vaultPasswordEnv: string;
   allowPlaintextVault: boolean;
+  excludes: string[];
+  maxFileSize: number;
+  defaultExcludes: boolean;
 }
 
 function csv(s: string | undefined): string[] {
@@ -115,6 +127,9 @@ function parseArgs(argv: string[]): ParsedArgs {
   let secretEnv = 'FLARE_REDACT_SECRET';
   let vaultPasswordEnv = 'FLARE_REDACT_VAULT_PASSWORD';
   let allowPlaintextVault = false;
+  const excludes: string[] = [];
+  let maxFileSize = 1024 * 1024;
+  let defaultExcludes = true;
   const terms: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -133,6 +148,14 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '--enable': opts.enable = csv(argv[++i]); break;
       case '--disable': opts.disable = csv(argv[++i]); break;
       case '--allow': opts.allow = csv(argv[++i]); break;
+      case '--exclude': {
+        const pattern = argv[++i];
+        if (!pattern) throw new Error('--exclude requires a non-empty glob');
+        excludes.push(pattern);
+        break;
+      }
+      case '--max-file-size': maxFileSize = parseByteSize(argv[++i]); break;
+      case '--no-default-excludes': defaultExcludes = false; break;
       case '--mask': opts.mask = argv[++i]; break;
       case '--mode': opts.mode = parseMode(argv[++i]); break;
       case '--hash-salt': opts.hashSalt = argv[++i]; break;
@@ -172,6 +195,9 @@ function parseArgs(argv: string[]): ParsedArgs {
     secretEnv,
     vaultPasswordEnv,
     allowPlaintextVault,
+    excludes,
+    maxFileSize,
+    defaultExcludes,
   };
 }
 
@@ -188,6 +214,21 @@ function parseConfidence(value: string | undefined): number {
     throw new Error(`--min-confidence requires a number between 0 and 1, got: ${value ?? '(missing)'}`);
   }
   return n;
+}
+
+function parseByteSize(value: string | undefined): number {
+  const match = value?.trim().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb)?$/i);
+  if (!match) {
+    throw new Error(`--max-file-size requires a positive byte size, got: ${value ?? '(missing)'}`);
+  }
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? 'b').toLowerCase();
+  const multiplier = unit === 'gb' ? 1024 ** 3 : unit === 'mb' ? 1024 ** 2 : unit === 'kb' ? 1024 : 1;
+  const bytes = Math.floor(amount * multiplier);
+  if (!Number.isSafeInteger(bytes) || bytes < 1) {
+    throw new Error(`--max-file-size requires a positive byte size, got: ${value}`);
+  }
+  return bytes;
 }
 
 function parseScanFormat(value: string | undefined): ScanFormat {
@@ -239,11 +280,21 @@ function formatFindings(findings: LocatedFinding[]): string {
   return `${findings.length} ${noun}:\n\n${lines.join('\n\n')}`;
 }
 
-function formatJson(findings: LocatedFinding[], scannedFiles: string[], includeValues: boolean): string {
+function formatJson(
+  findings: LocatedFinding[],
+  scannedFiles: string[],
+  includeValues: boolean,
+  skipped: SkipSummary,
+): string {
   return JSON.stringify({
     schemaVersion: 2,
     tool: { name: 'flare-redact', version: VERSION },
-    summary: { total: findings.length, filesScanned: scannedFiles.length },
+    summary: {
+      total: findings.length,
+      filesScanned: scannedFiles.length,
+      pathsSkipped: Object.values(skipped).reduce((total, count) => total + count, 0),
+      skipped,
+    },
     findings: includeValues ? findings : findings.map(reportFinding),
   }, null, 2);
 }
@@ -278,15 +329,29 @@ function formatSarif(findings: LocatedFinding[]): string {
   }, null, 2);
 }
 
-function runScan(files: string[], jsonMode: boolean, opts: RedactOptions, format: ScanFormat): number {
+function runScan(
+  files: string[],
+  jsonMode: boolean,
+  opts: RedactOptions,
+  format: ScanFormat,
+  discovery: { excludes: string[]; maxFileSize: number; defaultExcludes: boolean },
+): number {
   const findings: LocatedFinding[] = [];
-  const inputs = files.length ? files : [undefined];
+  let scannedFiles: string[] = [];
+  let skipped: SkipSummary = { excluded: 0, binary: 0, oversized: 0, symlink: 0 };
   try {
+    const policy = compilePolicy(opts);
+    if (files.length) {
+      const result = discoverScanFiles(files, discovery);
+      scannedFiles = result.files;
+      skipped = result.skipped;
+    }
+    const inputs: Array<string | undefined> = files.length ? scannedFiles : [undefined];
     for (const file of inputs) {
       const raw = file ? readFileSync(file, 'utf8') : readStdin();
       const data = jsonMode ? tryParse(raw, file) : raw;
       if (data === PARSE_ERROR) return 2;
-      for (const finding of scan(data, opts)) findings.push(file ? { ...finding, file } : finding);
+      for (const finding of policy.scan(data)) findings.push(file ? { ...finding, file } : finding);
     }
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);
@@ -294,7 +359,7 @@ function runScan(files: string[], jsonMode: boolean, opts: RedactOptions, format
   }
 
   const out = format === 'json'
-    ? formatJson(findings, files, opts.includeValues === true)
+    ? formatJson(findings, scannedFiles, opts.includeValues === true, skipped)
     : format === 'sarif'
       ? formatSarif(findings)
       : formatFindings(findings);
@@ -326,6 +391,9 @@ export async function main(argv: string[]): Promise<number> {
     secretEnv,
     vaultPasswordEnv,
     allowPlaintextVault,
+    excludes,
+    maxFileSize,
+    defaultExcludes,
   } = parsed;
 
   if (!opts.transformSecret && process.env[secretEnv]) opts.transformSecret = process.env[secretEnv];
@@ -343,7 +411,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 
   if (scanMode && !summaryMode && !vaultFile && !restoreFile) {
-    return runScan(files, jsonMode, opts, scanFormat);
+    return runScan(files, jsonMode, opts, scanFormat, { excludes, maxFileSize, defaultExcludes });
   }
 
   let raw: string;
