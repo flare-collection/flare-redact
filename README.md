@@ -602,21 +602,19 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
 - uses: actions/setup-node@v5
   with:
     node-version: 24
-- name: Scan tracked text files
-  shell: bash
-  run: |
-    git ls-files -z -- \
-      '*.env*' '*.log' '*.json' '*.jsonl' '*.yaml' '*.yml' \
-      '*.toml' '*.ini' '*.conf' '*.js' '*.mjs' '*.cjs' \
-      '*.ts' '*.tsx' '*.jsx' \
-      ':(exclude)**/package-lock.json' \
-      | while IFS= read -r -d '' file; do printf './%s\0' "$file"; done \
-      | xargs -0 -r npx --yes --package flare-redact@1.0.0 flare-redact --scan
+- name: Scan project text files
+  run: npx --yes --package flare-redact@1.3.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
 fails without sending repository contents to an external scanning service. A
 copy-ready workflow lives in [`examples/github-secret-scan`](examples/github-secret-scan).
+Recursive scans do not follow symlinks and skip binary files, files over 1 MiB,
+and `.git`, `.hg`, `.svn`, `node_modules`, and `vendor` directories by default.
+Use repeatable `--exclude` globs, `--max-file-size`, or
+`--no-default-excludes` to change that policy.
+Exclude globs support `*`, `?`, and `**`; a pattern without `/` matches that
+basename at any depth.
 
 ```bash
 flare-redact --scan --format json .env app.log > flare-redact.json
@@ -634,6 +632,8 @@ tail -f app.log | flare-redact               # stream redacted logs
 FLARE_REDACT_SECRET=… flare-redact --json --mode hash < event.json
 FLARE_REDACT_SECRET=… flare-redact --csv --mode surrogate < dump.csv
 flare-redact --scan config.env               # list findings + why (exit 1 if any)
+flare-redact --scan .                        # recursively scan a project
+flare-redact --scan . --exclude 'test/**' --max-file-size 2mb
 flare-redact --scan --format json .env app.log # safe machine-readable report
 flare-redact --sarif .env > results.sarif    # GitHub code-scanning report
 flare-redact --summary --json < event.json   # counts per detector

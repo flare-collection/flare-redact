@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.3.0 — 2026-07-27
+
+### CLI
+
+- Scan a complete project with `flare-redact --scan .`. Directory arguments
+  are expanded recursively in deterministic order, overlapping inputs are
+  deduplicated, and every finding keeps its file, line, and column for pretty,
+  JSON, and SARIF output.
+- Compile the detector policy once per CLI invocation and reuse it across every
+  discovered file instead of rebuilding detector and allowlist state per file.
+- Keep repository scans practical and safe by default: do not follow symlinks,
+  skip binary files and directory-discovered files larger than 1 MiB, and
+  exclude `.git`, `.hg`, `.svn`, `node_modules`, and `vendor` trees.
+- Add repeatable `--exclude <glob>`, human-readable
+  `--max-file-size <bytes|kb|mb|gb>`, and `--no-default-excludes` controls.
+  Explicit file arguments retain their previous behavior and are not silently
+  dropped by the directory size or binary guards.
+- Extend value-free JSON reports with `filesScanned`, `pathsSkipped`, and
+  per-reason skip counts, making CI coverage visible without leaking contents.
+- Let Node drain stdout before the executable exits, preventing JSON, SARIF,
+  and pretty reports larger than the operating-system pipe buffer from being
+  silently truncated.
+- Replace the copy-ready GitHub Actions pipeline with one direct project scan;
+  consumers no longer need a shell-specific `git ls-files | xargs` pipeline.
+
+### Verification
+
+- Add end-to-end CLI coverage for recursive findings, default and custom
+  exclusions, binary and oversized file guards, symlink safety, overlapping
+  input deduplication, explicit opt-outs, scan statistics, and invalid size
+  handling, plus complete large-report flushing. The suite grows from 174 to
+  181 tests.
+
 ## 1.2.0 — 2026-07-24
 
 ### Detection

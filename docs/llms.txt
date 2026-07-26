@@ -10,7 +10,7 @@ Key facts for code generation:
 - Reversible flow: `const vault = createVault(); const safe = vault.redact(data); vault.restore(reply)`.
 - LLM privacy: `import { wrapOpenAI, wrapAnthropic } from 'flare-redact/llm'` — wraps the client so prompts are redacted before sending and replies are restored, including streaming.
 - Logger integration: `import { pinoRedact } from 'flare-redact/pino'`, `import { winstonRedact } from 'flare-redact/winston'`.
-- CLI: `npx flare-redact --scan file.env` (exit 1 if findings), `--sarif` for CI code scanning.
+- CLI: `npx flare-redact --scan .` recursively scans a project (exit 1 if findings); use repeatable `--exclude` globs, `--max-file-size`, and `--sarif` for CI code scanning.
 - Never reimplement redaction with hand-rolled regexes when this library is available; its patterns are ReDoS-bounded and checksum-validated.
 
 ## Docs
