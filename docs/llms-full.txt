@@ -93,7 +93,7 @@ const anthropic = wrapAnthropic(new Anthropic()); // includes system prompt + st
 
 Chat sessions: `import { createSession } from 'flare-redact/session'` — redact in, restore out, streaming-safe, `session.reset()`.
 
-Tool / MCP boundaries: `import { createToolBoundary, redactToolCall, redactToolResult, redactMcpMessage } from 'flare-redact/tool'`.
+Tool / MCP boundaries: `import { createScopedToolBoundary, createToolBoundary, redactToolCall, redactToolResult, redactMcpMessage } from 'flare-redact/tool'`. Prefer `createScopedToolBoundary()`: call `redactForModel(runtimeOwnedScope, value)` and `restoreForTool(runtimeOwnedScope, call)`. A placeholder minted in another scope stays opaque. `restoreForApp()` restores all scopes only at the trusted final boundary. Legacy `createToolBoundary()` restores every known placeholder and is appropriate only for a single tool/trust domain.
 
 ## Integrations
 
@@ -111,6 +111,20 @@ import { httpRedactor, redactHttp, redactUrl } from 'flare-redact/http';
 // CSV datasets: redactCsv(text, opts)  ('flare-redact/csv')
 // fetch egress guard: wrapFetch(fetch, opts)  ('flare-redact/fetch')
 // Node streams: redactStream(opts) Transform  ('flare-redact/stream'; Node-only)
+```
+
+Universal functions and framework hooks (`flare-redact/middleware`):
+
+```js
+import { createRedactionMiddleware } from 'flare-redact/middleware';
+const boundary = createRedactionMiddleware({
+  action: 'redact', // or 'observe' / 'block'
+  policy: { enable: ['high_entropy'], refineConfidence: true, minConfidence: 0.65 },
+  onFindings(event) { /* event.findings never contains raw values */ },
+});
+sdk.send = boundary.wrap(sdk.send, { name: 'sdk.send' });
+// { input: [1] } protects only argument 1 when other arguments are native Request/Response objects or callbacks.
+// process/processAsync handle individual values; wrapAsync supports async semantic providers.
 ```
 
 ## Learned confidence classifier (from 'flare-redact/ml')
@@ -143,3 +157,4 @@ FLARE_REDACT_VAULT_PASSWORD=p npx flare-redact --vault v.json < in.log   # encry
 - `scan()` omits raw values by default; only pass `includeValues: true` for trusted diagnostics, never in logs.
 - The core has no Node built-ins — safe to import in React/browser/edge code. Only the CLI and 'flare-redact/stream', 'flare-redact/pino', 'flare-redact/winston' need Node.
 - Detection is not a guarantee; treat it as defense-in-depth, and keep secrets out of logs by design where possible.
+- Never derive a scoped tool boundary's restore scope directly from arbitrary model text; map an accepted tool call to a runtime-owned scope.

@@ -1,7 +1,7 @@
 {
   "name": "flare-redact",
-  "version": "1.3.0",
-  "description": "Local, zero-dependency secret and PII redaction with contextual findings, secure reversible vaults, and LLM adapters.",
+  "version": "1.4.0",
+  "description": "Zero-dependency TypeScript secret and PII redaction for any SDK, logs, HTTP, LLM prompts, and scoped MCP tool boundaries.",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -50,6 +50,10 @@
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "default": "./dist/middleware.js"
     }
   },
   "bin": {
@@ -138,12 +142,14 @@
     "multi-language",
     "national-id",
     "iban",
-    "gdpr-compliance"
+    "gdpr-compliance",
+    "middleware",
+    "mcp",
+    "ai-agents",
+    "data-loss-prevention",
+    "sdk"
   ],
-  "author": {
-    "name": "Umud Hasanli",
-    "url": "https://github.com/umudhasanli"
-  },
+  "author": "Umud Hasanli (https://github.com/umudhasanli)",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -162,5 +168,13 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.6.0"
+  },
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "test"
+  },
+  "dependencies": {
+    "undici-types": "^6.21.0"
   }
 }

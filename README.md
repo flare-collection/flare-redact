@@ -57,13 +57,14 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 |   |   |   |
 |---|---|---|
 | 🔍 **Context-aware** — spans carry risk and confidence | 🔐 **Secure vaults** — opaque tokens, optional AES-GCM persistence | 🎭 **Useful test data** — keyed pseudonyms and typed surrogates |
-| 🤖 **LLM + tool boundary** — protects prompts, tool calls, and MCP payloads | 🌍 **24-language secret vocabulary** — plus checksum-validated IDs | 🪶 **Zero runtime dependencies** — Node, browser, and edge |
+| 🤖 **Scoped LLM + tool boundaries** — stops cross-tool placeholder restore | 🔌 **Universal middleware** — wrap any SDK, handler, queue, or RPC function | 🪶 **Zero runtime dependencies** — Node, browser, and edge |
 
 ## Contents
 
 - [Install](#install)
 - [Runnable examples](#runnable-examples)
 - [Redact anything](#redact-anything)
+- [Integrate any SDK or framework](#integrate-any-sdk-or-framework)
 - [Redact prompts before they reach an LLM](#redact-prompts-before-they-reach-an-llm)
 - [Ways to hide a value](#ways-to-hide-a-value)
 - [Reversible redaction](#reversible-redaction)
@@ -142,6 +143,7 @@ Clone the repository and run these small applications locally:
 |---|---|---|
 | [`openai-privacy`](examples/openai-privacy) | The model sees an opaque placeholder while the app receives the restored value | `npm --prefix examples/openai-privacy start` |
 | [`express-pino`](examples/express-pino) | Express keeps the original request while Pino receives a safe snapshot | `npm --prefix examples/express-pino run smoke` |
+| [`universal-boundaries`](examples/universal-boundaries) | Any SDK method is sanitized and cross-tool placeholder exfiltration is blocked | `npm --prefix examples/universal-boundaries start` |
 | [`github-secret-scan`](examples/github-secret-scan) | Pull requests fail when tracked source or configuration files contain detected secrets or PII | Copy the workflow into your repository |
 
 Run `npm run build` and install an example's dependencies before its first run.
@@ -168,6 +170,52 @@ redact({
 //   note:     'my aws key is AKIA***',    // found inside free text
 // }
 ```
+
+## Integrate any SDK or framework
+
+`flare-redact/middleware` puts one compiled policy around plain-data function
+boundaries. It works without framework dependencies: analytics SDK methods,
+server-action payloads, queue consumers, webhook clients, RPC functions,
+database writes, and telemetry exporters all use the same boundary shape.
+
+```js
+import { createRedactionMiddleware } from 'flare-redact/middleware';
+
+const boundary = createRedactionMiddleware({
+  policy: {
+    enable: ['high_entropy'],
+    refineConfidence: true,
+    minConfidence: 0.65,
+  },
+  onFindings(event) {
+    audit.info({
+      boundary: event.name,
+      count: event.findings.length,
+      detectors: event.findings.map((finding) => finding.detector),
+    }); // finding metadata is always value-free
+  },
+});
+
+analytics.track = boundary.wrap(analytics.track, { name: 'analytics.track' });
+await analytics.track('checkout', { email, authorization });
+// analytics receives a redacted copy; the caller's object stays unchanged
+```
+
+The same boundary supports three deployment modes:
+
+```js
+createRedactionMiddleware({ action: 'redact' });  // default: sanitize and continue
+createRedactionMiddleware({ action: 'observe' }); // report only, change nothing
+createRedactionMiddleware({ action: 'block' });   // throw RedactionBlockedError
+```
+
+Use `process(value)` directly inside framework hooks. `wrap()` handles sync and
+promise-returning functions while preserving method `this`; `wrapAsync()` adds
+async local `semanticProvider` support. Inputs are protected by default, and
+`{ output: true }` also protects returned values. For signatures containing
+framework-native request/response objects or callbacks, protect only plain-data
+arguments (`{ input: [1] }`) or call `process(request.body)` explicitly; do not
+clone a native `Request`/`Response` object.
 
 ## Redact prompts before they reach an LLM
 
@@ -397,21 +445,35 @@ Detected original values stay local while your app keeps a reversible reference.
 
 An agent loop has two directions: model-produced arguments need their local
 values restored before a tool executes, while tool results need new secrets
-masked before they enter model context. One conversation-scoped boundary handles
-both without sending its vault anywhere:
+masked before they enter model context. Use a separate vault for each tool or
+trust domain so a prompt-injected model cannot move one tool's placeholder into
+another tool's arguments and recover the original:
 
 ```js
-import { createToolBoundary } from 'flare-redact/tool';
+import { createScopedToolBoundary } from 'flare-redact/tool';
 
-const boundary = createToolBoundary();
+const boundary = createScopedToolBoundary();
 
-const safePrompt = boundary.redactForModel(userMessage);
-const modelCall = await model.generateToolCall(safePrompt);
-const localCall = boundary.restoreForTool(modelCall);
+const result = await database.query('select connection_uri from services');
+const safeResult = boundary.redactForModel('database', result);
+const modelCall = await model.generateToolCall(safeResult);
 
-const result = await executeTool(localCall);
-const safeResult = boundary.redactForModel(result);
+// Use a runtime-owned tool/trust-domain name, never a model-supplied scope.
+const acceptedTool = toolRegistry.resolve(modelCall.name);
+const localCall = boundary.restoreForTool(acceptedTool.scope, modelCall);
+await executeTool(localCall);
 ```
+
+Only placeholders minted inside `acceptedTool.scope` are restored. Unknown and
+cross-scope placeholders stay opaque. `restoreForApp()` can restore every scope
+only at the final trusted application boundary, and `reset(scope?)` clears one
+scope or the whole conversation. Scope count is bounded by default.
+
+> **Legacy warning:** `createToolBoundary()` remains backward compatible for a
+> single tool or single trust domain, but `restoreForTool()` restores *any*
+> placeholder known to that boundary. Do not share one legacy boundary across
+> mutually untrusted tools. Prefer `createScopedToolBoundary()` for new agent
+> and MCP integrations.
 
 For safe logging without reversibility, use `redactToolCall()`,
 `redactToolResult()`, or `redactMcpMessage()` from the same entry point.
@@ -603,7 +665,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.3.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.4.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -787,6 +849,7 @@ redactUrl(url, opts?)    // 'flare-redact/http'    → sanitized absolute/relati
 httpRedactor(opts?)      // 'flare-redact/http'    → Express/Connect middleware
 redactCsv(text, opts?)   // 'flare-redact/csv'     → anonymize a CSV dataset
 wrapFetch(fetch, opts?)  // 'flare-redact/fetch'   → redact egress to named hosts
+createRedactionMiddleware(opts?) // 'flare-redact/middleware' → any function/handler
 
 // from 'flare-redact/ml'
 secretProbability(value, context?): number      // learned secret-vs-look-alike score, 0..1
@@ -798,7 +861,8 @@ wrapAnthropic(client, opts?)                    // same for messages.create + sy
 redactPrompt(text, opts?): { text, vault }
 
 // from 'flare-redact/tool'
-createToolBoundary(opts?)                      // reversible model ↔ tool/MCP boundary
+createScopedToolBoundary(opts?)                // scope-safe model ↔ tool/MCP boundary
+createToolBoundary(opts?)                      // legacy single-trust-domain boundary
 redactToolCall / redactToolResult / redactMcpMessage
 
 // from 'flare-redact/stream'
@@ -845,6 +909,11 @@ npm run benchmark:adversarial
 - A vault map is sensitive; persist only the authenticated encrypted envelope.
 - Restoring a placeholder intentionally reveals its original locally. Do not
   forward restored model output to another untrusted sink automatically.
+- A model-produced tool name is untrusted input. Resolve it to a runtime-owned
+  tool/trust-domain scope before calling `restoreForTool()`.
+- The legacy `createToolBoundary()` restores every placeholder in its shared
+  vault. Use `createScopedToolBoundary()` whenever more than one tool or trust
+  domain can receive model-produced arguments.
 - The 24-language badge describes secret-key vocabulary, not general multilingual
   named-entity recognition. Use a local `semanticProvider` for that task.
 

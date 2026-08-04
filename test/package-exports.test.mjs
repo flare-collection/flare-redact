@@ -14,6 +14,7 @@ const entryPoints = [
   'http',
   'csv',
   'fetch',
+  'middleware',
 ];
 
 test('every public package entry point has importable JavaScript and declarations', async () => {

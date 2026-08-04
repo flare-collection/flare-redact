@@ -1,0 +1,11 @@
+{
+  "name": "flare-redact-example-universal-boundaries",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "flare-redact": "file:../.."
+  }
+}
