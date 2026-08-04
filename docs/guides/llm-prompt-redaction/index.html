@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Redact PII and Secrets from LLM Prompts | Flare Redact</title>
+  <meta name="description" content="Redact PII and secrets before OpenAI or Anthropic requests, preserve references with local placeholders, restore replies safely, and handle streaming output.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/llm-prompt-redaction/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How to Redact PII and Secrets from LLM Prompts">
+  <meta property="og:description" content="Keep original sensitive values local while an LLM works with opaque placeholders.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/llm-prompt-redaction/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "How to redact PII and secrets from LLM prompts",
+    "description": "A practical guide to local redaction and reversible placeholders around LLM calls.",
+    "datePublished": "2026-08-04",
+    "dateModified": "2026-08-04",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/llm-prompt-redaction/",
+    "proficiencyLevel": "Intermediate",
+    "dependencies": "flare-redact 1.4 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / LLM prompt redaction</div>
+    <p class="eyebrow">LLM privacy guide</p>
+    <h1>How to redact PII and secrets from LLM prompts</h1>
+    <p class="lede">Replace sensitive values locally before the request leaves your application, let the model work with opaque references, and restore those references only at a trusted boundary.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 4, 2026 · Examples tested with Flare Redact 1.4</p>
+
+    <div class="answer"><strong>Short answer:</strong> create one redaction session per conversation. Redact every user, system, and tool message before the model call; keep the placeholder vault local; restore placeholders in the final response only where the original value is authorized.</div>
+
+    <h2>Wrap an OpenAI client</h2>
+    <pre><code>npm install flare-redact openai</code></pre>
+    <pre><code>import OpenAI from 'openai';
+import { wrapOpenAI } from 'flare-redact/llm';
+
+const openai = wrapOpenAI(new OpenAI());
+
+const response = await openai.chat.completions.create({
+  model: 'your-model',
+  messages: [{
+    role: 'user',
+    content: 'Email the invoice to alice@example.com'
+  }]
+});</code></pre>
+    <p>The wrapper redacts complete message structures, including system text and tool-call arguments. The model receives an opaque placeholder in place of the email. When the reply repeats that placeholder, the wrapper restores the original for your trusted application.</p>
+
+    <h2>Wrap an Anthropic client</h2>
+    <pre><code>import Anthropic from '@anthropic-ai/sdk';
+import { wrapAnthropic } from 'flare-redact/llm';
+
+const anthropic = wrapAnthropic(new Anthropic());
+
+const response = await anthropic.messages.create({
+  model: 'your-model',
+  max_tokens: 300,
+  messages: [{
+    role: 'user',
+    content: 'Summarize the account for alice@example.com'
+  }]
+});</code></pre>
+    <p>The integration is local and model-independent: detection and substitution happen inside your process, before the provider request.</p>
+
+    <h2>Use a session with any model API</h2>
+    <p>A session is useful for an OpenAI-compatible provider, a local model, or your own transport. One session keeps a stable mapping for one conversation.</p>
+    <pre><code>import { createSession } from 'flare-redact';
+
+const session = createSession({ enable: ['phone'] });
+
+const safePrompt = session.redact(userMessage);
+const modelReply = await model.generate(safePrompt);
+const appReply = session.restore(modelReply);
+
+// Start a new vault when the conversation ends.
+session.reset();</code></pre>
+    <p>Default placeholders contain 96 random bits and do not reveal a global sequence. The vault mapping is still sensitive because it contains the originals; keep it scoped, short-lived, and out of logs.</p>
+
+    <h2>Restore streaming replies correctly</h2>
+    <p>A model can split one placeholder across several chunks. Replacing each chunk independently can miss it, so use the session stream restorer.</p>
+    <pre><code>const restoreStream = session.stream();
+
+for await (const chunk of modelStream) {
+  render(restoreStream.push(chunk.text));
+}
+
+render(restoreStream.flush());</code></pre>
+
+    <h2>Separate model privacy from tool authorization</h2>
+    <p>Prompt redaction prevents the model from seeing an original value. It does not automatically authorize every downstream tool to receive that value. For an agent with several tools, bind placeholder restoration to a runtime-owned tool scope.</p>
+    <pre><code>import { createScopedToolBoundary } from 'flare-redact/tool';
+
+const tools = createScopedToolBoundary();
+const safeResult = tools.redactForModel('database', databaseResult);
+
+// The HTTP tool cannot restore placeholders minted for the database scope.
+const safeHttpCall = tools.restoreForTool('http_fetch', modelCall);</code></pre>
+    <p>Read the <a href="../mcp-tool-redaction/">MCP tool-boundary guide</a> for the complete threat model and trusted routing pattern.</p>
+
+    <h2>What prompt redaction does not guarantee</h2>
+    <ul>
+      <li>It cannot remove sensitive facts that no enabled detector recognizes.</li>
+      <li>Remaining context may still let a model infer information about a person or account.</li>
+      <li>Restoring a placeholder is an authorization decision, not only a string replacement.</li>
+      <li>Client-side redaction cannot protect a value that already reached your server or another service.</li>
+      <li>High-risk applications still need data minimization, access control, retention limits, and provider review.</li>
+    </ul>
+    <div class="note"><strong>Practical rule:</strong> redact before model egress, keep the vault local, and restore at the narrowest trusted destination—not automatically in every model-produced tool call.</div>
+
+    <div class="next">
+      <h2>Run the complete flow</h2>
+      <p>See the <a href="https://github.com/flare-collection/flare-redact/tree/main/examples/openai-privacy">runnable OpenAI-compatible privacy example</a>, or try redaction in the <a href="../../">browser playground</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact#security-boundaries">security boundaries and API reference</a></footer>
+</body>
+</html>

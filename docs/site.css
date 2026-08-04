@@ -1,0 +1,154 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0e14;
+  --panel: #11151f;
+  --panel-soft: #0d111a;
+  --line: rgba(255, 255, 255, 0.1);
+  --ink: #e6e9f0;
+  --dim: #9aa3b6;
+  --accent: #a5b4fc;
+  --accent-strong: #6366f1;
+  --green: #6ee7a0;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+code, pre { font-family: var(--mono); }
+
+.site-nav {
+  border-bottom: 1px solid var(--line);
+  background: rgba(11, 14, 20, 0.94);
+}
+.site-nav .inner {
+  width: min(1080px, calc(100% - 40px));
+  min-height: 58px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+.brand {
+  color: var(--ink);
+  font-weight: 750;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+.brand span { color: var(--accent); }
+.nav-links { display: flex; align-items: center; gap: 18px; font-size: 14px; }
+.nav-links a { color: var(--dim); text-decoration: none; }
+.nav-links a:hover { color: var(--ink); }
+
+.page {
+  width: min(760px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 62px 0 80px;
+}
+.wide { width: min(1080px, calc(100% - 40px)); }
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+h1, h2, h3 { color: #f7f8fc; letter-spacing: -0.025em; }
+h1 { margin: 0; font-size: clamp(35px, 7vw, 58px); line-height: 1.06; }
+h2 { margin: 48px 0 14px; font-size: clamp(24px, 4vw, 31px); line-height: 1.2; }
+h3 { margin: 28px 0 10px; font-size: 19px; }
+.lede { margin: 20px 0 0; color: var(--dim); font-size: 19px; line-height: 1.65; }
+p, li { color: #c8cfdb; font-size: 16px; line-height: 1.75; }
+li + li { margin-top: 7px; }
+.meta { margin-top: 18px; color: var(--dim); font-size: 13px; }
+.answer {
+  margin: 34px 0;
+  padding: 20px 22px;
+  border: 1px solid rgba(165, 180, 252, 0.32);
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.09);
+}
+.answer strong { color: #fff; }
+pre {
+  margin: 18px 0 24px;
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #07090e;
+  color: #dbe4f3;
+  font-size: 14px;
+  line-height: 1.65;
+}
+:not(pre) > code {
+  padding: 0.13em 0.38em;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-soft);
+  color: #dbe4f3;
+  font-size: 0.9em;
+}
+.note {
+  margin: 24px 0;
+  padding: 16px 18px;
+  border-left: 3px solid var(--accent-strong);
+  background: var(--panel);
+  color: #cdd4e1;
+}
+.good { color: var(--green); }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 32px;
+}
+.card {
+  display: block;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  color: inherit;
+  text-decoration: none;
+}
+.card:hover { border-color: rgba(165, 180, 252, 0.42); }
+.card h2, .card h3 { margin: 0 0 8px; font-size: 20px; }
+.card p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.6; }
+.next {
+  margin-top: 56px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.next h2 { margin: 0 0 10px; font-size: 22px; }
+.next p { margin: 0; }
+.breadcrumbs { margin-bottom: 30px; color: var(--dim); font-size: 13px; }
+.breadcrumbs a { color: var(--dim); }
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 28px 20px 44px;
+  color: var(--dim);
+  text-align: center;
+  font-size: 13px;
+}
+.site-footer a { color: var(--dim); }
+
+@media (max-width: 680px) {
+  .site-nav .inner { align-items: flex-start; flex-direction: column; padding: 16px 0; }
+  .nav-links { flex-wrap: wrap; }
+  .page { padding-top: 42px; }
+  .cards { grid-template-columns: 1fr; }
+}

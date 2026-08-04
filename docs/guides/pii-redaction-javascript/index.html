@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Redact PII in JavaScript and TypeScript | Flare Redact</title>
+  <meta name="description" content="Redact PII from JavaScript strings and nested objects locally. A tested TypeScript guide for emails, cards, phone numbers, IDs, scanning, and safe findings.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/pii-redaction-javascript/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How to Redact PII in JavaScript and TypeScript">
+  <meta property="og:description" content="Local, zero-dependency PII masking for strings and nested application data.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/pii-redaction-javascript/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "How to redact PII in JavaScript and TypeScript",
+    "description": "A practical guide to local PII redaction for JavaScript strings and nested objects.",
+    "datePublished": "2026-08-04",
+    "dateModified": "2026-08-04",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/pii-redaction-javascript/",
+    "proficiencyLevel": "Beginner",
+    "dependencies": "flare-redact 1.4 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / PII redaction in JavaScript</div>
+    <p class="eyebrow">JavaScript privacy guide</p>
+    <h1>How to redact PII in JavaScript and TypeScript</h1>
+    <p class="lede">Mask sensitive values before they enter logs, analytics, support systems, test fixtures, or external APIs—without sending the original data to another service.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 4, 2026 · Examples tested with Flare Redact 1.4</p>
+
+    <div class="answer"><strong>Short answer:</strong> install <code>flare-redact</code>, call <code>redact(value)</code> at the boundary, and enable only the additional PII groups your application needs. It accepts both strings and nested JavaScript values and returns a redacted copy.</div>
+
+    <h2>Redact a string</h2>
+    <pre><code>npm install flare-redact</code></pre>
+    <pre><code>import { redact } from 'flare-redact';
+
+const safe = redact(
+  'Email alice@example.com, card 4242 4242 4242 4242'
+);
+
+console.log(safe);
+// Email a***@***, card **** **** **** 4242</code></pre>
+    <p>The core is ESM, tree-shakeable, and has no runtime dependencies. The same import works in Node.js, Bun, Deno, browsers, and edge runtimes that provide standard Web Crypto.</p>
+
+    <h2>Redact nested objects without mutating them</h2>
+    <p>Real leaks rarely arrive as one clean string. They sit in request bodies, error metadata, arrays, maps, URLs, or a free-text note. Flare Redact traverses the value and checks both sensitive field names and content inside strings.</p>
+    <pre><code>import { redact } from 'flare-redact';
+
+const event = {
+  customer: { email: 'alice@example.com' },
+  authorization: 'Bearer private-token-value',
+  note: 'backup key is AKIAIOSFODNN7EXAMPLE'
+};
+
+const safeEvent = redact(event);
+
+console.log(event.customer.email);     // original is unchanged
+console.log(safeEvent.customer.email); // a***@***</code></pre>
+
+    <h2>Choose additional PII deliberately</h2>
+    <p>High-confidence credentials, email addresses, cards, and sensitive keys are detected by default. Broader classes are opt-in because a phone number, IP address, or person name can be ambiguous in ordinary text.</p>
+    <pre><code>const safe = redact(payload, {
+  enable: ['phone', 'network', 'contextual']
+});</code></pre>
+    <p><code>contextual</code> enables conservative person-name, street-address, and date-of-birth rules. International national identifiers are checksum validated and can be enabled individually. This keeps policy decisions visible in code instead of silently applying aggressive matching everywhere.</p>
+
+    <h2>Inspect findings without leaking the finding</h2>
+    <p>Use <code>scan()</code> when you need to block, count, or audit sensitive data. Findings omit the matched value by default, so the scanner does not copy the secret into a second log.</p>
+    <pre><code>import { scan, summary } from 'flare-redact';
+
+const findings = scan(payload, { enable: ['phone'] });
+// detector, risk, confidence, path, line and column — no raw value
+
+const counts = summary(payload);
+// { total, byDetector, byRisk }</code></pre>
+    <div class="note"><strong>Safe default:</strong> do not enable <code>includeValues</code> in logs, CI reports, analytics, or error tracking. It exists only for trusted local diagnostics.</div>
+
+    <h2>Mask, label, correlate, or synthesize</h2>
+    <p>Masking is the safest display default. Labels preserve the detected type. Keyed hashes and pseudonyms preserve stable correlation; typed surrogates are useful for staging datasets.</p>
+    <pre><code>redact(email, { mode: 'mask' });      // a***@***
+redact(email, { mode: 'label' });     // [REDACTED:email]
+
+redact(email, {
+  mode: 'surrogate',
+  transformSecret: process.env.FLARE_REDACT_SECRET
+}); // stable synthetic email under this secret</code></pre>
+    <p>Deterministic modes require a private <code>transformSecret</code>; they never fall back to a public, unsalted fingerprint.</p>
+
+    <h2>Production checklist</h2>
+    <ul>
+      <li>Redact before the first external sink, not after a record has already been stored.</li>
+      <li>Apply one reviewed policy to logs, HTTP, model calls, and analytics boundaries.</li>
+      <li>Test representative false positives as well as the secrets you expect to catch.</li>
+      <li>Keep raw matched values out of audit events and error telemetry.</li>
+      <li>Use server-side redaction for data leaving the browser; client-side masking cannot undo earlier exposure.</li>
+    </ul>
+
+    <div class="next">
+      <h2>Next: protect a concrete leak path</h2>
+      <p>Continue with <a href="../redact-secrets-nodejs-logs/">secret redaction in Node.js logs</a>, or see the <a href="https://github.com/flare-collection/flare-redact#what-it-catches">detector catalog and complete API</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact">source, threat model, and tests</a></footer>
+</body>
+</html>

