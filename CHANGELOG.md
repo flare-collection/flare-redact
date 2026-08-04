@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.4.0 — 2026-08-04
+
+### Universal integration
+
+- Add `flare-redact/middleware`, a zero-dependency boundary for any SDK method,
+  route handler, queue consumer, webhook, RPC function, telemetry exporter, or
+  persistence call. `process()` / `processAsync()` handle individual values;
+  `wrap()` preserves method `this`, supports synchronous and promised results,
+  and can protect all inputs, selected plain-data argument indexes, outputs, or
+  both; `wrapAsync()` supports asynchronous local semantic providers.
+- Support `redact`, `observe`, and fail-closed `block` actions. Finding callbacks
+  and `RedactionBlockedError` always contain value-free metadata even when the
+  underlying policy opts into raw scan values.
+- Add a runnable `universal-boundaries` example and smoke-test it in CI.
+
+### Agent and MCP security
+
+- Add `createScopedToolBoundary()`, with an independent reversible vault per
+  runtime-owned tool or trust domain. A placeholder transplanted by a model into
+  another tool's arguments remains opaque, while same-scope restoration and a
+  final trusted `restoreForApp()` continue to work.
+- Bound active scopes, reject invalid scope names and cross-scope custom
+  placeholder collisions, support narrow or complete reset, and preserve the
+  existing `createToolBoundary()` API for backward compatibility.
+- Document the legacy shared-vault threat explicitly: one unscoped boundary
+  must not be shared across mutually untrusted tools.
+
+### Verification
+
+- Add adversarial coverage for cross-tool placeholder exfiltration, same-tool
+  JSON arguments, unknown placeholders, trusted final-app restoration, reset,
+  scope limits, and custom collisions. Add middleware coverage for every action,
+  value-free events/errors, sync and promised outputs, method binding, and async
+  semantic providers. Extend the graph/vault benchmark with wrapped middleware
+  and scoped tool round trips. The suite grows from 181 to 194 tests.
+
 ## 1.3.0 — 2026-07-27
 
 ### CLI

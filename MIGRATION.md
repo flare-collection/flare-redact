@@ -1,16 +1,42 @@
-# Migrating to flare-redact 1.0
-
-Version 1.0 makes the public API safe by default and establishes the compatibility
-contract for the `1.x` line.
+# Migrating flare-redact
 
 ## Upgrade
 
 ```bash
-npm install flare-redact@^1.0.0
+npm install flare-redact@^1.4.0
 ```
 
-Projects pinned to `0.9.0`, `^0.9.0`, or a lockfile stay on their current version
-until this command is run.
+Version 1.4 is backward compatible with the `1.x` line. Projects pinned to an
+older exact version or lockfile stay there until explicitly upgraded.
+
+## 1.4 agent-boundary security upgrade
+
+Version 1.4 is backward compatible, but multi-tool agent applications should
+replace a shared `createToolBoundary()` with `createScopedToolBoundary()`.
+The legacy boundary restores every placeholder in one conversation vault. A
+prompt-injected model can copy a placeholder from one tool result into another
+tool's arguments, causing the second tool call to receive the original value.
+
+```js
+import { createScopedToolBoundary } from 'flare-redact/tool';
+
+const boundary = createScopedToolBoundary();
+const safe = boundary.redactForModel('database', databaseResult);
+const call = await model.generateToolCall(safe);
+
+// Map an accepted tool to a runtime-owned scope; never trust arbitrary model
+// text as the authorization scope.
+const localCall = boundary.restoreForTool(acceptedTool.scope, call);
+```
+
+Use one stable scope per tool or trust domain. Same-scope calls restore normally;
+cross-scope and unknown placeholders stay opaque. Single-tool applications can
+keep `createToolBoundary()` unchanged.
+
+## 1.0 safe-by-default changes
+
+Version 1.0 established the compatibility contract for the `1.x` line. Projects
+upgrading directly from `0.9.x` must account for the changes below.
 
 ## Breaking change: scan values are opt-in
 

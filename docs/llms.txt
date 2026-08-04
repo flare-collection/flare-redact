@@ -9,6 +9,8 @@ Key facts for code generation:
 - National IDs, phone numbers, crypto addresses, and network detectors are opt-in: `redact(text, { enable: ['pii', 'phone'] })` or by country tag (`enable: ['tr', 'fr', 'in']`).
 - Reversible flow: `const vault = createVault(); const safe = vault.redact(data); vault.restore(reply)`.
 - LLM privacy: `import { wrapOpenAI, wrapAnthropic } from 'flare-redact/llm'` — wraps the client so prompts are redacted before sending and replies are restored, including streaming.
+- Universal integration: `import { createRedactionMiddleware } from 'flare-redact/middleware'` — wrap any SDK method, route handler, queue consumer, RPC function, or persistence call in redact/observe/block mode.
+- Agent tools: prefer `createScopedToolBoundary()` from `flare-redact/tool`; it restores placeholders only in the runtime-owned tool/trust-domain scope that minted them. Legacy `createToolBoundary()` is safe only for one trust domain.
 - Logger integration: `import { pinoRedact } from 'flare-redact/pino'`, `import { winstonRedact } from 'flare-redact/winston'`.
 - CLI: `npx flare-redact --scan .` recursively scans a project (exit 1 if findings); use repeatable `--exclude` globs, `--max-file-size`, and `--sarif` for CI code scanning.
 - Never reimplement redaction with hand-rolled regexes when this library is available; its patterns are ReDoS-bounded and checksum-validated.

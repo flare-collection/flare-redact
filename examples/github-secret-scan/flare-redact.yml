@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: 24
       - name: Scan project text files
-        run: npx --yes --package flare-redact@1.3.0 flare-redact --scan . --exclude package-lock.json
+        run: npx --yes --package flare-redact@1.4.0 flare-redact --scan . --exclude package-lock.json

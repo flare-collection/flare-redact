@@ -4,6 +4,8 @@
 // performance.mjs; hostile input in adversarial-runtime.mjs.
 import { performance } from 'node:perf_hooks';
 import { redact, createVault, scan } from '../dist/index.js';
+import { createRedactionMiddleware } from '../dist/middleware.js';
+import { createScopedToolBoundary } from '../dist/tool.js';
 
 const runs = Number(process.env.FLARE_BENCH_RUNS ?? 10);
 const warmups = Number(process.env.FLARE_BENCH_WARMUPS ?? 3);
@@ -68,6 +70,24 @@ for (const count of [100, 1_000]) {
 {
   const input = logLine.repeat(Math.ceil(100_000 / logLine.length)).slice(0, 100_000);
   results.push(bench('scan:findings-per-line', { bytes: Buffer.byteLength(input) }, () => scan(input)));
+}
+
+{
+  const events = Array.from({ length: 100 }, (_, i) => makeEvent(i));
+  const middleware = createRedactionMiddleware();
+  const sink = middleware.wrap((payload) => payload, { name: 'benchmark.sink' });
+  results.push(bench('middleware:wrapped-input', { objects: 100 }, () => sink(events)));
+}
+
+{
+  const value = 'database password=hunter2 owner=alice@example.com';
+  results.push(bench('tool:scoped-round-trip', { scopes: 4 }, () => {
+    const boundary = createScopedToolBoundary();
+    for (const scope of ['database', 'email', 'storage', 'payments']) {
+      const safe = boundary.redactForModel(scope, value);
+      boundary.restoreForTool(scope, safe);
+    }
+  }));
 }
 
 process.stdout.write(JSON.stringify({
