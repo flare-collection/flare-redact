@@ -24,6 +24,12 @@
   🇬🇧 🇨🇳 🇮🇳 🇪🇸 🇸🇦 🇫🇷 🇵🇹 🇷🇺 🇯🇵 🇩🇪 🇰🇷 🇹🇷 🇮🇹 🇮🇷 🇵🇱 🇺🇦 🇳🇱 🇻🇳 🇮🇩 🇹🇭 🇬🇷 🇮🇱 🇦🇿 🇷🇴
 </p>
 
+<p align="center">
+  <a href="https://flare-collection.github.io/flare-redact/">Live playground</a>
+  · <a href="https://flare-collection.github.io/flare-redact/guides/">Practical redaction guides</a>
+  · <a href="https://flare-collection.github.io/flare-redact/llms-full.txt">LLM-friendly API reference</a>
+</p>
+
 ---
 
 Every leaked secret has the same origin story: someone logged an object, and a
@@ -62,6 +68,7 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 ## Contents
 
 - [Install](#install)
+- [Practical guides](https://flare-collection.github.io/flare-redact/guides/)
 - [Runnable examples](#runnable-examples)
 - [Redact anything](#redact-anything)
 - [Integrate any SDK or framework](#integrate-any-sdk-or-framework)
@@ -665,7 +672,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.4.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.4.1 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and

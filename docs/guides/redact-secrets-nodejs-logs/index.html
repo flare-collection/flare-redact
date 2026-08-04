@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to Redact Secrets from Node.js Logs | Flare Redact</title>
+  <meta name="description" content="Hide API keys, tokens, passwords, authorization headers, and PII in Node.js logs. Tested examples for Pino, Winston, console, HTTP requests, and streams.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/redact-secrets-nodejs-logs/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How to Redact Secrets from Node.js Logs">
+  <meta property="og:description" content="Content-aware secret masking for Pino, Winston, console, HTTP, and log streams.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/redact-secrets-nodejs-logs/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "How to redact secrets from Node.js logs",
+    "description": "A practical guide to content-aware secret redaction for Node.js logging.",
+    "datePublished": "2026-08-04",
+    "dateModified": "2026-08-04",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/redact-secrets-nodejs-logs/",
+    "proficiencyLevel": "Intermediate",
+    "dependencies": "Node.js 20 or newer; flare-redact 1.4 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / Node.js log redaction</div>
+    <p class="eyebrow">Node.js logging guide</p>
+    <h1>How to redact secrets from Node.js logs</h1>
+    <p class="lede">Sanitize a log record before serialization and transport, so API keys, credentials, authorization headers, and customer data never reach your log store.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 4, 2026 · Examples tested with Flare Redact 1.4</p>
+
+    <div class="answer"><strong>Short answer:</strong> redact at the logger boundary, before formatting or transport. Key-path rules protect fields you already know; content-aware scanning also catches a token pasted into <code>message</code>, <code>note</code>, an error, or another unexpected location.</div>
+
+    <h2>Pino secret redaction</h2>
+    <pre><code>npm install flare-redact pino</code></pre>
+    <pre><code>import pino from 'pino';
+import { pinoRedact } from 'flare-redact/pino';
+
+const policy = {
+  enable: ['high_entropy'],
+  refineConfidence: true,
+  minConfidence: 0.65
+};
+
+const log = pino(pinoRedact(policy));
+
+log.info({
+  email: 'alice@example.com',
+  authorization: 'Bearer private-token-value'
+}, 'checkout accepted');</code></pre>
+    <p>The formatter receives a redacted copy. It checks sensitive field names and the contents of every string, so protection is not limited to a manually maintained list of object paths.</p>
+
+    <h2>Winston secret redaction</h2>
+    <pre><code>npm install flare-redact winston</code></pre>
+    <pre><code>import winston from 'winston';
+import { winstonRedact } from 'flare-redact/winston';
+
+const safeFormat = winston.format(
+  winstonRedact({ enable: ['high_entropy'] })
+)();
+
+const logger = winston.createLogger({
+  format: winston.format.combine(safeFormat, winston.format.json()),
+  transports: [new winston.transports.Console()]
+});</code></pre>
+    <p>Place the redaction transform before the JSON formatter and before every remote transport. Winston symbol metadata is preserved while ordinary record fields are sanitized.</p>
+
+    <h2>Protect console output</h2>
+    <p>For a small application or third-party code that writes to <code>console.*</code>, install a reversible wrapper during startup.</p>
+    <pre><code>import { wrapConsole } from 'flare-redact';
+
+const restoreConsole = wrapConsole();
+
+console.error('request failed', {
+  password: 'do-not-log-this',
+  customer: 'alice@example.com'
+});
+
+// Call during teardown if the original console is needed.
+restoreConsole();</code></pre>
+
+    <h2>Log an HTTP request without mutating it</h2>
+    <p>Never destructively rewrite the live request just to make it safe for logging. Create a separate sanitized snapshot of its URL, query, params, headers, and body.</p>
+    <pre><code>import { httpRedactor } from 'flare-redact/http';
+
+app.use(httpRedactor(policy));
+
+app.use((req, _res, next) =&gt; {
+  log.info(req.redacted(), 'incoming request');
+  next();
+});</code></pre>
+    <p><code>req</code> remains unchanged for authentication and application logic. The value passed to the logger masks authorization and cookie headers as well as sensitive content elsewhere in the request.</p>
+
+    <h2>Redact a log stream</h2>
+    <p>If the boundary is a stream rather than a logger object, use the Node transform. It preserves enough trailing input to catch a secret split across chunks and handles bounded multiline private-key blocks.</p>
+    <pre><code>import { redactStream } from 'flare-redact/stream';
+
+process.stdin
+  .pipe(redactStream(policy))
+  .pipe(process.stdout);</code></pre>
+
+    <h2>Why redaction must happen before transport</h2>
+    <p>A processor in your observability vendor is too late: the raw record has already crossed the process boundary and may exist in buffers, retries, ingestion logs, or another vendor system. The application should emit the safe representation first.</p>
+    <ul>
+      <li>Apply redaction before JSON serialization and all transports.</li>
+      <li>Keep the original object for business logic; log a sanitized copy.</li>
+      <li>Use a compiled policy on hot paths instead of rebuilding rules per event.</li>
+      <li>Test free-text values and errors, not only obvious fields such as <code>password</code>.</li>
+      <li>Keep finding metadata value-free when measuring or auditing matches.</li>
+    </ul>
+
+    <div class="next">
+      <h2>Also protect non-log sinks</h2>
+      <p>Use the <a href="../pii-redaction-javascript/">JavaScript PII guide</a> for arbitrary data, or the universal <a href="https://github.com/flare-collection/flare-redact#integrate-any-sdk-or-framework">middleware boundary</a> for analytics SDKs, queues, webhooks, and RPC calls.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact/tree/main/examples/express-pino">runnable Express + Pino example</a></footer>
+</body>
+</html>

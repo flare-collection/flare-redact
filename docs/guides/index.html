@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secret and PII Redaction Guides for JavaScript | Flare Redact</title>
+  <meta name="description" content="Practical JavaScript and TypeScript guides for redacting PII, hiding secrets in Node.js logs, protecting LLM prompts, and securing MCP tool boundaries.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Secret and PII Redaction Guides for JavaScript">
+  <meta property="og:description" content="Tested patterns for logs, LLM prompts, MCP tools, SDKs, and application data.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Flare Redact guides",
+    "description": "Practical secret and PII redaction guides for JavaScript and TypeScript developers.",
+    "url": "https://flare-collection.github.io/flare-redact/guides/",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "Flare Redact",
+      "url": "https://flare-collection.github.io/flare-redact/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="./" aria-current="page">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page wide">
+    <p class="eyebrow">Developer guides</p>
+    <h1>Put a redaction boundary where data can leak</h1>
+    <p class="lede">These guides solve four concrete problems with complete, copyable JavaScript. Each pattern runs locally with the zero-dependency Flare Redact core.</p>
+
+    <div class="cards">
+      <a class="card" href="pii-redaction-javascript/">
+        <h2>PII redaction in JavaScript</h2>
+        <p>Redact emails, payment data, phone numbers, identifiers, and nested object values without mutating the input.</p>
+      </a>
+      <a class="card" href="redact-secrets-nodejs-logs/">
+        <h2>Hide secrets in Node.js logs</h2>
+        <p>Protect Pino, Winston, console output, request snapshots, and streams before records leave the process.</p>
+      </a>
+      <a class="card" href="llm-prompt-redaction/">
+        <h2>Redact LLM prompts</h2>
+        <p>Keep secrets and PII out of OpenAI or Anthropic calls while preserving useful references in model replies.</p>
+      </a>
+      <a class="card" href="mcp-tool-redaction/">
+        <h2>Secure MCP tool boundaries</h2>
+        <p>Stop cross-tool placeholder restoration by binding every reversible placeholder to a trusted tool scope.</p>
+      </a>
+    </div>
+
+    <section>
+      <h2>One policy, several boundaries</h2>
+      <p>Redaction is most reliable when it happens before a value reaches a logger, external model, analytics SDK, webhook, or tool. Flare Redact uses the same policy shape at each boundary, so a credential is not protected in one path and forgotten in another.</p>
+      <pre><code>npm install flare-redact</code></pre>
+      <p>Start with the guide closest to your leak path. The <a href="https://github.com/flare-collection/flare-redact#api">complete API reference</a> covers detectors, transforms, streams, CSV, HTTP, fetch, and the CLI.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact">source and tests on GitHub</a></footer>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "flare-redact",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Zero-dependency TypeScript secret and PII redaction for any SDK, logs, HTTP, LLM prompts, and scoped MCP tool boundaries.",
   "type": "module",
   "sideEffects": false,
@@ -158,7 +158,7 @@
     "type": "git",
     "url": "git+https://github.com/flare-collection/flare-redact.git"
   },
-  "homepage": "https://github.com/flare-collection/flare-redact#readme",
+  "homepage": "https://flare-collection.github.io/flare-redact/",
   "bugs": {
     "url": "https://github.com/flare-collection/flare-redact/issues"
   },

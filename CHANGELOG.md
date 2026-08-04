@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.1 — 2026-08-04
+
+### Search discovery and documentation
+
+- Add an indexable developer-guide hub plus focused, original guides for
+  JavaScript PII redaction, Node.js log secret redaction, LLM prompt privacy,
+  and scoped MCP/tool restoration. Each page includes tested code, explicit
+  security boundaries, authorship, a canonical URL, social metadata, and
+  structured article data.
+- Link the guides from the live playground and package README, point package
+  metadata at the documentation site, and expand the XML sitemap from one HTML
+  page to six purpose-specific search pages.
+- Refresh the landing page title, description, software metadata, navigation,
+  and playground release label for the universal middleware and scoped tool
+  boundary introduced in 1.4.0.
+
+### Verification
+
+- Add automated documentation tests for unique titles and canonicals, required
+  metadata, valid JSON-LD, local-link integrity, sitemap coverage, and the live
+  release label. The complete suite grows from 194 to 198 tests. Runtime APIs
+  and redaction behavior are unchanged.
+
 ## 1.4.0 — 2026-08-04
 
 ### Universal integration

@@ -3,25 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>flare-redact — redact secrets &amp; PII from logs, prompts &amp; text (JS/TS)</title>
-  <meta name="description" content="flare-redact is a zero-dependency JavaScript & TypeScript library to redact and mask secrets and PII — API keys, tokens, JWTs, credit cards, emails, national IDs — from logs, LLM prompts, HTTP, and datasets. Reversible, 24 languages, ReDoS-safe.">
+  <title>JavaScript PII &amp; Secret Redaction Library | Flare Redact</title>
+  <meta name="description" content="Redact PII, API keys, tokens, and credentials in JavaScript and TypeScript. Protect logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets locally.">
   <meta name="keywords" content="redact, redaction, pii redaction, data masking, mask pii, mask secrets, secret detection, secret scanning, javascript, typescript, nodejs, llm, openai, anonymization, gdpr, pci, zero dependency">
+  <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="https://flare-collection.github.io/flare-redact/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="flare-redact — redact secrets & PII in JavaScript/TypeScript">
-  <meta property="og:description" content="Zero-dependency redaction for logs, LLM prompts, HTTP and datasets. Reversible, 24 languages, ReDoS-safe.">
+  <meta property="og:title" content="JavaScript PII &amp; Secret Redaction Library | Flare Redact">
+  <meta property="og:description" content="Local, zero-dependency redaction for logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets.">
   <meta property="og:url" content="https://flare-collection.github.io/flare-redact/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="flare-redact — redact secrets & PII in JavaScript/TypeScript">
-  <meta name="twitter:description" content="Paste any text and watch secrets & PII disappear. Zero deps, reversible, 24 languages.">
+  <meta name="twitter:title" content="JavaScript PII &amp; Secret Redaction Library | Flare Redact">
+  <meta name="twitter:description" content="Redact locally across logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets.">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareSourceCode",
+    "@type": ["SoftwareSourceCode", "SoftwareApplication"],
     "name": "flare-redact",
-    "description": "Zero-dependency JavaScript & TypeScript library to redact and mask secrets and PII — API keys, tokens, JWTs, credit cards, emails, national IDs — from logs, LLM prompts, HTTP and datasets. Reversible, 24 languages, ReDoS-safe.",
+    "description": "Zero-dependency JavaScript and TypeScript library for local PII and secret redaction across logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets.",
     "codeRepository": "https://github.com/flare-collection/flare-redact",
     "url": "https://flare-collection.github.io/flare-redact/",
+    "downloadUrl": "https://www.npmjs.com/package/flare-redact",
+    "softwareVersion": "1.4.1",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Cross-platform",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "programmingLanguage": ["TypeScript", "JavaScript"],
     "runtimePlatform": ["Node.js", "Browser", "Edge"],
     "license": "https://opensource.org/licenses/MIT",
@@ -43,6 +49,11 @@
     a { color: var(--indigo2); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+    .topbar { border-bottom: 1px solid var(--line); }
+    .topbar-inner { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .topbar-name { color: var(--ink); font-weight: 700; letter-spacing: -.02em; }
+    .topbar-links { display: flex; gap: 18px; font-size: 13px; }
+    .topbar-links a { color: var(--dim); }
     header { padding: 64px 0 28px; text-align: center; }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; color: var(--indigo2); letter-spacing: -.01em; }
     .spark { width: 22px; height: 22px; }
@@ -87,11 +98,27 @@
     .feat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
     .feat h3 { margin: 0 0 6px; font-size: 15px; }
     .feat p { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.5; }
+    .guides { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .guide { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; color: inherit; }
+    .guide:hover { border-color: rgba(165,180,252,.4); text-decoration: none; }
+    .guide h3 { margin: 0 0 7px; font-size: 16px; color: var(--ink); }
+    .guide p { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.5; }
+    @media (max-width: 720px) { .guides { grid-template-columns: 1fr; } .topbar-inner { align-items: flex-start; flex-direction: column; padding: 14px 20px; } }
     footer { padding: 40px 0 60px; text-align: center; color: var(--faint); font-size: 13px; border-top: 1px solid var(--line); margin-top: 20px; }
     code.k { font-family: var(--mono); color: var(--indigo2); }
   </style>
 </head>
 <body>
+  <nav class="topbar" aria-label="Main navigation">
+    <div class="wrap topbar-inner">
+      <a class="topbar-name" href="./">flare-redact</a>
+      <div class="topbar-links">
+        <a href="guides/">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
   <div class="wrap">
     <header>
       <div class="brand">
@@ -165,6 +192,29 @@
       </div>
     </section>
 
+    <section>
+      <div class="eyebrow">Practical guides</div>
+      <h2>Redaction patterns you can ship</h2>
+      <div class="guides">
+        <a class="guide" href="guides/pii-redaction-javascript/">
+          <h3>PII redaction in JavaScript</h3>
+          <p>Mask emails, cards, identifiers, phone numbers, and nested values locally.</p>
+        </a>
+        <a class="guide" href="guides/redact-secrets-nodejs-logs/">
+          <h3>Hide secrets in Node.js logs</h3>
+          <p>Protect Pino, Winston, console, HTTP request snapshots, and streams.</p>
+        </a>
+        <a class="guide" href="guides/llm-prompt-redaction/">
+          <h3>Redact LLM prompts</h3>
+          <p>Keep secrets out of OpenAI and Anthropic calls with local placeholders.</p>
+        </a>
+        <a class="guide" href="guides/mcp-tool-redaction/">
+          <h3>Secure MCP tool boundaries</h3>
+          <p>Prevent a model from moving one tool's placeholder into another tool call.</p>
+        </a>
+      </div>
+    </section>
+
     <footer>
       <p>Open source (MIT) · <a href="https://github.com/flare-collection/flare-redact">github.com/flare-collection/flare-redact</a> · <a href="https://www.npmjs.com/package/flare-redact">npm</a></p>
       <p>Redact PII &amp; secrets from logs, LLM prompts and datasets in JavaScript and TypeScript.</p>
@@ -189,7 +239,7 @@ wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
       // Bundled from the same release that ships to npm — nothing leaves this page.
       const mod = await import('./playground/flare-redact.min.js');
       redact = mod.redact; scan = mod.scan;
-      status.textContent = 'v1.2.0 · runs entirely in your browser';
+      status.textContent = 'v1.4.1 · runs entirely in your browser';
     } catch (e) {
       status.textContent = 'failed to load library';
       $('out').textContent = 'Could not load the playground bundle.';
