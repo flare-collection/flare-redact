@@ -1,0 +1,55 @@
+# A worked example: one application, one redaction sidecar, no application code
+# changes. Run it from the repository root:
+#
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# The application talks to http://gateway:8787/openai/v1 instead of
+# https://api.openai.com/v1. Everything else — the SDK, the API key, the request
+# shape — stays exactly as it was.
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    # Bind to loopback on the host: a redaction proxy reachable from the network
+    # is a proxy anyone can send data through.
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      FLARE_GATEWAY_HOST: 0.0.0.0
+      FLARE_GATEWAY_PORT: "8787"
+      # Detectors. `pii` turns on the personal-data set on top of the secrets
+      # that are always on.
+      FLARE_REDACT_ENABLE: pii
+      # Require a bearer token on /v1. The proxy routes stay open to the
+      # application network, which is what makes them drop-in.
+      FLARE_GATEWAY_TOKEN: ${FLARE_GATEWAY_TOKEN:-}
+      FLARE_GATEWAY_LOG: info
+    command:
+      - --route
+      - /openai=https://api.openai.com
+      - --route
+      - /anthropic=https://api.anthropic.com
+      # Only the parts a human typed. Leaving the model name and tool schemas
+      # alone keeps the request semantically intact.
+      - --paths
+      - messages[*].content,input,prompt,system
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  app:
+    image: python:3.12-slim
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      # This is the whole integration.
+      OPENAI_BASE_URL: http://gateway:8787/openai/v1
+      ANTHROPIC_BASE_URL: http://gateway:8787/anthropic
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    command: ["sleep", "infinity"]

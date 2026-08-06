@@ -30,6 +30,7 @@ const HELP = `flare-redact — hide secrets & PII before they hit a log
 
 USAGE
   flare-redact [options] [files...]        stdin if no files
+  flare-redact gateway [options]           run the redaction sidecar proxy
 
 OPTIONS
   --scan            list what would be redacted, and why (input unchanged)
@@ -73,6 +74,11 @@ OPTIONS
   --list            show all detectors and exit
   -h, --help        show this help
   -v, --version     show version
+
+SUBCOMMANDS
+  gateway           run a reverse proxy that redacts request bodies and
+                    restores the originals in the reply — no code changes
+                    in the calling application. See: flare-redact gateway --help
 
 EXAMPLES
   tail -f app.log | flare-redact
@@ -368,6 +374,13 @@ function runScan(
 }
 
 export async function main(argv: string[]): Promise<number> {
+  // The gateway is a long-running server with its own flags; keep it out of the
+  // one-shot parser rather than pretending its options belong to the same tool.
+  if (argv[0] === 'gateway') {
+    const { main: runGateway } = await import('./gateway/cli.js');
+    return runGateway(argv.slice(1));
+  }
+
   let parsed: ParsedArgs;
   try {
     parsed = parseArgs(argv);

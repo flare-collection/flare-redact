@@ -1,0 +1,1812 @@
+{
+  "$schema": "./detectors.schema.json",
+  "spec": "FRS-1",
+  "id": "flare-redact/core",
+  "version": "1.5.0",
+  "title": "flare-redact core detector pack",
+  "description": "The portable profile of the flare-redact detector set. Every pattern is written in the FRS-1 regular-expression subset so the JavaScript, Python, Go and Rust engines compile it to the same automaton and produce byte-identical output. See spec/SPEC.md.",
+  "license": "MIT",
+  "confidenceModel": {
+    "version": 1,
+    "features": [
+      "log2Len",
+      "entropy",
+      "fracLower",
+      "fracUpper",
+      "fracDigit",
+      "fracSymbol",
+      "fracHex",
+      "vowelFrac",
+      "classTransitionRate",
+      "hasMixedClasses",
+      "maxRunFrac",
+      "structuredHexId",
+      "ctxSecret",
+      "ctxBenign"
+    ],
+    "weights": [
+      2.712748,
+      3.920866,
+      -5.874776,
+      5.484371,
+      1.346649,
+      -9.662469,
+      -0.058102,
+      8.500786,
+      2.714721,
+      -0.676255,
+      -3.0573,
+      -6.969532,
+      5.6429,
+      -5.446436
+    ],
+    "bias": -29.559382
+  },
+  "detectors": [
+    {
+      "id": "private_key",
+      "label": "Private key",
+      "why": "A PEM private key is a full cryptographic identity — whoever holds it is you.",
+      "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----{{ANY}}*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----",
+      "prefilter": [
+        "-----begin"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED PRIVATE KEY]"
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "aws_access_key",
+      "label": "AWS access key ID",
+      "why": "Pairs with a secret key to control cloud resources and billing.",
+      "pattern": "(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA|ANVA)(?:[ \\t-]?[A-Z0-9]){16}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "normalized_match",
+          "strip": "[ \\t-]",
+          "pattern": "(?:AKIA|ASIA|AGPA|AIDA|AROA|ANPA|ANVA)[A-Z0-9]{16}"
+        }
+      ],
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.99
+    },
+    {
+      "id": "aws_secret_key",
+      "label": "AWS secret access key",
+      "why": "The signing half of an AWS credential pair — full API access.",
+      "pattern": "(?:aws)?_?secret_?(?:access_?)?key[\"' \\t\\n\\x0B\\f\\r]*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?([A-Za-z0-9/+]{40})",
+      "flags": "i",
+      "capture": 1,
+      "boundary": {
+        "after": "base64"
+      },
+      "prefilter": [
+        "secret"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "***"
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92,
+      "priority": 1
+    },
+    {
+      "id": "github_token",
+      "label": "GitHub token",
+      "why": "Grants access to repositories and account actions.",
+      "pattern": "(?:gh[posur]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82})",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "gitlab_token",
+      "label": "GitLab token",
+      "why": "A GitLab personal access token grants API and repo access.",
+      "pattern": "glpat-[A-Za-z0-9_-]{20}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "slack_token",
+      "label": "Slack token",
+      "why": "Lets the holder read and post as your workspace app.",
+      "pattern": "xox[baprs]-[A-Za-z0-9-]{10,64}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "stripe_key",
+      "label": "Stripe secret key",
+      "why": "A live secret or restricted key can move real money.",
+      "pattern": "(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,64}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "_",
+        "count": 2
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "anthropic_key",
+      "label": "Anthropic API key",
+      "why": "Bills against your Anthropic account and reaches your models and data.",
+      "pattern": "sk-ant-[A-Za-z0-9_-]{24,160}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 7
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "openai_key",
+      "label": "OpenAI API key",
+      "why": "Bills against your account and reaches your models and data.",
+      "pattern": "sk-(?:proj-)?[A-Za-z0-9_-]{20,64}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "reject": [
+        "sk-(?:ant|or)-"
+      ],
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "google_api_key",
+      "label": "Google API key",
+      "why": "Grants access to enabled Google Cloud APIs on your project.",
+      "pattern": "AIza[0-9A-Za-z_-]{35}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "sendgrid_key",
+      "label": "SendGrid API key",
+      "why": "Can send mail as your domain and read templates.",
+      "pattern": "SG\\.[A-Za-z0-9_-]{16,32}\\.[A-Za-z0-9_-]{16,64}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "twilio_key",
+      "label": "Twilio SID / key",
+      "why": "Can send messages and place calls billed to your account.",
+      "pattern": "(?:AC|SK)[a-f0-9]{32}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "npm_token",
+      "label": "npm token",
+      "why": "Can publish packages to your npm account.",
+      "pattern": "npm_[A-Za-z0-9]{36}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "jwt",
+      "label": "JSON Web Token",
+      "why": "Often a live session or bearer credential — decode it and you may be signed in.",
+      "pattern": "eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{4,}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "prefilter": [
+        "eyj"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED JWT]"
+      },
+      "default": true,
+      "risk": "high",
+      "confidence": 0.92
+    },
+    {
+      "id": "bearer_token",
+      "label": "Bearer token",
+      "why": "A bearer token in an Authorization header is a live credential.",
+      "pattern": "Bearer[ \\t\\n\\x0B\\f\\r]+[A-Za-z0-9._~+/-]{8,}={0,2}",
+      "boundary": {
+        "before": "word"
+      },
+      "prefilter": [
+        "bearer"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "Bearer ***"
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "basic_auth",
+      "label": "Basic auth header",
+      "why": "Base64 in a Basic header decodes straight back to user:password.",
+      "pattern": "Basic[ \\t\\n\\x0B\\f\\r]+[A-Za-z0-9+/]{8,}={0,2}",
+      "boundary": {
+        "before": "word"
+      },
+      "prefilter": [
+        "basic"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "Basic ***"
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "url_credentials",
+      "label": "Credentials in URL",
+      "why": "A username:password baked into a connection string leaks the password.",
+      "pattern": "[a-zA-Z][a-zA-Z0-9+.-]*://[^:@ \\t\\n\\x0B\\f\\r/]+:[^@ \\t\\n\\x0B\\f\\r/]+@",
+      "boundary": {
+        "before": "word"
+      },
+      "prefilter": [
+        "://"
+      ],
+      "mask": {
+        "type": "replace",
+        "pattern": "([a-zA-Z][a-zA-Z0-9+.-]*://[^:@ \\t\\n\\x0B\\f\\r/]+:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
+        "replacement": "$1***$2"
+      },
+      "default": true,
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "generic_assignment",
+      "label": "Assigned secret",
+      "why": "A value assigned to a sensitive-looking field name (password=…, 密码: …) in any language.",
+      "pattern": "(?:zugangsschlüssel|client_secret|секретныйключ|parola_chiave|mot_de_passe|chavesecreta|gizlianahtar|parolachiave|private_key|credentials|credenziale|access_key|access-key|secret_key|privatekey|credential|auth_token|passphrase|contraseña|contrasena|credencial|كلمةالمرور|motdepasse|clésecrète|schluessel|wachtwoord|kata_sandi|accesskey|motdepass|geheimnis|schlüssel|katasandi|password|كلمةالسر|passwort|kennwort|کلمهعبور|mat_khau|รหัสผ่าน|api_key|api-key|पासवर्ड|secreto|segredo|anahtar|segreto|رمزعبور|گذرواژه|محرمانه|таємний|sleutel|matkhau|rahasia|ความลับ|κωδικός|μυστικό|passwd|secret|apikey|пароль|секрет|geheim|parola|chiave|poufne|κλειδί|parolă|token|गुप्त|कुंजी|clave|مفتاح|senha|chave|токен|パスワード|şifre|sifre|gizli|hasło|haslo|tajne|klucz|bimat|sandi|kunci|סיסמה|şifrə|parol|məxfi|cheie|टोकन|clef|ключ|トークン|暗証番号|비밀번호|کلید|khoa|מפתח|açar|pwd|رمز|سري|clé|合言葉|비밀키|סוד|密码|密碼|秘密|令牌|密钥|私钥|口令|سر|암호|비밀|토큰)[\"' \\t\\n\\x0B\\f\\r]*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?([^ \\t\\n\\x0B\\f\\r\"',;]{4,})[\"']?",
+      "flags": "i",
+      "mask": {
+        "type": "replace",
+        "pattern": "({{ANY}}*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?)[^ \\t\\n\\x0B\\f\\r\"',;]{4,}([\"']?)",
+        "replacement": "$1***$2"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "email",
+      "label": "Email address",
+      "why": "Personal data that usually does not belong in logs.",
+      "pattern": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,24}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "prefilter": [
+        "@"
+      ],
+      "mask": {
+        "type": "replace",
+        "pattern": "({{ANY}}){{ANY}}*",
+        "replacement": "$1***@***"
+      },
+      "default": true,
+      "tags": [
+        "pii"
+      ],
+      "risk": "high",
+      "confidence": 0.92
+    },
+    {
+      "id": "obfuscated_email",
+      "label": "Obfuscated email address",
+      "why": "An email written with explicit “at” and “dot” separators to evade ordinary filters.",
+      "pattern": "[A-Za-z0-9._%+-]{1,64}[ \\t\\n\\x0B\\f\\r]*(?:\\[at\\]|\\(at\\))[ \\t\\n\\x0B\\f\\r]*[A-Za-z0-9-]{1,63}(?:[ \\t\\n\\x0B\\f\\r]*(?:\\[dot\\]|\\(dot\\))[ \\t\\n\\x0B\\f\\r]*[A-Za-z0-9-]{1,63}){1,4}",
+      "flags": "i",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "prefilter": [
+        "[at]",
+        "(at)"
+      ],
+      "mask": {
+        "type": "replace",
+        "pattern": "({{ANY}}){{ANY}}*",
+        "replacement": "$1*** [at] *** [dot] ***"
+      },
+      "default": true,
+      "tags": [
+        "pii",
+        "email",
+        "obfuscated"
+      ],
+      "risk": "high",
+      "confidence": 0.84,
+      "priority": 45
+    },
+    {
+      "id": "credit_card",
+      "label": "Payment card number",
+      "why": "A card number in logs is a PCI-DSS violation.",
+      "pattern": "[0-9](?:[ -]?[0-9]){12,18}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "luhn",
+          "minDigits": 13,
+          "maxDigits": 19
+        }
+      ],
+      "mask": {
+        "type": "keepLast",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "pii",
+        "finance"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "phone",
+      "label": "Phone number",
+      "why": "A phone number is personal data.",
+      "pattern": "(?:\\+[1-9][0-9]{0,2}[ \\t\\n\\x0B\\f\\r.-]?(?:\\([0-9]{1,4}\\)[ \\t\\n\\x0B\\f\\r.-]?)?[0-9]{1,4}(?:[ \\t\\n\\x0B\\f\\r.-]?[0-9]{2,4}){1,4}|\\([0-9]{2,4}\\)[ \\t\\n\\x0B\\f\\r.-]?[0-9]{2,4}(?:[ \\t\\n\\x0B\\f\\r.-][0-9]{2,4}){1,3}|0[0-9]{1,4}(?:[ \\t\\n\\x0B\\f\\r.-][0-9]{2,4}){2,4})",
+      "boundary": {
+        "before": "word",
+        "after": "digit"
+      },
+      "validators": [
+        {
+          "name": "phone"
+        }
+      ],
+      "mask": {
+        "type": "replace",
+        "pattern": "(\\+{{ANY}}{2}|{{ANY}}{2}){{ANY}}*",
+        "replacement": "$1***"
+      },
+      "default": false,
+      "tags": [
+        "pii"
+      ],
+      "risk": "high",
+      "confidence": 0.8,
+      "context": {
+        "positive": "phone|tel|mobile|cell|call|fax|whatsapp|viber|telefon|номер|téléphone|handy",
+        "negative": "date|version|invoice|order|ref",
+        "window": 80
+      }
+    },
+    {
+      "id": "ipv4",
+      "label": "IPv4 address",
+      "why": "Can be personal data or reveal internal infrastructure.",
+      "pattern": "(?:(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "***.***.***.***"
+      },
+      "default": false,
+      "tags": [
+        "network"
+      ],
+      "risk": "medium",
+      "confidence": 0.92
+    },
+    {
+      "id": "ipv6",
+      "label": "IPv6 address",
+      "why": "Can be personal data or reveal internal infrastructure.",
+      "pattern": "(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED IPv6]"
+      },
+      "default": false,
+      "tags": [
+        "network"
+      ],
+      "risk": "medium",
+      "confidence": 0.92
+    },
+    {
+      "id": "mac_address",
+      "label": "MAC address",
+      "why": "A hardware address that can identify a device.",
+      "pattern": "(?:[A-Fa-f0-9]{2}:){5}[A-Fa-f0-9]{2}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "**:**:**:**:**:**"
+      },
+      "default": false,
+      "tags": [
+        "network"
+      ],
+      "risk": "medium",
+      "confidence": 0.92
+    },
+    {
+      "id": "high_entropy",
+      "label": "High-entropy string",
+      "why": "A long random-looking token — likely a key even if its format is unknown.",
+      "pattern": "[A-Za-z0-9+/=_-]{20,80}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "entropy",
+          "min": 3.5
+        }
+      ],
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": false,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.6,
+      "refine": true
+    },
+    {
+      "id": "person_name",
+      "label": "Person name",
+      "why": "A person name appearing after an explicit identity label.",
+      "pattern": "(?:full[ _-]?name|customer[ _-]?name|contact[ _-]?name|name|ad[ıi]|isim|nombre|nom|nome|姓名|الاسم)(?:[ \\t\\n\\x0B\\f\\r]*[:=][ \\t\\n\\x0B\\f\\r]*|[ \\t\\n\\x0B\\f\\r]+is[ \\t\\n\\x0B\\f\\r]+)[\"']?({{L}}(?:{{L}}|['’.-]){1,39}(?:[ \\t\\n\\x0B\\f\\r]+{{L}}(?:{{L}}|['’.-]){1,39}){1,3})",
+      "flags": "i",
+      "capture": 1,
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED PERSON]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "contextual"
+      ],
+      "risk": "high",
+      "confidence": 0.86,
+      "priority": 60
+    },
+    {
+      "id": "street_address",
+      "label": "Street address",
+      "why": "A street address appearing after an explicit address label.",
+      "pattern": "(?:street[ _-]?address|postal[ _-]?address|shipping[ _-]?address|address|ünvan|adres|dirección|adresse|indirizzo|地址|العنوان)[ \\t\\n\\x0B\\f\\r]*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?([0-9]{1,6}[ \\t\\n\\x0B\\f\\r]+(?:{{L}}|[0-9.'’ -]){2,60}[ \\t\\n\\x0B\\f\\r]+(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|küçəsi|küçe|sokak|cadde))",
+      "flags": "i",
+      "capture": 1,
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ADDRESS]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "contextual"
+      ],
+      "risk": "high",
+      "confidence": 0.9,
+      "priority": 65
+    },
+    {
+      "id": "date_of_birth",
+      "label": "Date of birth",
+      "why": "A birth date is a strong quasi-identifier when linked to a person.",
+      "pattern": "(?:date[ _-]?of[ _-]?birth|birth[ _-]?date|dob|doğum[ _-]?tarixi|fecha[ _-]?de[ _-]?nacimiento|date[ _-]?de[ _-]?naissance|出生日期)[ \\t\\n\\x0B\\f\\r]*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?((?:19|20)[0-9]{2}[-/.](?:0?[1-9]|1[0-2])[-/.](?:[12][0-9]|3[01]|0?[1-9])|(?:[12][0-9]|3[01]|0?[1-9])[-/.](?:0?[1-9]|1[0-2])[-/.](?:19|20)[0-9]{2})",
+      "flags": "i",
+      "capture": 1,
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED DOB]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "contextual"
+      ],
+      "risk": "high",
+      "confidence": 0.96,
+      "priority": 70
+    },
+    {
+      "id": "iban",
+      "label": "IBAN",
+      "why": "An international bank account number.",
+      "pattern": "[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "iban"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED IBAN]"
+      },
+      "default": true,
+      "tags": [
+        "pii",
+        "finance"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "tr_tckn",
+      "label": "Turkish national ID (TCKN)",
+      "why": "Turkey T.C. Kimlik No — a national identifier.",
+      "pattern": "[1-9][0-9]{10}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "tckn"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "tr"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "br_cpf",
+      "label": "Brazilian CPF",
+      "why": "Brazil taxpayer registry number — high-value PII.",
+      "pattern": "[0-9]{3}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9]{2}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "cpf"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "br"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "es_dni",
+      "label": "Spanish DNI / NIE",
+      "why": "Spain national identity / foreigner number.",
+      "pattern": "[XYZ]?[0-9]{7,8}[A-Za-z]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "dni"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "es"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "nl_bsn",
+      "label": "Dutch BSN",
+      "why": "Netherlands citizen service number.",
+      "pattern": "[0-9]{9}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "bsn"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "nl"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "pl_pesel",
+      "label": "Polish PESEL",
+      "why": "Poland national identification number.",
+      "pattern": "[0-9]{11}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "pesel"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "pl"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "de_tax_id",
+      "label": "German tax ID (Steuer-IdNr)",
+      "why": "Germany tax identification number.",
+      "pattern": "[0-9]{11}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "de_tax_id"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "de"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "it_codice_fiscale",
+      "label": "Italian Codice Fiscale",
+      "why": "Italy fiscal code — a national identifier.",
+      "pattern": "[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]",
+      "flags": "i",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "codice_fiscale"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "it"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "ca_sin",
+      "label": "Canadian SIN",
+      "why": "Canada social insurance number.",
+      "pattern": "[0-9]{3}[- \\t\\n\\x0B\\f\\r]?[0-9]{3}[- \\t\\n\\x0B\\f\\r]?[0-9]{3}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "luhn",
+          "minDigits": 2
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "ca"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "fr_nir",
+      "label": "French NIR (numéro de sécurité sociale)",
+      "why": "France INSEE social security number.",
+      "pattern": "[12][ \\t\\n\\x0B\\f\\r.]?[0-9]{2}[ \\t\\n\\x0B\\f\\r.]?[0-9]{2}[ \\t\\n\\x0B\\f\\r.]?(?:[0-9]{2}|2[AB])[ \\t\\n\\x0B\\f\\r.]?[0-9]{3}[ \\t\\n\\x0B\\f\\r.]?[0-9]{3}[ \\t\\n\\x0B\\f\\r.]?[0-9]{2}",
+      "flags": "i",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "fr_nir"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "fr"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "in_aadhaar",
+      "label": "Indian Aadhaar number",
+      "why": "India biometric-linked national identifier.",
+      "pattern": "[2-9][0-9]{3}[- \\t\\n\\x0B\\f\\r]?[0-9]{4}[- \\t\\n\\x0B\\f\\r]?[0-9]{4}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "aadhaar"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "in"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "au_tfn",
+      "label": "Australian TFN",
+      "why": "Australia tax file number.",
+      "pattern": "[0-9]{3}[- \\t\\n\\x0B\\f\\r]?[0-9]{3}[- \\t\\n\\x0B\\f\\r]?[0-9]{3}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "tfn"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "au"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "cn_resident_id",
+      "label": "Chinese resident ID",
+      "why": "China resident identity card number.",
+      "pattern": "[1-9][0-9]{5}(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "cn_resident_id"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "cn"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "jp_my_number",
+      "label": "Japanese My Number",
+      "why": "Japan individual number for tax and social security.",
+      "pattern": "[0-9]{4}[- \\t\\n\\x0B\\f\\r]?[0-9]{4}[- \\t\\n\\x0B\\f\\r]?[0-9]{4}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "jp_my_number"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "jp"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "us_ssn",
+      "label": "US Social Security number",
+      "why": "A US national identifier — high-value PII.",
+      "pattern": "[0-9]{3}-[0-9]{2}-[0-9]{4}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "us_ssn"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "us"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "digitalocean_token",
+      "label": "DigitalOcean token",
+      "why": "Controls DigitalOcean infrastructure and billing.",
+      "pattern": "dop_v1_[a-f0-9]{64}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 7
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "sentry_dsn",
+      "label": "Sentry DSN",
+      "why": "A Sentry DSN can be used to send events to your project.",
+      "pattern": "https://[0-9a-zA-Z]{16,}@[A-Za-z0-9_.-]*sentry\\.io/[0-9]+",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "prefilter": [
+        "sentry.io"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED SENTRY DSN]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "new_relic_key",
+      "label": "New Relic key",
+      "why": "Grants access to your New Relic account data.",
+      "pattern": "(?:NRAK-[A-Z0-9]{27}|NRJS-[a-f0-9]{19})",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "discord_bot_token",
+      "label": "Discord bot token",
+      "why": "Full control of a Discord bot account.",
+      "pattern": "[MNO][A-Za-z0-9_-]{23}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27,}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED DISCORD TOKEN]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "telegram_bot_token",
+      "label": "Telegram bot token",
+      "why": "Full control of a Telegram bot.",
+      "pattern": "[0-9]{8,10}:[A-Za-z0-9_-]{34,46}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED TELEGRAM TOKEN]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "shopify_token",
+      "label": "Shopify token",
+      "why": "Access to a Shopify store and its data.",
+      "pattern": "shp(?:at|ca|pa|ss)_[a-fA-F0-9]{32}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "square_token",
+      "label": "Square token",
+      "why": "Can move money through a Square account.",
+      "pattern": "(?:sq0[a-z]{3}-[A-Za-z0-9_-]{22,43}|EAAA[A-Za-z0-9_-]{60})",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "azure_storage_key",
+      "label": "Azure storage key",
+      "why": "A storage account key grants full access to the account.",
+      "pattern": "AccountKey=[A-Za-z0-9+/]{86}==",
+      "boundary": {
+        "before": "word"
+      },
+      "prefilter": [
+        "accountkey="
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "AccountKey=***"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "discord_webhook",
+      "label": "Discord webhook URL",
+      "why": "Anyone with the URL can post messages to the channel.",
+      "pattern": "https://(?:[A-Za-z0-9_]+\\.)?discord(?:app)?\\.com/api/webhooks/[0-9]{17,20}/[A-Za-z0-9_-]{60,}",
+      "boundary": {
+        "before": "word"
+      },
+      "prefilter": [
+        "/api/webhooks/"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED DISCORD WEBHOOK]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "huggingface_token",
+      "label": "Hugging Face token",
+      "why": "Grants access to private models, datasets, and inference.",
+      "pattern": "hf_[A-Za-z0-9]{30,45}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "vault_token",
+      "label": "HashiCorp Vault token",
+      "why": "A Vault token unlocks every secret it is entitled to read.",
+      "pattern": "hv[sbr]\\.[A-Za-z0-9_-]{20,200}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "groq_key",
+      "label": "Groq API key",
+      "why": "Bills inference against your Groq account.",
+      "pattern": "gsk_[A-Za-z0-9]{40,60}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "xai_key",
+      "label": "xAI API key",
+      "why": "Bills inference against your xAI account.",
+      "pattern": "xai-[A-Za-z0-9]{40,120}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "perplexity_key",
+      "label": "Perplexity API key",
+      "why": "Bills inference against your Perplexity account.",
+      "pattern": "pplx-[A-Za-z0-9]{40,60}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "openrouter_key",
+      "label": "OpenRouter API key",
+      "why": "Bills requests to every model behind your OpenRouter account.",
+      "pattern": "sk-or-v1-[a-f0-9]{64}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 9
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "replicate_token",
+      "label": "Replicate token",
+      "why": "Runs and bills model predictions on your account.",
+      "pattern": "r8_[A-Za-z0-9]{30,45}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "databricks_token",
+      "label": "Databricks token",
+      "why": "Access to workspaces, jobs, and data in Databricks.",
+      "pattern": "dapi[a-f0-9]{32}(?:-[0-9])?",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "airtable_pat",
+      "label": "Airtable personal access token",
+      "why": "Reads and writes the bases the token is scoped to.",
+      "pattern": "pat[A-Za-z0-9]{14}\\.[a-f0-9]{64}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "postman_key",
+      "label": "Postman API key",
+      "why": "Access to workspaces, collections, and stored environments.",
+      "pattern": "PMAK-[a-f0-9]{24}-[a-f0-9]{34}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "linear_key",
+      "label": "Linear API key",
+      "why": "Reads and writes issues and projects in your workspace.",
+      "pattern": "lin_api_[A-Za-z0-9]{40,48}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 8
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "figma_token",
+      "label": "Figma token",
+      "why": "Access to design files and team resources.",
+      "pattern": "figd_[A-Za-z0-9_-]{40,50}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "notion_token",
+      "label": "Notion token",
+      "why": "Reads and writes every page the integration can reach.",
+      "pattern": "(?:ntn_[A-Za-z0-9]{40,50}|secret_[A-Za-z0-9]{43})",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "doppler_token",
+      "label": "Doppler token",
+      "why": "Reads the secrets of the configs it is scoped to.",
+      "pattern": "dp\\.(?:ct|pt|st)\\.(?:[a-z0-9_-]{2,35}\\.)?[A-Za-z0-9]{40,44}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "supabase_key",
+      "label": "Supabase key",
+      "why": "Access to your Supabase project and its database.",
+      "pattern": "sbp_[a-f0-9]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "netlify_token",
+      "label": "Netlify token",
+      "why": "Deploys and manages sites on your Netlify account.",
+      "pattern": "nfp_[A-Za-z0-9]{36,60}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "stripe_webhook_secret",
+      "label": "Stripe webhook secret",
+      "why": "Lets an attacker forge signed Stripe webhook events.",
+      "pattern": "whsec_[A-Za-z0-9]{32,64}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "gcp_service_account",
+      "label": "GCP service account key",
+      "why": "A service-account key file authenticates as the service account.",
+      "pattern": "\"private_key_id\"[ \\t\\n\\x0B\\f\\r]*:[ \\t\\n\\x0B\\f\\r]*\"([a-f0-9]{40})\"",
+      "capture": 1,
+      "prefilter": [
+        "private_key_id"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "***"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "gcp_refresh_token",
+      "label": "GCP OAuth refresh token",
+      "why": "Mints fresh Google Cloud access tokens indefinitely.",
+      "pattern": "1//[A-Za-z0-9_-]{20,160}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "prefilter": [
+        "1//"
+      ],
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "mailgun_key",
+      "label": "Mailgun API key",
+      "why": "Can send mail as your domain and read stored messages.",
+      "pattern": "key-[a-f0-9]{32}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "eth_address",
+      "label": "Ethereum address",
+      "why": "A wallet address — can identify a person and their holdings.",
+      "pattern": "0x[a-fA-F0-9]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": false,
+      "tags": [
+        "crypto"
+      ],
+      "risk": "high",
+      "confidence": 0.92
+    },
+    {
+      "id": "btc_address",
+      "label": "Bitcoin address",
+      "why": "A wallet address — can identify a person and their holdings.",
+      "pattern": "(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": false,
+      "tags": [
+        "crypto"
+      ],
+      "risk": "high",
+      "confidence": 0.92
+    },
+    {
+      "id": "aba_routing",
+      "label": "US bank routing number",
+      "why": "An ABA routing number identifies a US bank account.",
+      "pattern": "[0-9]{9}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "aba"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ROUTING]"
+      },
+      "default": false,
+      "tags": [
+        "finance",
+        "us"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "swift_bic",
+      "label": "SWIFT / BIC code",
+      "why": "Identifies a bank for international transfers.",
+      "pattern": "[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": false,
+      "tags": [
+        "finance"
+      ],
+      "risk": "high",
+      "confidence": 0.92
+    },
+    {
+      "id": "uk_nhs",
+      "label": "UK NHS number",
+      "why": "A UK National Health Service number — health PII.",
+      "pattern": "[0-9]{3}[ -]?[0-9]{3}[ -]?[0-9]{4}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "nhs"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "gb"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "vin",
+      "label": "Vehicle VIN",
+      "why": "A vehicle identification number can identify an owner.",
+      "pattern": "[A-HJ-NPR-Z0-9]{17}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "vin"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED VIN]"
+      },
+      "default": false,
+      "tags": [
+        "vehicle"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "coordinates",
+      "label": "Geographic coordinates",
+      "why": "Precise lat/long can reveal a person’s location.",
+      "pattern": "-?[0-9]{1,3}\\.[0-9]{4,},[ \\t\\n\\x0B\\f\\r]?-?[0-9]{1,3}\\.[0-9]{4,}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED COORDS]"
+      },
+      "default": false,
+      "tags": [
+        "network"
+      ],
+      "risk": "medium",
+      "confidence": 0.92
+    },
+    {
+      "id": "internal_url",
+      "label": "Internal URL",
+      "why": "Localhost and private-range URLs expose internal infrastructure.",
+      "pattern": "https?://(?:localhost|127\\.0\\.0\\.1|(?:10|192\\.168|172\\.(?:1[6-9]|2[0-9]|3[01]))\\.[0-9.]+)(?::[0-9]+)?[^ \\t\\n\\x0B\\f\\r]*",
+      "boundary": {
+        "before": "word"
+      },
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED INTERNAL URL]"
+      },
+      "default": false,
+      "tags": [
+        "network"
+      ],
+      "risk": "medium",
+      "confidence": 0.92
+    }
+  ]
+}

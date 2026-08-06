@@ -1,0 +1,1683 @@
+{
+  "allow/exact-value": {
+    "findings": [
+      {
+        "column": 25,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 39,
+        "line": 1,
+        "risk": "high",
+        "start": 24
+      }
+    ],
+    "redact": "support@example.com and a***@***"
+  },
+  "anthropic/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "anthropic_key",
+        "end": 43,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "sk-ant-***"
+  },
+  "assignment/azerbaijani": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 23,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "şifrə = ***"
+  },
+  "assignment/chinese": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 17,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "密码: ***"
+  },
+  "assignment/english": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 19,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "password=***"
+  },
+  "assignment/quoted": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 31,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "client_secret: \"***\""
+  },
+  "assignment/russian": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 22,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "пароль: ***"
+  },
+  "assignment/too-short": {
+    "findings": [],
+    "redact": "pwd=abc"
+  },
+  "assignment/turkish": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 25,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "parola=***"
+  },
+  "aws/access-key": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.99,
+        "detector": "aws_access_key",
+        "end": 28,
+        "line": 1,
+        "risk": "critical",
+        "start": 8
+      }
+    ],
+    "redact": "AWS key AKIA*** in the config"
+  },
+  "aws/access-key-negative": {
+    "findings": [],
+    "redact": "AKIAIOSFODNN7EXAMPL is one character short"
+  },
+  "aws/access-key-spaced": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "aws_access_key",
+        "end": 25,
+        "line": 1,
+        "risk": "critical",
+        "start": 4
+      }
+    ],
+    "redact": "key AKIA*** pasted from the console"
+  },
+  "aws/secret-key": {
+    "findings": [
+      {
+        "column": 25,
+        "confidence": 0.92,
+        "detector": "aws_secret_key",
+        "end": 64,
+        "line": 1,
+        "risk": "critical",
+        "start": 24
+      }
+    ],
+    "redact": "aws_secret_access_key = ***"
+  },
+  "azure/storage-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "azure_storage_key",
+        "end": 99,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "AccountKey=***"
+  },
+  "basic/header": {
+    "findings": [
+      {
+        "column": 16,
+        "confidence": 0.92,
+        "detector": "basic_auth",
+        "end": 41,
+        "line": 1,
+        "risk": "critical",
+        "start": 15
+      }
+    ],
+    "redact": "Authorization: Basic ***"
+  },
+  "bearer/header": {
+    "findings": [
+      {
+        "column": 16,
+        "confidence": 0.92,
+        "detector": "bearer_token",
+        "end": 46,
+        "line": 1,
+        "risk": "critical",
+        "start": 15
+      }
+    ],
+    "redact": "Authorization: Bearer ***"
+  },
+  "card/negative-luhn": {
+    "findings": [],
+    "redact": "card 4111 1111 1111 1112 declined"
+  },
+  "card/visa": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "credit_card",
+        "end": 24,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "card **** **** **** 1111 charged"
+  },
+  "clean/numbers": {
+    "findings": [],
+    "redact": "order 12345 shipped on 2026-08-05 for 42.50 EUR"
+  },
+  "clean/plain-prose": {
+    "findings": [],
+    "redact": "the quick brown fox jumps over the lazy dog"
+  },
+  "clean/uuid": {
+    "findings": [],
+    "redact": "request 9f8b7a6c-5d4e-3f2a-1b0c-9d8e7f6a5b4c completed"
+  },
+  "contextual/date-of-birth": {
+    "findings": [
+      {
+        "column": 16,
+        "confidence": 0.96,
+        "detector": "date_of_birth",
+        "end": 25,
+        "line": 1,
+        "risk": "high",
+        "start": 15
+      }
+    ],
+    "redact": "date of birth: [REDACTED DOB]"
+  },
+  "contextual/person-name": {
+    "findings": [
+      {
+        "column": 12,
+        "confidence": 0.86,
+        "detector": "person_name",
+        "end": 23,
+        "line": 1,
+        "risk": "high",
+        "start": 11
+      }
+    ],
+    "redact": "full name: [REDACTED PERSON]"
+  },
+  "contextual/person-name-is": {
+    "findings": [
+      {
+        "column": 18,
+        "confidence": 0.86,
+        "detector": "person_name",
+        "end": 29,
+        "line": 1,
+        "risk": "high",
+        "start": 17
+      }
+    ],
+    "redact": "customer name is [REDACTED PERSON]"
+  },
+  "contextual/street-address": {
+    "findings": [
+      {
+        "column": 10,
+        "confidence": 0.9,
+        "detector": "street_address",
+        "end": 25,
+        "line": 1,
+        "risk": "high",
+        "start": 9
+      }
+    ],
+    "redact": "address: [REDACTED ADDRESS]"
+  },
+  "crypto/btc-address": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "btc_address",
+        "end": 42,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "send to 1A1z***"
+  },
+  "crypto/eth-address": {
+    "findings": [
+      {
+        "column": 8,
+        "confidence": 0.92,
+        "detector": "eth_address",
+        "end": 49,
+        "line": 1,
+        "risk": "high",
+        "start": 7
+      }
+    ],
+    "redact": "wallet 0x5290***"
+  },
+  "discord/webhook": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "discord_webhook",
+        "end": 116,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED DISCORD WEBHOOK]"
+  },
+  "doppler/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "doppler_token",
+        "end": 50,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "dp.st.***"
+  },
+  "email/basic": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 23,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "contact a***@*** for access"
+  },
+  "email/in-object": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "path": "user.email",
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": {
+      "user": {
+        "email": "a***@***",
+        "label": "primary"
+      }
+    }
+  },
+  "email/multiple": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 18,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 34,
+        "line": 1,
+        "risk": "high",
+        "start": 17
+      },
+      {
+        "column": 40,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 61,
+        "line": 1,
+        "risk": "high",
+        "start": 39
+      }
+    ],
+    "redact": "a***@***, g***@*** and a***@***"
+  },
+  "email/negative-at-only": {
+    "findings": [],
+    "redact": "meet me @ noon"
+  },
+  "entropy/enabled": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.6,
+        "detector": "high_entropy",
+        "end": 34,
+        "line": 1,
+        "risk": "critical",
+        "start": 6
+      }
+    ],
+    "redact": "value Zm9v*** stored"
+  },
+  "entropy/refined-secret": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.799992,
+        "detector": "high_entropy",
+        "end": 40,
+        "line": 1,
+        "risk": "critical",
+        "start": 8
+      }
+    ],
+    "redact": "api_key GkL3***"
+  },
+  "entropy/refined-uuid": {
+    "findings": [],
+    "redact": "commit 9f8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f00"
+  },
+  "evasion/zero-width-assignment": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 21,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "p​asswo​rd=***"
+  },
+  "evasion/zero-width-email": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 21,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "mail a***@*** now"
+  },
+  "gcp/refresh-token": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "gcp_refresh_token",
+        "end": 42,
+        "line": 1,
+        "risk": "critical",
+        "start": 8
+      }
+    ],
+    "redact": "refresh 1//0***"
+  },
+  "gcp/service-account": {
+    "findings": [
+      {
+        "column": 45,
+        "confidence": 0.92,
+        "detector": "gcp_service_account",
+        "end": 84,
+        "line": 1,
+        "risk": "critical",
+        "start": 44
+      }
+    ],
+    "redact": "{\"type\":\"service_account\",\"private_key_id\":\"***\"}"
+  },
+  "github/classic-token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "github_token",
+        "end": 40,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "ghp_***"
+  },
+  "github/fine-grained": {
+    "findings": [],
+    "redact": "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789ab"
+  },
+  "gitlab/token": {
+    "findings": [
+      {
+        "column": 10,
+        "confidence": 0.92,
+        "detector": "gitlab_token",
+        "end": 35,
+        "line": 1,
+        "risk": "critical",
+        "start": 9
+      }
+    ],
+    "redact": "CI_TOKEN glpat-*** here"
+  },
+  "google/api-key": {
+    "findings": [],
+    "redact": "AIzaSyA0123456789abcdefghijklmnopqrstuvw"
+  },
+  "huggingface/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "huggingface_token",
+        "end": 39,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "hf_***"
+  },
+  "iban/de": {
+    "findings": [
+      {
+        "column": 13,
+        "confidence": 0.99,
+        "detector": "iban",
+        "end": 34,
+        "line": 1,
+        "risk": "high",
+        "start": 12
+      }
+    ],
+    "redact": "transfer to [REDACTED IBAN] today"
+  },
+  "iban/gb": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "iban",
+        "end": 27,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "IBAN [REDACTED IBAN]"
+  },
+  "iban/negative": {
+    "findings": [],
+    "redact": "code DE89370400440532013001 is not an IBAN"
+  },
+  "id/aba-routing": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.99,
+        "detector": "aba_routing",
+        "end": 17,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "routing [REDACTED ROUTING]"
+  },
+  "id/au-tfn": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "au_tfn",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "TFN [REDACTED ID]"
+  },
+  "id/br-cpf": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "br_cpf",
+        "end": 18,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "CPF [REDACTED ID]"
+  },
+  "id/ca-sin": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "ca_sin",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "SIN [REDACTED ID]"
+  },
+  "id/cn-resident": {
+    "findings": [
+      {
+        "column": 4,
+        "confidence": 0.99,
+        "detector": "cn_resident_id",
+        "end": 21,
+        "line": 1,
+        "risk": "high",
+        "start": 3
+      }
+    ],
+    "redact": "ID [REDACTED ID]"
+  },
+  "id/de-tax": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "de_tax_id",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "IdNr [REDACTED ID]"
+  },
+  "id/es-dni": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "es_dni",
+        "end": 13,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "DNI [REDACTED ID]"
+  },
+  "id/fr-nir": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "fr_nir",
+        "end": 25,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "NIR [REDACTED ID]"
+  },
+  "id/in-aadhaar": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.99,
+        "detector": "in_aadhaar",
+        "end": 22,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "Aadhaar [REDACTED ID]"
+  },
+  "id/it-codice-fiscale": {
+    "findings": [
+      {
+        "column": 4,
+        "confidence": 0.99,
+        "detector": "it_codice_fiscale",
+        "end": 19,
+        "line": 1,
+        "risk": "high",
+        "start": 3
+      }
+    ],
+    "redact": "CF [REDACTED ID]"
+  },
+  "id/jp-my-number": {
+    "findings": [
+      {
+        "column": 11,
+        "confidence": 0.99,
+        "detector": "jp_my_number",
+        "end": 24,
+        "line": 1,
+        "risk": "high",
+        "start": 10
+      }
+    ],
+    "redact": "My Number [REDACTED ID]"
+  },
+  "id/negative-random-digits": {
+    "findings": [],
+    "redact": "sequence 123456789012 means nothing"
+  },
+  "id/nl-bsn": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "nl_bsn",
+        "end": 13,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "BSN [REDACTED ID]"
+  },
+  "id/pl-pesel": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.99,
+        "detector": "pl_pesel",
+        "end": 17,
+        "line": 1,
+        "risk": "high",
+        "start": 6
+      }
+    ],
+    "redact": "PESEL [REDACTED ID]"
+  },
+  "id/tr-tckn": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "tr_tckn",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "TCKN [REDACTED ID]"
+  },
+  "id/uk-nhs": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "uk_nhs",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "NHS [REDACTED ID]"
+  },
+  "id/us-ssn": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "us_ssn",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "SSN [REDACTED ID] on file"
+  },
+  "id/vin": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "vin",
+        "end": 21,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "VIN [REDACTED VIN]"
+  },
+  "include-values/scan": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0,
+        "value": "ada@example.com"
+      }
+    ]
+  },
+  "jwt/basic": {
+    "findings": [
+      {
+        "column": 15,
+        "confidence": 0.92,
+        "detector": "jwt",
+        "end": 106,
+        "line": 1,
+        "risk": "high",
+        "start": 14
+      }
+    ],
+    "redact": "Authorization [REDACTED JWT]"
+  },
+  "keys/disabled": {
+    "findings": [],
+    "redact": {
+      "password": "hunter2"
+    }
+  },
+  "keys/multilingual-object": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "wachtwoord",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "şifrə",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "密码",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "wachtwoord": "***",
+      "şifrə": "***",
+      "密码": "***"
+    }
+  },
+  "keys/nested-structure": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "db.token",
+        "risk": "critical"
+      },
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 15,
+        "line": 1,
+        "path": "db.url",
+        "risk": "critical",
+        "start": 0
+      },
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "path": "list[0]",
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": {
+      "db": {
+        "token": "***",
+        "url": "postgres://u:***@h/d"
+      },
+      "list": [
+        "a***@***",
+        42,
+        true,
+        null
+      ]
+    }
+  },
+  "keys/sensitive-object": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "apiKey",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "password",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "apiKey": "***",
+      "note": "safe",
+      "password": "***"
+    }
+  },
+  "mode/hash": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "email_9bed5770e051929f198b3c7b13bc88f4"
+  },
+  "mode/label": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED:email]"
+  },
+  "mode/mask-string": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 21,
+        "confidence": 0.99,
+        "detector": "aws_access_key",
+        "end": 40,
+        "line": 1,
+        "risk": "critical",
+        "start": 20
+      }
+    ],
+    "redact": "<hidden> and <hidden>"
+  },
+  "mode/pseudonym": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "fev@llgtztd.yui"
+  },
+  "mode/surrogate-card": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.99,
+        "detector": "credit_card",
+        "end": 19,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "2114 1419 8743 2789"
+  },
+  "mode/surrogate-email": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "user_733e3c0a3767@example.invalid"
+  },
+  "network/coordinates": {
+    "findings": [
+      {
+        "column": 14,
+        "confidence": 0.92,
+        "detector": "coordinates",
+        "end": 29,
+        "line": 1,
+        "risk": "medium",
+        "start": 13
+      }
+    ],
+    "redact": "last seen at [REDACTED COORDS] yesterday"
+  },
+  "network/internal-url": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.92,
+        "detector": "internal_url",
+        "end": 33,
+        "line": 1,
+        "risk": "medium",
+        "start": 4
+      }
+    ],
+    "redact": "see [REDACTED INTERNAL URL] for logs"
+  },
+  "network/ipv4": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.92,
+        "detector": "ipv4",
+        "end": 17,
+        "line": 1,
+        "risk": "medium",
+        "start": 5
+      }
+    ],
+    "redact": "peer ***.***.***.*** connected"
+  },
+  "network/ipv6": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.92,
+        "detector": "ipv6",
+        "end": 44,
+        "line": 1,
+        "risk": "medium",
+        "start": 5
+      }
+    ],
+    "redact": "peer [REDACTED IPv6]"
+  },
+  "network/mac": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.92,
+        "detector": "mac_address",
+        "end": 21,
+        "line": 1,
+        "risk": "medium",
+        "start": 4
+      }
+    ],
+    "redact": "nic **:**:**:**:**:**"
+  },
+  "npm/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "npm_token",
+        "end": 40,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "npm_***"
+  },
+  "obfuscated-email/brackets": {
+    "findings": [
+      {
+        "column": 13,
+        "confidence": 0.84,
+        "detector": "obfuscated_email",
+        "end": 38,
+        "line": 1,
+        "risk": "high",
+        "start": 12
+      }
+    ],
+    "redact": "reach me at a*** [at] *** [dot] ***"
+  },
+  "obfuscated-email/parens": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.84,
+        "detector": "obfuscated_email",
+        "end": 28,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "g*** [at] *** [dot] ***"
+  },
+  "openai/does-not-eat-anthropic": {
+    "findings": [],
+    "redact": "sk-ant-api03-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+  },
+  "openai/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "openai_key",
+        "end": 40,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "sk-***"
+  },
+  "openrouter/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "openrouter_key",
+        "end": 73,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "sk-or-v1-***"
+  },
+  "overlap/email-inside-url-credentials": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 23,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "https://a***@***:pw@host/path"
+  },
+  "overlap/entropy-versus-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.99,
+        "detector": "aws_access_key",
+        "end": 20,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "AKIA***"
+  },
+  "overlap/token-inside-assignment": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 48,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "api_key=***"
+  },
+  "phone/e164": {
+    "findings": [
+      {
+        "column": 12,
+        "confidence": 0.86,
+        "detector": "phone",
+        "end": 28,
+        "line": 1,
+        "risk": "high",
+        "start": 11
+      }
+    ],
+    "redact": "call me on +90*** tomorrow"
+  },
+  "phone/negative-date": {
+    "findings": [],
+    "redact": "released on 07.24.2026 exactly"
+  },
+  "phone/parenthesised": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.86,
+        "detector": "phone",
+        "end": 20,
+        "line": 1,
+        "risk": "high",
+        "start": 6
+      }
+    ],
+    "redact": "phone (5***"
+  },
+  "postman/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "postman_key",
+        "end": 64,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "PMAK-***"
+  },
+  "private-key/pem": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "private_key",
+        "end": 126,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED PRIVATE KEY]"
+  },
+  "selection/disable-email": {
+    "findings": [
+      {
+        "column": 17,
+        "confidence": 0.99,
+        "detector": "aws_access_key",
+        "end": 36,
+        "line": 1,
+        "risk": "critical",
+        "start": 16
+      }
+    ],
+    "redact": "ada@example.com AKIA***"
+  },
+  "selection/min-confidence": {
+    "findings": [],
+    "redact": "call +90 532 123 45 67"
+  },
+  "selection/only-email": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "a***@*** AKIAIOSFODNN7EXAMPLE"
+  },
+  "selection/only-tag": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": "a***@*** AKIAIOSFODNN7EXAMPLE"
+  },
+  "sendgrid/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "sendgrid_key",
+        "end": 58,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "SG.***"
+  },
+  "sentry/dsn": {
+    "findings": [
+      {
+        "column": 12,
+        "confidence": 0.92,
+        "detector": "sentry_dsn",
+        "end": 77,
+        "line": 1,
+        "risk": "critical",
+        "start": 11
+      }
+    ],
+    "redact": "SENTRY_DSN=[REDACTED SENTRY DSN]"
+  },
+  "slack/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "slack_token",
+        "end": 32,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "xoxb-***"
+  },
+  "stripe/live-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "stripe_key",
+        "end": 32,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "sk_live_***"
+  },
+  "stripe/webhook-secret": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "stripe_webhook_secret",
+        "end": 38,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "whsec_***"
+  },
+  "structure/array-of-records": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "path": "[0].email",
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 17,
+        "line": 1,
+        "path": "[1].email",
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": [
+      {
+        "email": "a***@***",
+        "id": 1
+      },
+      {
+        "email": "g***@***",
+        "id": 2
+      }
+    ]
+  },
+  "structure/multiline-text": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 28,
+        "line": 2,
+        "risk": "critical",
+        "start": 9
+      },
+      {
+        "column": 12,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 55,
+        "line": 3,
+        "risk": "high",
+        "start": 40
+      }
+    ],
+    "redact": "line one\npassword=***\nline three a***@***"
+  },
+  "structure/scalars-preserved": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 15,
+        "line": 1,
+        "path": "text",
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": {
+      "count": 7,
+      "missing": null,
+      "ok": true,
+      "ratio": 0.5,
+      "text": "a***@***"
+    }
+  },
+  "telegram/bot-token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "telegram_bot_token",
+        "end": 46,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED TELEGRAM TOKEN]"
+  },
+  "terms/case-sensitive": {
+    "findings": [
+      {
+        "column": 14,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 21,
+        "line": 1,
+        "risk": "high",
+        "start": 13
+      }
+    ],
+    "redact": "bluebird and ***"
+  },
+  "terms/plain": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "project *** ships in Q3"
+  },
+  "terms/replacement": {
+    "findings": [
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "project [PROJECT] ships in Q3"
+  },
+  "terms/word-boundary": {
+    "findings": [
+      {
+        "column": 19,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 26,
+        "line": 1,
+        "risk": "high",
+        "start": 18
+      }
+    ],
+    "redact": "Bluebirds are not ***"
+  },
+  "twilio/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "twilio_key",
+        "end": 34,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "ACde***"
+  },
+  "url/credentials": {
+    "findings": [
+      {
+        "column": 14,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 40,
+        "line": 1,
+        "risk": "critical",
+        "start": 13
+      }
+    ],
+    "redact": "DATABASE_URL=postgres://app:***@db.internal:5432/main"
+  },
+  "vault/array-order": {
+    "vault": {
+      "entries": [
+        [
+          "[EMAIL_1]",
+          "ada@example.com"
+        ],
+        [
+          "[EMAIL_2]",
+          "grace@example.org"
+        ]
+      ],
+      "redacted": [
+        "[EMAIL_1]",
+        "[EMAIL_2]",
+        "[EMAIL_1]"
+      ],
+      "restored": [
+        "ada@example.com",
+        "grace@example.org",
+        "ada@example.com"
+      ]
+    }
+  },
+  "vault/hashicorp-token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "vault_token",
+        "end": 46,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "hvs.***"
+  },
+  "vault/round-trip": {
+    "vault": {
+      "entries": [
+        [
+          "[EMAIL_1]",
+          "ada@example.com"
+        ],
+        [
+          "[EMAIL_2]",
+          "grace@example.org"
+        ]
+      ],
+      "redacted": "email [EMAIL_1] and [EMAIL_2]",
+      "restored": "email ada@example.com and grace@example.org"
+    }
+  },
+  "vault/stable-placeholder": {
+    "vault": {
+      "entries": [
+        [
+          "[EMAIL_1]",
+          "ada@example.com"
+        ]
+      ],
+      "redacted": "[EMAIL_1] then [EMAIL_1] again",
+      "restored": "ada@example.com then ada@example.com again"
+    }
+  },
+  "vault/structured": {
+    "vault": {
+      "entries": [
+        [
+          "[EMAIL_1]",
+          "grace@example.org"
+        ],
+        [
+          "[SENSITIVE_KEY_1]",
+          "hunter2"
+        ],
+        [
+          "[EMAIL_2]",
+          "ada@example.com"
+        ]
+      ],
+      "redacted": {
+        "cc": [
+          "[EMAIL_1]"
+        ],
+        "password": "[SENSITIVE_KEY_1]",
+        "to": "[EMAIL_2]"
+      },
+      "restored": {
+        "cc": [
+          "grace@example.org"
+        ],
+        "password": "hunter2",
+        "to": "ada@example.com"
+      }
+    }
+  }
+}

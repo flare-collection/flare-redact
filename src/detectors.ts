@@ -37,6 +37,23 @@ export interface Detector {
   refine?: boolean;
   /** Cheap literal gate evaluated before the regular expression. */
   prefilter?: string[];
+  /**
+   * Characters the neighbours of the matched span may not be. This is the
+   * portable form of `\b` and of a trailing negative lookahead: it works
+   * identically in engines without lookaround (Go's RE2, Rust's regex), which is
+   * what lets one detector pack drive every language. See `spec/SPEC.md` §3.1.
+   */
+  boundary?: {
+    /** The character before the match must not be in this set. */
+    before?: ReadonlySet<string>;
+    /** The character after the match must not be in this set. */
+    after?: ReadonlySet<string>;
+  };
+  /**
+   * Discard the candidate when one of these matches the matched value. Compile
+   * them anchored (`/^…/`) for the prefix semantics FRS-1 specifies.
+   */
+  reject?: RegExp[];
 }
 
 export function keepPrefix(n: number) {
