@@ -1,6 +1,6 @@
 {
   "name": "flare-redact",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Zero-dependency secret and PII redaction for any SDK, logs, HTTP, LLM prompts, and MCP tools — with a Docker sidecar gateway and Python, Go and Rust SDKs.",
   "type": "module",
   "sideEffects": false,
@@ -196,8 +196,5 @@
     "doc": "docs",
     "example": "examples",
     "test": "test"
-  },
-  "dependencies": {
-    "undici-types": "^6.21.0"
   }
 }

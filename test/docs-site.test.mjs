@@ -99,6 +99,6 @@ test('sitemap contains each canonical search page exactly once', async () => {
 
 test('the playground identifies the current release', async () => {
   const html = await readFile(path.join(docsDir, 'index.html'), 'utf8');
-  assert.match(html, /v1\.4\.1 · runs entirely in your browser/);
-  assert.doesNotMatch(html, /v1\.2\.0/);
+  assert.match(html, /v1\.5\.1 · runs entirely in your browser/);
+  assert.doesNotMatch(html, /v1\.4\.1/);
 });

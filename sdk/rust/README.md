@@ -8,9 +8,11 @@ engines, so a policy written once behaves identically in every service you own.
 The [shared conformance corpus](../../spec/conformance/) runs in `cargo test`, so
 "identically" is a test rather than a claim.
 
+Not on crates.io yet — it builds from this repository:
+
 ```toml
 [dependencies]
-flare-redact = "1.5"
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.5.1" }
 ```
 
 ```rust

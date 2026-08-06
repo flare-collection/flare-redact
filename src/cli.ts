@@ -15,6 +15,7 @@ import {
   type Finding,
 } from './index.js';
 import { redactCsv } from './csv.js';
+import { HELP, renderHelp } from './help.js';
 
 const VERSION: string = (() => {
   try {
@@ -26,71 +27,6 @@ const VERSION: string = (() => {
 })();
 type ScanFormat = 'pretty' | 'json' | 'sarif';
 
-const HELP = `flare-redact — hide secrets & PII before they hit a log
-
-USAGE
-  flare-redact [options] [files...]        stdin if no files
-  flare-redact gateway [options]           run the redaction sidecar proxy
-
-OPTIONS
-  --scan            list what would be redacted, and why (input unchanged)
-  --format <f>      scan output: pretty | json | sarif (default: pretty)
-  --sarif           shorthand for --scan --format sarif
-  --summary         print a count of findings per detector
-  --json            parse input as JSON and redact recursively
-  --csv             parse input as CSV and redact every cell
-  --mode <m>        mask | label | hash | pseudonym | surrogate
-                    (fpe is a deprecated alias for pseudonym)
-  --secret-env <n>  read the transform key from env var <n>
-                    (default: FLARE_REDACT_SECRET)
-  --hash-salt <s>   deprecated; prefer --secret-env
-  --min-confidence <n>
-                    drop findings below this confidence (0-1)
-  --refine-confidence
-                    use the learned classifier to refine confidence for
-                    generic detectors (fewer false positives on UUIDs,
-                    hashes, and slugs); pairs with --min-confidence
-  --include-values  include raw matched values in --scan output
-                    (unsafe for logs and reports)
-  --only <ids>      use only these detectors (comma-separated)
-  --enable <ids>    turn on extra detectors (e.g. ipv4,high_entropy)
-  --disable <ids>   turn off detectors (e.g. email)
-  --mask <str>      replace every secret with this string
-  --allow <vals>    never redact these exact values (comma-separated)
-  --exclude <glob>  skip matching paths during directory scans (repeatable)
-  --max-file-size <size>
-                    largest directory-discovered file to scan (default: 1mb)
-                    accepts bytes or kb/mb/gb suffixes
-  --no-default-excludes
-                    also walk .git, .hg, .svn, node_modules, and vendor
-  --term <word>     also catch this exact word/phrase (repeatable)
-  --terms <file>    also catch every word/phrase in this file (one per line)
-  --vault <file>    reversible: write an AES-GCM encrypted map to <file>
-  --restore <file>  restore using an encrypted map written by --vault
-  --vault-password-env <n>
-                    vault password env var (default: FLARE_REDACT_VAULT_PASSWORD)
-  --allow-plaintext-vault
-                    explicitly allow reading a legacy plaintext vault
-  --list            show all detectors and exit
-  -h, --help        show this help
-  -v, --version     show version
-
-SUBCOMMANDS
-  gateway           run a reverse proxy that redacts request bodies and
-                    restores the originals in the reply — no code changes
-                    in the calling application. See: flare-redact gateway --help
-
-EXAMPLES
-  tail -f app.log | flare-redact
-  flare-redact --scan config.env
-  flare-redact --scan .
-  flare-redact --scan . --exclude 'fixtures/**' --max-file-size 2mb
-  flare-redact --scan --format json .env app.log
-  flare-redact --sarif .env > flare-redact.sarif
-  flare-redact --json --mode hash < event.json
-  flare-redact --enable high_entropy,ipv4 < app.log
-  flare-redact --scan --enable high_entropy --refine-confidence --min-confidence 0.5 app.log
-`;
 
 interface ParsedArgs {
   opts: RedactOptions;
@@ -180,7 +116,9 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '--vault-password-env': vaultPasswordEnv = envName(argv[++i], '--vault-password-env'); break;
       case '--allow-plaintext-vault': allowPlaintextVault = true; break;
       default:
-        if (a.startsWith('-')) throw new Error(`unknown option: ${a}`);
+        if (a.startsWith('-')) {
+          throw new Error(`unknown option: ${a}\nTry 'flare-redact help topics' to find what you were reaching for.`);
+        }
         files.push(a);
     }
   }
@@ -379,6 +317,14 @@ export async function main(argv: string[]): Promise<number> {
   if (argv[0] === 'gateway') {
     const { main: runGateway } = await import('./gateway/cli.js');
     return runGateway(argv.slice(1));
+  }
+
+  // `help` reads as a question, not a flag, so it is a subcommand: `help`,
+  // `help topics`, `help <topic>` and `help <detector>` all answer something.
+  if (argv[0] === 'help') {
+    const { text, code } = renderHelp(argv[1]);
+    (code === 0 ? process.stdout : process.stderr).write(text);
+    return code;
   }
 
   let parsed: ParsedArgs;
