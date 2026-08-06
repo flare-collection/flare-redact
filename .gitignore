@@ -6,6 +6,14 @@ npm-debug.log*
 .env
 .env.*
 
+# SDK build output
+sdk/rust/target/
+sdk/python/dist/
+sdk/python/build/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
 # Local research and paper artifacts
 research/
 bench/adapters/

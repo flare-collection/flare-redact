@@ -1,5 +1,96 @@
 # Changelog
 
+## 1.5.0 — 2026-08-06
+
+The two things that kept this library out of most estates: it only spoke
+JavaScript, and using it meant changing code. Both are addressed here.
+
+### A specification, so four engines cannot drift
+
+- Add **FRS-1** (`spec/SPEC.md`), a normative description of how a detector pack
+  is written and executed — the pattern subset, the scan algorithm, overlap
+  resolution, confidence, replacement modes, keyed transforms, vault semantics
+  and failure behaviour — in enough detail that independent implementations
+  produce byte-identical output.
+- Add `spec/detectors.json`, the portable profile of the detector set (81
+  detectors), and `spec/detectors.schema.json` describing its shape.
+- The pattern subset forbids every construct whose meaning differs between
+  JavaScript, Python, Go and Rust — lookaround, backreferences, `\b \d \w \s`,
+  `\p{…}`, inline flags and anchors — and replaces them with explicit
+  `boundary`, `reject`, named validators and the `{{ANY}}` / `{{L}}` tokens. It
+  is RE2-safe by construction, so a pack cannot introduce catastrophic
+  backtracking into a host process.
+- Add `spec/conformance/`: 121 cases covering every detector's positives and
+  negatives, overlap resolution, zero-width evasion, every replacement mode,
+  keyed-transform vectors, structured input, allowlists, terms, confidence
+  thresholds and limits. Every engine's test suite runs it.
+
+### Python, Go and Rust SDKs
+
+- **Python** (`sdk/python`, standard library only): the full engine, vaults and
+  sessions, a `logging` filter *and* formatter — the formatter because a
+  traceback is only rendered at format time and a secret passed to the function
+  that raised is in it — duck-typed OpenAI and Anthropic client wrappers, a
+  gateway client, and a CLI whose exit codes match the JavaScript one.
+- **Go** (`sdk/go`, standard library only): the full engine, `Policy.RedactJSON`
+  for structs, vaults and sessions, an `slog.Handler` that covers every log line
+  in the process, an `http.RoundTripper` that redacts request bodies for the
+  hosts you name, and a gateway client. Map traversal is sorted, because finding
+  order and placeholder numbering are observable and Go randomises map iteration.
+- **Rust** (`sdk/rust`, `regex` + `serde` + `serde_json`, `#![forbid(unsafe_code)]`):
+  the full engine over `serde_json::Value`, vaults, sessions and stream
+  restoration. SHA-256 and HMAC are implemented in-crate for the same reason the
+  reference implementation does it, and are tested against the RFC 4231 and
+  FIPS 180-4 vectors.
+
+### The sidecar gateway
+
+- Add `flare-redact gateway` and the `flare-gateway` binary: a reverse proxy that
+  redacts request bodies on the way out and restores the originals on the way
+  back, so an application integrates by changing one base URL and nothing else.
+- Restoration is per-request and vault-backed. Streamed responses are restored
+  incrementally, holding back the longest suffix that could still be the start of
+  a placeholder, with substituted values escaped for the JSON string context that
+  SSE frames use.
+- JSON path selection (`messages[*].content`) redacts what a human typed without
+  rewriting model names or tool schemas. Multiple upstreams route by prefix,
+  longest match first.
+- Adds `/v1/redact`, `/v1/scan`, `/v1/detectors` and server-side `/v1/sessions`
+  so any language has a redaction service to call, plus `/healthz`, `/readyz` and
+  Prometheus `/metrics`.
+- Security defaults: loopback binding, optional bearer token with a constant-time
+  comparison, hop-by-hop headers stripped, redirects not followed, bodies capped,
+  the gateway's policy layered *over* a caller's so no client can widen it, and a
+  client-supplied `transformSecret` rejected outright. The upstream
+  `Authorization` header is forwarded untouched — it is the credential, not the
+  secret. Audit lines carry counts, never content.
+- Ships `docker/Dockerfile` (multi-stage, non-root, healthchecked),
+  `docker/docker-compose.yml` and an annotated example configuration.
+
+### Library additions
+
+- Add `flare-redact/pack`: `loadPack()` compiles an FRS-1 document into ordinary
+  detectors, so a pack participates in overlap resolution, `enable`/`disable`,
+  vaults and every adapter exactly like a built-in.
+- Add `RedactOptions.detectors` to replace the built-in set with a pack's.
+- `Detector` gains `boundary` and `reject` — the portable spellings of `\b` and a
+  trailing negative lookahead — so custom detectors work in engines without
+  lookaround.
+- Capture-group offsets now come from the regular expression's own match indices
+  rather than a substring search, which is exact when the captured text also
+  occurs earlier in the match.
+- Compiled scan patterns are cached per source pattern instead of being rebuilt
+  on every call.
+
+### Verification
+
+- The suite grows from 198 to 341 tests on the Node side, including the 121
+  conformance cases and the pack-loader guards. Alongside it: 87 Python tests, 18
+  Go tests and 19 Rust tests, all running the same conformance corpus. CI adds
+  Python 3.9–3.13, Go and Rust jobs, a `spec:sync` drift check and a Docker image
+  build.
+- No existing runtime API changed behaviour.
+
 ## 1.4.1 — 2026-08-04
 
 ### Search discovery and documentation

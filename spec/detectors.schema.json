@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flare-collection.github.io/flare-redact/spec/detectors.schema.json",
+  "title": "FRS-1 detector pack",
+  "description": "A portable, language-neutral description of a set of secret and PII detectors. Any FRS-1 engine (JavaScript, Python, Go, Rust) loading the same pack must produce identical findings. The normative prose lives in spec/SPEC.md.",
+  "type": "object",
+  "required": ["spec", "id", "version", "detectors"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "spec": { "const": "FRS-1", "description": "Spec revision this pack conforms to." },
+    "id": { "type": "string", "minLength": 1, "description": "Stable identifier for the pack, e.g. \"acme/internal\"." },
+    "version": { "type": "string", "minLength": 1 },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "license": { "type": "string" },
+    "confidenceModel": { "$ref": "#/$defs/confidenceModel" },
+    "detectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/detector" }
+    }
+  },
+  "$defs": {
+    "confidenceModel": {
+      "type": "object",
+      "description": "Logistic-regression weights used when refineConfidence is enabled.",
+      "required": ["version", "features", "weights", "bias"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "integer" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "weights": { "type": "array", "items": { "type": "number" } },
+        "bias": { "type": "number" }
+      }
+    },
+    "detector": {
+      "type": "object",
+      "required": ["id", "label", "why", "pattern", "mask", "default", "risk", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Unique within the pack. Appears in findings and in label mode."
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "why": { "type": "string", "minLength": 1, "description": "One sentence a reader can act on: what an attacker gains." },
+        "pattern": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A pattern in the FRS-1 regular-expression subset. No lookaround, no backreferences, no \\\\b \\\\d \\\\w \\\\s shorthands. Use {{ANY}} for any character and {{L}} for any Unicode letter."
+        },
+        "flags": {
+          "type": "string",
+          "enum": ["", "i"],
+          "default": "",
+          "description": "Only case-insensitive matching may be requested."
+        },
+        "capture": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Capture group holding the sensitive value. 0 means the whole match."
+        },
+        "boundary": { "$ref": "#/$defs/boundary" },
+        "reject": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Drop the candidate when one of these patterns matches at the start of the captured value."
+        },
+        "validators": { "type": "array", "items": { "$ref": "#/$defs/validator" } },
+        "mask": { "$ref": "#/$defs/mask" },
+        "default": { "type": "boolean", "description": "Whether the detector runs unless disabled." },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Selectable groups for enable/disable/only." },
+        "risk": { "enum": ["low", "medium", "high", "critical"] },
+        "priority": { "type": "integer", "default": 0, "description": "Tie-break weight when candidates overlap. Higher wins." },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "refine": { "type": "boolean", "default": false, "description": "Allow the learned classifier to adjust this detector's confidence." },
+        "prefilter": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Case-insensitive literals; the pattern is skipped unless one occurs in the subject. Must be implied by every possible match."
+        },
+        "context": { "$ref": "#/$defs/context" }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "description": "Character classes the neighbours of the captured span must NOT belong to. Start and end of input always satisfy a boundary.",
+      "additionalProperties": false,
+      "properties": {
+        "before": { "$ref": "#/$defs/boundaryClass" },
+        "after": { "$ref": "#/$defs/boundaryClass" }
+      }
+    },
+    "boundaryClass": {
+      "enum": ["word", "alnum", "digit", "hex", "base64", "base64url", "word_dash"]
+    },
+    "validator": {
+      "type": "object",
+      "required": ["name"],
+      "oneOf": [
+        {
+          "properties": {
+            "name": { "const": "normalized_match" },
+            "strip": { "type": "string", "description": "Character class removed before matching." },
+            "pattern": { "type": "string" }
+          },
+          "required": ["name", "pattern"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "name": { "const": "luhn" },
+            "minDigits": { "type": "integer", "minimum": 2, "default": 2 },
+            "maxDigits": { "type": "integer", "minimum": 2 }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "name": { "const": "entropy" },
+            "min": { "type": "number" }
+          },
+          "required": ["name", "min"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "name": {
+              "enum": [
+                "phone", "iban", "tckn", "cpf", "dni", "bsn", "pesel", "de_tax_id",
+                "codice_fiscale", "fr_nir", "aadhaar", "tfn", "cn_resident_id",
+                "jp_my_number", "us_ssn", "aba", "nhs", "vin"
+              ]
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "mask": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": { "type": { "const": "fixed" }, "text": { "type": "string" } },
+          "required": ["type", "text"],
+          "additionalProperties": false
+        },
+        {
+          "properties": { "type": { "const": "keepPrefix" }, "n": { "type": "integer", "minimum": 1 } },
+          "required": ["type", "n"],
+          "additionalProperties": false
+        },
+        {
+          "properties": { "type": { "const": "keepLast" }, "n": { "type": "integer", "minimum": 1 } },
+          "required": ["type", "n"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "keepThroughSeparator" },
+            "separator": { "type": "string", "minLength": 1 },
+            "count": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["type", "separator", "count"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "replace" },
+            "pattern": { "type": "string", "description": "Full-match pattern; groups are referenced as $1..$9 in replacement." },
+            "replacement": { "type": "string" },
+            "flags": { "type": "string", "enum": ["", "i"] }
+          },
+          "required": ["type", "pattern", "replacement"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "context": {
+      "type": "object",
+      "description": "Evidence near the match that nudges confidence. Matched case-insensitively with substring (search) semantics.",
+      "additionalProperties": false,
+      "properties": {
+        "positive": { "type": "string" },
+        "negative": { "type": "string" },
+        "window": { "type": "integer", "minimum": 1, "default": 80 }
+      }
+    }
+  }
+}

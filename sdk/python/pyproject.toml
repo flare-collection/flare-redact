@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flare-redact"
+version = "1.5.0"
+description = "Zero-dependency secret and PII redaction for Python — logs, prompts, HTTP, and any data structure."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [{ name = "Umud Hasanli", email = "uh.hesenli81015@gmail.com" }]
+keywords = [
+  "redact", "redaction", "secrets", "secret-detection", "pii", "pii-redaction",
+  "masking", "anonymization", "pseudonymization", "gdpr", "pci-dss", "dlp",
+  "logging", "llm", "ai-privacy", "prompt", "compliance", "security",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Security",
+  "Topic :: System :: Logging",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://flare-collection.github.io/flare-redact/"
+Documentation = "https://flare-collection.github.io/flare-redact/guides/"
+Source = "https://github.com/flare-collection/flare-redact"
+Issues = "https://github.com/flare-collection/flare-redact/issues"
+Changelog = "https://github.com/flare-collection/flare-redact/blob/main/CHANGELOG.md"
+Specification = "https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md"
+
+[project.scripts]
+flare-redact = "flare_redact.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flare_redact"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md"]
+
+[tool.hatch.build]
+artifacts = ["src/flare_redact/detectors.json"]

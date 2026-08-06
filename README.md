@@ -64,12 +64,15 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 |---|---|---|
 | 🔍 **Context-aware** — spans carry risk and confidence | 🔐 **Secure vaults** — opaque tokens, optional AES-GCM persistence | 🎭 **Useful test data** — keyed pseudonyms and typed surrogates |
 | 🤖 **Scoped LLM + tool boundaries** — stops cross-tool placeholder restore | 🔌 **Universal middleware** — wrap any SDK, handler, queue, or RPC function | 🪶 **Zero runtime dependencies** — Node, browser, and edge |
+| 🐍 **Python, Go, and Rust SDKs** — one spec, four engines, one conformance corpus | 🐳 **Sidecar gateway** — a Docker reverse proxy that needs no code change | 📜 **Detectors as data** — portable FRS-1 packs any engine can load |
 
 ## Contents
 
 - [Install](#install)
 - [Practical guides](https://flare-collection.github.io/flare-redact/guides/)
 - [Runnable examples](#runnable-examples)
+- [Python, Go, and Rust](#python-go-and-rust)
+- [The sidecar gateway](#the-sidecar-gateway)
 - [Redact anything](#redact-anything)
 - [Integrate any SDK or framework](#integrate-any-sdk-or-framework)
 - [Redact prompts before they reach an LLM](#redact-prompts-before-they-reach-an-llm)
@@ -154,6 +157,109 @@ Clone the repository and run these small applications locally:
 | [`github-secret-scan`](examples/github-secret-scan) | Pull requests fail when tracked source or configuration files contain detected secrets or PII | Copy the workflow into your repository |
 
 Run `npm run build` and install an example's dependencies before its first run.
+
+## Python, Go, and Rust
+
+The people who most need to keep data out of a prompt are usually not writing
+JavaScript. There are now four engines, and they are not four ports — they all
+execute the same [FRS-1 detector specification](spec/SPEC.md) and are held to the
+same [conformance corpus](spec/conformance/), so a policy written once produces
+identical output in every one of them.
+
+| | Install | Docs |
+|---|---|---|
+| **Python** | `pip install flare-redact` | [`sdk/python`](sdk/python) |
+| **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
+| **Rust** | `flare-redact = "1.5"` | [`sdk/rust`](sdk/rust) |
+
+```python
+from flare_redact import create_session
+
+session = create_session(enable=["pii"])
+safe = session.redact("Email the invoice to ada@example.com")
+reply = session.restore(call_your_model(safe))
+```
+
+```go
+policy, _ := flareredact.Compile(flareredact.Options{Enable: []string{"pii"}})
+slog.SetDefault(slog.New(flareredact.NewSlogHandler(handler, policy)))
+```
+
+```rust
+let policy = Policy::compile(Options::new().enable(["pii"]))?;
+let safe = policy.redact_str("contact ada@example.com")?;
+```
+
+Each SDK is dependency-light on purpose — Python is standard library only, Go is
+standard library only, Rust is `regex` plus `serde` — because a redaction library
+that expands your dependency tree is a security library that widened your attack
+surface. Each also ships the integrations its ecosystem actually uses: a
+`logging` filter and formatter and OpenAI/Anthropic client wrappers in Python, an
+`slog.Handler` and an `http.RoundTripper` in Go.
+
+Drift is the reason this is a specification and not three ports. Detection logic
+maintained in four hand-written copies diverges within a release or two, and a
+redactor that behaves differently per language is worse than none, because the
+team stops being able to reason about what leaves the process. The corpus runs in
+all four test suites; a change that makes them disagree fails CI.
+
+Detectors themselves are data. Write an [FRS-1 pack](spec/SPEC.md) once and every
+engine loads the same file:
+
+```js
+import { loadPack } from 'flare-redact/pack';
+redact(text, { detectors: loadPack(acmePack).detectors });
+```
+
+A pack that uses a construct an engine cannot execute exactly — a lookahead, a
+`\d` whose meaning differs between languages, a checksum it does not implement —
+fails to load. Failing open is how a redactor leaks.
+
+## The sidecar gateway
+
+Sometimes the right amount of integration is none. The gateway is a reverse
+proxy: point a vendor SDK's base URL at it, and request bodies are scrubbed on
+the way out and the originals restored on the way in — streaming included.
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 \
+  -e FLARE_REDACT_ENABLE=pii \
+  flare-redact-gateway --upstream https://api.openai.com
+```
+
+```diff
+- OPENAI_BASE_URL=https://api.openai.com/v1
++ OPENAI_BASE_URL=http://127.0.0.1:8787/v1
+```
+
+That diff is the whole integration — no middleware, no wrapper, no import. It is
+what makes this reachable for the estate where a Python service, a PHP monolith
+and a Node worker all call the same vendor and none of them can grow a new
+dependency this quarter.
+
+Without Docker: `npx flare-redact gateway --upstream https://api.openai.com`.
+
+```bash
+# several vendors, and only the parts a human typed
+flare-redact gateway \
+  --route /openai=https://api.openai.com \
+  --route /anthropic=https://api.anthropic.com \
+  --paths 'messages[*].content,input,prompt,system'
+```
+
+Redaction uses a per-request vault, so `ada@example.com` leaves as
+`[FR_EMAIL_9f2c…]` and comes back as itself. For a streamed reply the restorer
+holds back the longest suffix that could still be the start of a placeholder, so
+a token split across two SSE frames is restored exactly once.
+
+The header that authenticates you *to* the vendor is not the secret being hidden
+*from* it: `Authorization` is forwarded untouched. Bodies and matched values are
+never logged; the audit line carries counts. `/metrics` exposes Prometheus
+counters, and `/v1/redact`, `/v1/scan` and `/v1/sessions` give any language a
+redaction service to call.
+
+Full documentation, including the security model and what it deliberately does
+not do: [`docker/README.md`](docker/README.md).
 
 ## Redact anything
 
@@ -710,6 +816,7 @@ flare-redact --enable high_entropy < app.log # also catch unknown-format keys
 flare-redact --scan --min-confidence 0.9 .env  # only high-confidence findings
 flare-redact --enable high_entropy --refine-confidence --min-confidence 0.5 < app.log # drop UUID/SHA noise
 flare-redact --list                          # show every detector
+flare-redact gateway --upstream https://api.openai.com  # run the sidecar proxy
 ```
 
 ## What it catches

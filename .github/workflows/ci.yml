@@ -56,10 +56,103 @@ jobs:
           deno-version: v2.x
       - run: deno run --allow-read scripts/runtime-smoke.mjs
 
+  spec:
+    name: Detector pack is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # Each SDK embeds the pack next to its own code; this fails if a copy has
+      # drifted from spec/detectors.json.
+      - run: node scripts/sync-spec.mjs --check
+
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.9', '3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run the test suite
+        run: python -m unittest discover -s sdk/python/tests -t sdk/python
+        env:
+          PYTHONPATH: sdk/python/src
+      - name: Build the distribution
+        if: matrix.python == '3.13'
+        run: |
+          python -m pip install --upgrade build
+          python -m build sdk/python
+
+  go:
+    name: Go SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - run: go vet ./...
+        working-directory: sdk/go
+      - run: go test ./...
+        working-directory: sdk/go
+
+  rust:
+    name: Rust SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/rust
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: sdk/rust
+      - run: cargo test
+        working-directory: sdk/rust
+
+  gateway-image:
+    name: Gateway image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: flare-redact-gateway:ci
+      - name: The image starts and answers /healthz
+        run: |
+          docker run -d --name gateway -p 8787:8787 \
+            -e FLARE_GATEWAY_HOST=0.0.0.0 \
+            flare-redact-gateway:ci --upstream https://api.openai.com
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8787/healthz >/dev/null; then
+              echo "gateway is healthy"
+              docker rm -f gateway
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs gateway
+          docker rm -f gateway
+          exit 1
+
   publish:
     name: Publish npm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, runtimes]
+    needs: [test, runtimes, spec, python, go, rust]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

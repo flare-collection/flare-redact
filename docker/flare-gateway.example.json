@@ -1,0 +1,48 @@
+{
+  "listen": { "host": "0.0.0.0", "port": 8787 },
+
+  "policy": {
+    "enable": ["pii"],
+    "disable": ["ipv4"],
+    "minConfidence": 0.6
+  },
+
+  "routes": [
+    {
+      "name": "openai",
+      "prefix": "/openai",
+      "upstream": "https://api.openai.com",
+      "request": {
+        "enabled": true,
+        "paths": ["messages[*].content", "input", "prompt", "instructions"],
+        "nonJson": false
+      },
+      "response": { "enabled": true, "streamEscape": "json" }
+    },
+    {
+      "name": "anthropic",
+      "prefix": "/anthropic",
+      "upstream": "https://api.anthropic.com",
+      "policy": { "enable": ["pii", "contextual"] },
+      "request": {
+        "enabled": true,
+        "paths": ["messages[*].content", "system"],
+        "nonJson": false
+      },
+      "response": { "enabled": true, "streamEscape": "json" }
+    },
+    {
+      "name": "analytics",
+      "prefix": "/analytics",
+      "upstream": "https://api.segment.io",
+      "request": { "enabled": true, "nonJson": true },
+      "response": { "enabled": false, "streamEscape": "none" }
+    }
+  ],
+
+  "sessions": { "ttlMs": 1800000, "max": 10000 },
+  "limits": { "maxBodyBytes": 8388608, "requestTimeoutMs": 120000 },
+  "auditFindings": true,
+  "metrics": true,
+  "log": "info"
+}

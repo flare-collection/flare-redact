@@ -1,7 +1,7 @@
 {
   "name": "flare-redact",
-  "version": "1.4.1",
-  "description": "Zero-dependency TypeScript secret and PII redaction for any SDK, logs, HTTP, LLM prompts, and scoped MCP tool boundaries.",
+  "version": "1.5.0",
+  "description": "Zero-dependency secret and PII redaction for any SDK, logs, HTTP, LLM prompts, and MCP tools — with a Docker sidecar gateway and Python, Go and Rust SDKs.",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -54,14 +54,32 @@
     "./middleware": {
       "types": "./dist/middleware.d.ts",
       "default": "./dist/middleware.js"
-    }
+    },
+    "./pack": {
+      "types": "./dist/pack.d.ts",
+      "default": "./dist/pack.js"
+    },
+    "./gateway": {
+      "types": "./dist/gateway/index.d.ts",
+      "default": "./dist/gateway/index.js"
+    },
+    "./spec/detectors.json": "./spec/detectors.json",
+    "./package.json": "./package.json"
   },
   "bin": {
-    "flare-redact": "bin/flare-redact.mjs"
+    "flare-redact": "bin/flare-redact.mjs",
+    "flare-gateway": "bin/flare-gateway.mjs"
   },
   "files": [
     "dist",
     "bin",
+    "spec/SPEC.md",
+    "spec/detectors.json",
+    "spec/detectors.schema.json",
+    "spec/conformance",
+    "docker/Dockerfile",
+    "docker/docker-compose.yml",
+    "docker/flare-gateway.example.json",
     "bench/performance.mjs",
     "bench/adversarial-runtime.mjs",
     "bench/graph-vault.mjs",
@@ -74,6 +92,11 @@
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test",
+    "test:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s sdk/python/tests -t sdk/python",
+    "spec:sync": "node scripts/sync-spec.mjs",
+    "spec:check": "node scripts/sync-spec.mjs --check",
+    "spec:conformance": "npm run build && node scripts/build-conformance.mjs",
+    "gateway": "npm run build && node bin/flare-gateway.mjs",
     "benchmark": "npm run build && node bench/performance.mjs",
     "benchmark:adversarial": "npm run build && node bench/adversarial-runtime.mjs",
     "prepublishOnly": "npm run build",

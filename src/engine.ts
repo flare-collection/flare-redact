@@ -47,6 +47,11 @@ export interface RedactOptions {
   enable?: string[];
   disable?: string[];
   custom?: Detector[];
+  /**
+   * Replace the built-in detector set entirely — for example with the detectors
+   * of a loaded FRS-1 pack. `custom` is still appended on top.
+   */
+  detectors?: Detector[];
   mode?: Mode;
   mask?: string | ((f: { value: string; detector: Detector }) => string);
   /** @deprecated Use transformSecret. */
@@ -110,7 +115,8 @@ function matches(entry: string, d: Detector): boolean {
 }
 
 export function resolveDetectors(opts: RedactOptions): Detector[] {
-  const all = opts.custom?.length ? [...DETECTORS, ...opts.custom] : DETECTORS;
+  const base = opts.detectors ?? DETECTORS;
+  const all = opts.custom?.length ? [...base, ...opts.custom] : base;
   let chosen: Detector[];
   if (opts.only?.length) {
     chosen = all.filter((d) => opts.only!.some((e) => matches(e, d)));
@@ -164,8 +170,36 @@ export function makeReplacer(opts: RedactOptions): Replace {
   return (value, det) => (det.mask ? det.mask(value) : '***');
 }
 
-function withGlobal(re: RegExp): RegExp {
-  return re.flags.includes('g') ? re : new RegExp(re.source, re.flags + 'g');
+const scanPatterns = new WeakMap<RegExp, RegExp>();
+
+/**
+ * The pattern a scan actually runs: global, and — only when the detector reads a
+ * capture group — carrying `d` so the group's exact bounds are available.
+ * Recompiling is cached per source pattern, because scanString runs this for
+ * every detector on every string.
+ */
+function scanPattern(det: Detector): RegExp {
+  const cached = scanPatterns.get(det.pattern);
+  if (cached) return cached;
+  let flags = det.pattern.flags;
+  if (!flags.includes('g')) flags += 'g';
+  if (det.capture !== undefined && !flags.includes('d')) flags += 'd';
+  const compiled = flags === det.pattern.flags ? det.pattern : new RegExp(det.pattern.source, flags);
+  scanPatterns.set(det.pattern, compiled);
+  return compiled;
+}
+
+/**
+ * Where the capture group actually starts. The `d` flag gives exact bounds; the
+ * search fallback keeps older behaviour for a hand-written detector compiled
+ * without it, which only differs when the captured text also appears earlier in
+ * the match.
+ */
+function captureOffset(m: RegExpExecArray, group: number, value: string): number {
+  const indices = (m as RegExpExecArray & { indices?: Array<[number, number] | undefined> }).indices;
+  const span = indices?.[group];
+  if (span) return span[0] - m.index;
+  return m[0].indexOf(value);
 }
 
 function normalizedView(text: string): { text: string; sourceIndex?: number[] } {
@@ -197,7 +231,7 @@ export function scanString(
   const hits: Hit[] = [];
   for (const det of dets) {
     if (det.prefilter && !det.prefilter.some((literal) => subject.toLowerCase().includes(literal.toLowerCase()))) continue;
-    const re = withGlobal(det.pattern);
+    const re = scanPattern(det);
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(subject)) !== null) {
@@ -205,11 +239,13 @@ export function scanString(
       const captured = det.capture === undefined ? m[0] : m[det.capture];
       const normalizedValue = captured ?? '';
       if (!normalizedValue) continue;
-      if (det.validate && !det.validate(normalizedValue)) continue;
-      const relativeStart = det.capture === undefined ? 0 : m[0].indexOf(normalizedValue);
+      const relativeStart = det.capture === undefined ? 0 : captureOffset(m, det.capture, normalizedValue);
       if (relativeStart < 0) continue;
       const normalizedStart = m.index + relativeStart;
       const normalizedEnd = normalizedStart + normalizedValue.length;
+      if (det.boundary && !withinBoundary(det.boundary, subject, normalizedStart, normalizedEnd)) continue;
+      if (det.reject?.some((pattern) => { pattern.lastIndex = 0; return pattern.test(normalizedValue); })) continue;
+      if (det.validate && !det.validate(normalizedValue)) continue;
       const start = normalized.sourceIndex?.[normalizedStart] ?? normalizedStart;
       const end = normalized.sourceIndex
         ? (normalized.sourceIndex[normalizedEnd - 1] ?? (normalizedEnd - 1)) + 1
@@ -263,6 +299,18 @@ export function scanString(
   }
   if (hits.length < 2) return hits;
   return selectNonOverlapping(hits);
+}
+
+/** Start and end of input always satisfy a boundary; see `spec/SPEC.md` §3.1. */
+function withinBoundary(
+  boundary: NonNullable<Detector['boundary']>,
+  subject: string,
+  start: number,
+  end: number,
+): boolean {
+  if (boundary.before && start > 0 && boundary.before.has(subject[start - 1]!)) return false;
+  if (boundary.after && end < subject.length && boundary.after.has(subject[end]!)) return false;
+  return true;
 }
 
 function selectNonOverlapping(hits: Hit[]): Hit[] {
