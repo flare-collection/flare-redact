@@ -24,7 +24,7 @@
     "codeRepository": "https://github.com/flare-collection/flare-redact",
     "url": "https://flare-collection.github.io/flare-redact/",
     "downloadUrl": "https://www.npmjs.com/package/flare-redact",
-    "softwareVersion": "1.4.1",
+    "softwareVersion": "1.5.1",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Cross-platform",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -239,7 +239,7 @@ wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
       // Bundled from the same release that ships to npm — nothing leaves this page.
       const mod = await import('./playground/flare-redact.min.js');
       redact = mod.redact; scan = mod.scan;
-      status.textContent = 'v1.4.1 · runs entirely in your browser';
+      status.textContent = 'v1.5.1 · runs entirely in your browser';
     } catch (e) {
       status.textContent = 'failed to load library';
       $('out').textContent = 'Could not load the playground bundle.';

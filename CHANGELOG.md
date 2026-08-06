@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.5.1 — 2026-08-06
+
+### Actually zero dependencies
+
+- Remove the `undici-types` runtime dependency. Nothing imported it, but npm
+  installed it with every copy of this package, which made "zero-dependency" a
+  claim rather than a fact. `npm install flare-redact` now adds exactly one
+  package. TypeScript consumers are unaffected: the type it existed to satisfy
+  comes from their own `@types/node`.
+
+### A CLI that explains itself
+
+- Add `flare-redact help [topic]`. A flag list tells you a flag exists and
+  nothing about when to reach for it, so ten topics — `detectors`, `modes`,
+  `vault`, `scan`, `files`, `gateway`, `library`, `sdks`, `env` and
+  `exit-codes` — answer the question behind the flag.
+- Any detector id is also a topic: `flare-redact help email` explains what that
+  detector finds, whether it runs by default, its tags, and how to select or
+  drop it.
+- A name that matches nothing suggests the nearest one and lists the index,
+  rather than failing with nothing to go on. Unresolved help goes to stderr and
+  exits 2, so it never pollutes a piped report.
+- `flare-gateway help` and `flare-redact gateway help` now work alongside
+  `--help`, and an unknown flag on either CLI points at the help.
+
+### Documentation corrections
+
+- The Python and Rust engines are not published to PyPI and crates.io. The
+  README, both SDK READMEs and `help sdks` gave registry commands that do not
+  work; they now give the repository installs that do, and say why. The Go
+  module was and remains installable with `go get`.
+- The README badge claimed 56 detectors; there are 82.
+- The CI example and the docs site still pinned `1.4.1`, and the playground
+  bundle was still the 1.4.x build. All three now track the current release.
+- README documents the new `help` command and states plainly that installing
+  from npm brings the JavaScript engine only — no Python, Go or Rust code.
+
+No runtime API changed behaviour.
+
 ## 1.5.0 — 2026-08-06
 
 The two things that kept this library out of most estates: it only spoke

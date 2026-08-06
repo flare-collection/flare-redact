@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/npm/types/flare-redact.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero dependencies">
   <img src="https://img.shields.io/badge/languages-24-4f46e5" alt="24 languages">
-  <img src="https://img.shields.io/badge/detectors-56-4f46e5" alt="56 detectors">
+  <img src="https://img.shields.io/badge/detectors-82-4f46e5" alt="82 detectors">
   <img src="https://img.shields.io/badge/runtime-node%20%7C%20browser%20%7C%20edge-blue" alt="Runtimes">
 </p>
 
@@ -166,11 +166,18 @@ execute the same [FRS-1 detector specification](spec/SPEC.md) and are held to th
 same [conformance corpus](spec/conformance/), so a policy written once produces
 identical output in every one of them.
 
+Each engine is its own package. Installing `flare-redact` from npm gives you the
+JavaScript engine and nothing else — no Python, no Go, no Rust, and no
+dependencies of any kind.
+
 | | Install | Docs |
 |---|---|---|
-| **Python** | `pip install flare-redact` | [`sdk/python`](sdk/python) |
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
-| **Rust** | `flare-redact = "1.5"` | [`sdk/rust`](sdk/rust) |
+| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.5.1#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
+| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.5.1" }` | [`sdk/rust`](sdk/rust) |
+
+The Python and Rust engines are not published to PyPI and crates.io yet, so they
+install from this repository. The commands above are the ones that work today.
 
 ```python
 from flare_redact import create_session
@@ -778,7 +785,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.4.1 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.5.1 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -818,6 +825,24 @@ flare-redact --enable high_entropy --refine-confidence --min-confidence 0.5 < ap
 flare-redact --list                          # show every detector
 flare-redact gateway --upstream https://api.openai.com  # run the sidecar proxy
 ```
+
+### Ask it
+
+A flag list tells you a flag exists and nothing about when to reach for it, so
+the CLI explains itself:
+
+```bash
+flare-redact help                # the summary
+flare-redact help topics         # everything it can explain
+flare-redact help modes          # one topic, in depth
+flare-redact help email          # one detector: what it finds, and why
+flare-redact gateway help        # the sidecar's own flags
+```
+
+The topics are `detectors`, `modes`, `vault`, `scan`, `files`, `gateway`,
+`library`, `sdks`, `env` and `exit-codes`. Any detector id works as a topic too,
+and a name that matches nothing suggests the nearest one rather than just
+failing.
 
 ## What it catches
 

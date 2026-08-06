@@ -46,7 +46,7 @@ OPTIONS
   --redact-text         also redact form and text/* request bodies
   --log <level>         silent | info | debug (default: info)
   --print-config        print the resolved configuration and exit
-  -h, --help            show this help
+  -h, --help, help      show this help
 
 ENVIRONMENT
   FLARE_UPSTREAM, FLARE_GATEWAY_HOST, FLARE_GATEWAY_PORT, FLARE_GATEWAY_TOKEN,
@@ -62,6 +62,10 @@ EXAMPLES
 
   # then, in your application — no other change
   export OPENAI_BASE_URL=http://127.0.0.1:${DEFAULT_PORT}/openai/v1
+
+SEE ALSO
+  flare-redact help gateway     what the sidecar does and when to reach for it
+  flare-redact help topics      everything else this tool can explain
 `;
 
 function csv(value: string | undefined, flag: string): string[] {
@@ -92,7 +96,9 @@ export function parseGatewayArgs(argv: string[]): { raw: RawConfig; help: boolea
   for (let index = 0; index < argv.length; index++) {
     const flag = argv[index]!;
     switch (flag) {
-      case '-h': case '--help': help = true; break;
+      // `help` without a dash so that both spellings work, here and in the
+      // parent CLI: `flare-gateway help` and `flare-redact gateway help`.
+      case '-h': case '--help': case 'help': help = true; break;
       case '--print-config': printConfig = true; break;
       case '--config': configFile = required(argv[++index], '--config'); break;
       case '--host': raw.listen = { ...raw.listen, host: required(argv[++index], '--host') }; break;
@@ -116,7 +122,9 @@ export function parseGatewayArgs(argv: string[]): { raw: RawConfig; help: boolea
       case '--redact-text': redactText = true; break;
       case '--log': raw.log = required(argv[++index], '--log') as GatewayConfig['log']; break;
       default:
-        throw new GatewayConfigError(`unknown option: ${flag}`);
+        throw new GatewayConfigError(
+          `unknown option: ${flag}\nTry 'flare-redact gateway help', or 'flare-redact help topics' for the rest of the tool.`,
+        );
     }
   }
 

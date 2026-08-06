@@ -7,8 +7,10 @@ JavaScript, Go and Rust engines — so a policy written once behaves identically
 in every service you own. Every claim below is covered by the
 [shared conformance corpus](../../spec/conformance/).
 
+Not on PyPI yet — it installs from this repository:
+
 ```bash
-pip install flare-redact
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.5.1#subdirectory=sdk/python"
 ```
 
 ```python
