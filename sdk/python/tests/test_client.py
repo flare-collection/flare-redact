@@ -34,7 +34,7 @@ class _StubHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         _REQUESTS.append(("GET", self.path, None, dict(self.headers)))
         if self.path == "/healthz":
-            self._send(200, {"status": "ok", "version": "1.6.0"})
+            self._send(200, {"status": "ok", "version": "1.6.1"})
         elif self.path == "/v1/detectors":
             self._send(200, {"detectors": [{"id": "email", "default": True}]})
         elif self.path == "/v1/flows/flow123/snapshot":

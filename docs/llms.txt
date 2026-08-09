@@ -23,6 +23,7 @@ Key facts for code generation:
 - [CHANGELOG](https://github.com/flare-collection/flare-redact/blob/main/CHANGELOG.md): release history
 - [Live playground](https://flare-collection.github.io/flare-redact/): try redaction in the browser
 - [Agent information-flow guide](https://flare-collection.github.io/flare-redact/guides/agent-information-flow/): source-to-sink capabilities for model-produced tool calls
+- [NeMo Guardrails + FlareFlow guide](https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/): add provenance, path, and budget checks after IORails validation and before application-owned tool execution
 - [FlareFlow specification](https://github.com/flare-collection/flare-redact/blob/main/spec/FLAREFLOW.md): threat model, policy, invariant, wire API, and limitations
 
 ## Links

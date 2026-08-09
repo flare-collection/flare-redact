@@ -44,6 +44,10 @@ jobs:
         run: npm --prefix examples/flareflow-agent install
       - if: matrix.node == 24
         run: npm --prefix examples/flareflow-agent start
+      - if: matrix.node == 24
+        run: npm --prefix examples/nemo-guardrails-flareflow install
+      - if: matrix.node == 24
+        run: npm --prefix examples/nemo-guardrails-flareflow start
 
   runtimes:
     name: Bun & Deno smoke

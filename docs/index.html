@@ -24,7 +24,7 @@
     "codeRepository": "https://github.com/flare-collection/flare-redact",
     "url": "https://flare-collection.github.io/flare-redact/",
     "downloadUrl": "https://www.npmjs.com/package/flare-redact",
-    "softwareVersion": "1.6.0",
+    "softwareVersion": "1.6.1",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Cross-platform",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -216,6 +216,10 @@
           <h3>Control AI agent information flow</h3>
           <p>Permit secret restoration only at approved tools and exact argument paths.</p>
         </a>
+        <a class="guide" href="guides/nemo-guardrails-flareflow/">
+          <h3>NeMo Guardrails + FlareFlow</h3>
+          <p>Add source-to-sink secret controls after tool-call validation and before execution.</p>
+        </a>
       </div>
     </section>
 
@@ -243,7 +247,7 @@ wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
       // Bundled from the same release that ships to npm — nothing leaves this page.
       const mod = await import('./playground/flare-redact.min.js');
       redact = mod.redact; scan = mod.scan;
-      status.textContent = 'v1.6.0 · runs entirely in your browser';
+      status.textContent = 'v1.6.1 · runs entirely in your browser';
     } catch (e) {
       status.textContent = 'failed to load library';
       $('out').textContent = 'Could not load the playground bundle.';

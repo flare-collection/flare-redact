@@ -10,7 +10,7 @@ in every service you own. Every claim below is covered by the
 Not on PyPI yet — it installs from this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.0#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.1#subdirectory=sdk/python"
 ```
 
 ```python

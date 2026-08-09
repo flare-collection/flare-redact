@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NeMo Guardrails Tool Security with FlareFlow | Flare Redact</title>
+  <meta name="description" content="Add source-to-sink secret controls to NeMo Guardrails tool calls with FlareFlow: runtime-owned sinks, exact JSON paths, budgets, and atomic denial.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="NeMo Guardrails Tool Security with FlareFlow">
+  <meta property="og:description" content="A tested application-side integration that blocks protected values from crossing into unauthorized agent tools.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "NeMo Guardrails tool security with FlareFlow",
+    "description": "How to enforce source-to-sink declassification policy after NeMo Guardrails validates a tool call and before the application executes it.",
+    "datePublished": "2026-08-09",
+    "dateModified": "2026-08-09",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/",
+    "proficiencyLevel": "Advanced",
+    "dependencies": "flare-redact 1.6.1 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / NeMo Guardrails + FlareFlow</div>
+    <p class="eyebrow">Tested interoperability guide</p>
+    <h1>NeMo Guardrails tool security with FlareFlow</h1>
+    <p class="lede">Keep NeMo's tool allowlist and schema validation, then add a deterministic boundary that controls where a protected value may become plaintext.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Published August 9, 2026 · Flare Redact 1.6.1</p>
+
+    <div class="answer"><strong>Integration point:</strong> after NeMo Guardrails validates the model-produced tool call and before your application executes it, resolve the tool through a trusted registry and pass its runtime-owned sink id plus parsed arguments to <code>authorizeForSink()</code>.</div>
+
+    <h2>Why the two layers are complementary</h2>
+    <p><a href="https://docs.nvidia.com/nemo/guardrails/configure-guardrails/guardrail-catalog/tool-calling">NeMo Guardrails IORails</a> validates tool availability, arguments against JSON Schema, and tool-result linkage and structure. The application remains responsible for executing the tool. That execution boundary is where FlareFlow adds a separate property: an opaque secret token is restored only when its trusted source, detector, runtime-resolved sink, exact JSON Pointer path, and remaining budget all match.</p>
+    <p>A call can therefore be structurally valid and still be denied. For example, <code>http_fetch</code> may be an allowed tool with a valid URL argument, while policy still forbids moving a protected database credential into that URL.</p>
+    <div class="note"><strong>Current NeMo scope:</strong> NVIDIA's documentation marks IORails experimental and limits it to OpenAI and NIM providers. Check the current support table before deploying this pattern.</div>
+
+    <h2>Define declassification policy in application code</h2>
+    <pre><code>import { createAgentFlow } from 'flare-redact/agent';
+
+const flow = createAgentFlow({
+  sinks: {
+    'postgres.execute': {
+      capabilities: [{
+        id: 'database-connection',
+        sources: ['application.config'],
+        detectors: ['url_credentials'],
+        paths: ['/args/connectionString'],
+        maxUses: 1,
+      }],
+      budget: { maxUses: 1, maxUniqueValues: 1, maxBytes: 256 },
+    },
+    'http.fetch': { capabilities: [] },
+  },
+});</code></pre>
+    <p>Neither the sink id nor this policy belongs in model output. Build both from deployment configuration and resolve the validated tool name through a closed application registry.</p>
+
+    <h2>Authorize the NeMo-validated call before execution</h2>
+    <pre><code>const toolRegistry = new Map([
+  ['postgres_execute', { sink: 'postgres.execute', execute: runQuery }],
+  ['http_fetch', { sink: 'http.fetch', execute: runFetch }],
+]);
+
+function executeValidatedToolCall(toolCall) {
+  const tool = toolRegistry.get(toolCall.function.name);
+  if (!tool) throw new Error('Tool is not in the runtime registry.');
+
+  const args = JSON.parse(toolCall.function.arguments);
+  const local = flow.authorizeForSink(tool.sink, { args });
+  return tool.execute(local.args);
+}</code></pre>
+    <p>Call <code>protectForModel('application.config', value)</code> before protected data enters model context. A transplanted token inside <code>/args/url</code> is then denied atomically at <code>http.fetch</code>; the same token can be restored at <code>postgres.execute</code> only at <code>/args/connectionString</code>.</p>
+    <div class="note"><strong>Fail closed:</strong> one forged, expired, foreign, wrong-path, wrong-sink, or over-budget token blocks the complete call. Denials expose decision metadata, not plaintext or token strings.</div>
+
+    <h2>Run the proof without a model or API key</h2>
+    <pre><code>git clone https://github.com/flare-collection/flare-redact.git
+cd flare-redact
+npm install
+npm run build
+npm --prefix examples/nemo-guardrails-flareflow install
+npm --prefix examples/nemo-guardrails-flareflow start</code></pre>
+    <p>The runnable example uses the same OpenAI-shaped tool-call object that crosses the application boundary. Assertions prove the unauthorized HTTP path is denied, the approved database path works, and the printed report contains no database password.</p>
+
+    <h2>Security boundary and limitations</h2>
+    <ul>
+      <li>FlareFlow controls exact placeholder restoration; it does not detect prompt injection.</li>
+      <li>It cannot protect information that was already sent to the model or leaked by a malicious tool.</li>
+      <li>NeMo validation, tool permissions, sandboxing, network egress policy, and least-privilege credentials remain necessary.</li>
+      <li>The example is an application-side interoperability pattern, not an NVIDIA plugin or an endorsement.</li>
+    </ul>
+
+    <div class="next">
+      <h2>Inspect the complete integration</h2>
+      <p>Run the <a href="https://github.com/flare-collection/flare-redact/tree/main/examples/nemo-guardrails-flareflow">tested example</a>, read the <a href="https://github.com/flare-collection/flare-redact/blob/main/spec/FLAREFLOW.md">normative FlareFlow specification</a>, and compare it with the official <a href="https://docs.nvidia.com/nemo/guardrails/about-nemo-guardrails-library/how-it-works">NeMo Guardrails architecture</a>.</p>
+    </div>
+
+    <p class="meta">NVIDIA and the NVIDIA logo are trademarks and/or registered trademarks of NVIDIA Corporation. NeMo Guardrails is referenced only for interoperability. Flare Redact is an independent project and is not affiliated with, sponsored by, or endorsed by NVIDIA.</p>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact">source and tests on GitHub</a></footer>
+</body>
+</html>

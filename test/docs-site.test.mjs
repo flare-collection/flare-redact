@@ -14,6 +14,7 @@ const pages = [
   'guides/llm-prompt-redaction/index.html',
   'guides/mcp-tool-redaction/index.html',
   'guides/agent-information-flow/index.html',
+  'guides/nemo-guardrails-flareflow/index.html',
 ];
 
 const readPage = async (relativePath) => ({
@@ -100,6 +101,6 @@ test('sitemap contains each canonical search page exactly once', async () => {
 
 test('the playground identifies the current release', async () => {
   const html = await readFile(path.join(docsDir, 'index.html'), 'utf8');
-  assert.match(html, /v1\.6\.0 · runs entirely in your browser/);
+  assert.match(html, /v1\.6\.1 · runs entirely in your browser/);
   assert.doesNotMatch(html, /v1\.5\.1/);
 });
