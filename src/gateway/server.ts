@@ -24,6 +24,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
+import { AgentFlowBlockedError, createAgentFlow } from '../agent.js';
 import {
   compilePolicy,
   createVault,
@@ -46,7 +47,7 @@ import {
   streamRestorer,
   type ParsedPath,
 } from './body.js';
-import { createLogger, Metrics, SessionStore, type Logger } from './runtime.js';
+import { AgentFlowStore, createLogger, Metrics, SessionStore, type Logger } from './runtime.js';
 
 const PACKAGE_VERSION: string = (() => {
   try {
@@ -81,6 +82,7 @@ export interface Gateway {
   readonly server: Server;
   readonly metrics: Metrics;
   readonly sessions: SessionStore;
+  readonly flows: AgentFlowStore;
   listen(): Promise<{ host: string; port: number }>;
   close(): Promise<void>;
 }
@@ -119,13 +121,17 @@ const CONTROL_PATHS = new Set([
   '/v1/redact',
   '/v1/scan',
   '/v1/sessions',
+  '/v1/flows',
 ]);
 
 const SESSION_PATH = /^\/v1\/sessions\/([^/]+)(?:\/(redact|restore))?$/;
+const FLOW_PATH = /^\/v1\/flows\/([^/]+)(?:\/(protect|inspect|authorize|restore|snapshot))?$/;
 
 /** True for the gateway's own API, which shadows the upstream on these paths. */
 function isControlPath(pathname: string): boolean {
-  return CONTROL_PATHS.has(pathname) || SESSION_PATH.test(pathname);
+  return CONTROL_PATHS.has(pathname)
+    || pathname.startsWith('/v1/sessions/')
+    || pathname.startsWith('/v1/flows/');
 }
 
 /** Layer policies, later layers winning field by field. */
@@ -240,6 +246,22 @@ export function createGateway(config: GatewayConfig): Gateway {
   const logger: Logger = createLogger(config.log);
   const metrics = new Metrics();
   const sessions = new SessionStore(config.sessions);
+  const flows = new AgentFlowStore({
+    ttlMs: config.agentFlow.ttlMs,
+    max: config.agentFlow.max,
+    create: () => createAgentFlow({
+      policy: config.policy,
+      sinks: config.agentFlow.sinks,
+      limits: config.agentFlow.limits,
+      onEvent: (event) => logger.debug({
+        msg: 'agent flow event',
+        event: event.type,
+        ...('source' in event && event.source ? { source: event.source } : {}),
+        ...('sink' in event ? { sink: event.sink } : {}),
+        ...('occurrences' in event ? { occurrences: event.occurrences } : {}),
+      }),
+    }),
+  });
 
   // A route's own policy is the more specific one, so it wins over the
   // gateway-wide default. Both are set by whoever runs the gateway.
@@ -288,13 +310,15 @@ export function createGateway(config: GatewayConfig): Gateway {
         version: PACKAGE_VERSION,
         routes: config.routes.map((route) => route.name),
         sessions: sessions.size,
+        agentFlow: config.agentFlow.enabled,
+        flows: flows.size,
       });
       return;
     }
 
     if (pathname === '/metrics') {
       if (!config.metrics) throw new HttpError(404, 'ERR_NOT_FOUND', 'metrics are disabled');
-      const body = metrics.render(sessions.size);
+      const body = metrics.render(sessions.size, flows.size);
       res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8' });
       res.end(body);
       return;
@@ -376,6 +400,71 @@ export function createGateway(config: GatewayConfig): Gateway {
         : record.session.redact(payload.input);
       sendJson(res, 200, { output, size: record.session.size });
       return;
+    }
+
+    if (pathname === '/v1/flows' && req.method === 'POST') {
+      if (!config.agentFlow.enabled) throw new HttpError(404, 'ERR_AGENT_FLOW_DISABLED', 'agent flows are disabled');
+      // Consume and validate an optional empty object so callers cannot smuggle
+      // model-owned policy into a runtime-owned flow definition.
+      const payload = await parseJsonBody(req);
+      if (Object.keys(payload).length > 0) {
+        throw new HttpError(400, 'ERR_BAD_REQUEST', 'flow creation does not accept client policy');
+      }
+      const record = flows.create();
+      sendJson(res, 201, { id: record.id, expiresAt: new Date(record.expiresAt).toISOString() });
+      return;
+    }
+
+    const flowRoute = FLOW_PATH.exec(pathname);
+    if (flowRoute) {
+      if (!config.agentFlow.enabled) throw new HttpError(404, 'ERR_AGENT_FLOW_DISABLED', 'agent flows are disabled');
+      const id = decodeURIComponent(flowRoute[1]!);
+      const action = flowRoute[2];
+      if (!action && req.method === 'DELETE') {
+        const removed = flows.delete(id);
+        if (!removed) throw new HttpError(404, 'ERR_NO_AGENT_FLOW', 'unknown agent flow');
+        res.writeHead(204).end();
+        return;
+      }
+      const record = flows.get(id);
+      if (!record) throw new HttpError(404, 'ERR_NO_AGENT_FLOW', 'unknown or expired agent flow');
+      if (action === 'snapshot' && req.method === 'GET') {
+        sendJson(res, 200, record.flow.snapshot());
+        return;
+      }
+      if (req.method !== 'POST') throw new HttpError(405, 'ERR_METHOD', action === 'snapshot' ? 'use GET' : 'use POST');
+      const payload = await parseJsonBody(req);
+      if (action === 'protect') {
+        if (typeof payload.source !== 'string') throw new HttpError(400, 'ERR_BAD_REQUEST', 'source is required');
+        const output = record.flow.protectForModel(payload.source, payload.input);
+        sendJson(res, 200, { output, size: record.flow.size });
+        return;
+      }
+      if (action === 'restore') {
+        sendJson(res, 200, { output: record.flow.restoreForApp(payload.input), size: record.flow.size });
+        return;
+      }
+      if (typeof payload.sink !== 'string') throw new HttpError(400, 'ERR_BAD_REQUEST', 'sink is required');
+      if (action === 'inspect') {
+        sendJson(res, 200, { decision: record.flow.inspectForSink(payload.sink, payload.input) });
+        return;
+      }
+      if (action === 'authorize') {
+        try {
+          const output = record.flow.authorizeForSink(payload.sink, payload.input);
+          sendJson(res, 200, { output, snapshot: record.flow.snapshot() });
+        } catch (error) {
+          if (!(error instanceof AgentFlowBlockedError)) throw error;
+          sendJson(res, 403, {
+            error: true,
+            code: error.code,
+            message: error.message,
+            decision: error.decision,
+          });
+        }
+        return;
+      }
+      throw new HttpError(404, 'ERR_NOT_FOUND', 'no such agent flow action');
     }
 
     throw new HttpError(404, 'ERR_NOT_FOUND', 'no such endpoint');
@@ -596,6 +685,7 @@ export function createGateway(config: GatewayConfig): Gateway {
     server,
     metrics,
     sessions,
+    flows,
     listen() {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -618,6 +708,7 @@ export function createGateway(config: GatewayConfig): Gateway {
     },
     close() {
       sessions.clear();
+      flows.clear();
       return new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
         server.closeAllConnections?.();

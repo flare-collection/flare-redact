@@ -41,6 +41,27 @@
   ],
 
   "sessions": { "ttlMs": 1800000, "max": 10000 },
+  "agentFlow": {
+    "enabled": true,
+    "ttlMs": 1800000,
+    "max": 10000,
+    "limits": { "tokenTtlMs": 3600000, "maxMappings": 10000, "maxEvents": 1000 },
+    "sinks": {
+      "postgres.execute": {
+        "capabilities": [
+          {
+            "id": "database-credential",
+            "sources": ["config", "postgres.result"],
+            "detectors": ["url_credentials"],
+            "paths": ["/args/connectionString"],
+            "maxUses": 2
+          }
+        ],
+        "budget": { "maxUses": 4, "maxUniqueValues": 2, "maxBytes": 1024 }
+      },
+      "http.fetch": { "capabilities": [] }
+    }
+  },
   "limits": { "maxBodyBytes": 8388608, "requestTimeoutMs": 120000 },
   "auditFindings": true,
   "metrics": true,

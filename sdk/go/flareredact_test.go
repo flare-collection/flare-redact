@@ -308,6 +308,94 @@ func TestGatewayClient(t *testing.T) {
 	}
 }
 
+func TestGatewayAgentFlowClient(t *testing.T) {
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "POST /v1/flows":
+			_, _ = w.Write([]byte(`{"id":"flow123"}`))
+		case "POST /v1/flows/flow123/protect":
+			_, _ = w.Write([]byte(`{"output":{"value":"[FR_FLOW_token]"}}`))
+		case "POST /v1/flows/flow123/inspect":
+			_, _ = w.Write([]byte(`{"decision":{"allowed":true,"occurrences":1}}`))
+		case "POST /v1/flows/flow123/authorize":
+			_, _ = w.Write([]byte(`{"output":{"args":{"connectionString":"db-secret"}}}`))
+		case "POST /v1/flows/flow123/restore":
+			_, _ = w.Write([]byte(`{"output":"db-secret"}`))
+		case "GET /v1/flows/flow123/snapshot":
+			_, _ = w.Write([]byte(`{"liveMappings":1,"events":[]}`))
+		case "DELETE /v1/flows/flow123":
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	flow, err := NewClient(server.URL, ClientOptions{}).OpenAgentFlow(ctx)
+	if err != nil {
+		t.Fatalf("OpenAgentFlow: %v", err)
+	}
+	if flow.ID != "flow123" {
+		t.Fatalf("flow ID = %q", flow.ID)
+	}
+	protected, err := flow.ProtectForModel(ctx, "config", map[string]any{"value": "db-secret"})
+	if err != nil {
+		t.Fatalf("ProtectForModel: %v", err)
+	}
+	if protected.(map[string]any)["value"] != "[FR_FLOW_token]" {
+		t.Errorf("protected = %#v", protected)
+	}
+	decision, err := flow.InspectForSink(ctx, "postgres.execute", protected)
+	if err != nil || decision["allowed"] != true {
+		t.Fatalf("InspectForSink = %#v, %v", decision, err)
+	}
+	authorized, err := flow.AuthorizeForSink(ctx, "postgres.execute", protected)
+	if err != nil {
+		t.Fatalf("AuthorizeForSink: %v", err)
+	}
+	args := authorized.(map[string]any)["args"].(map[string]any)
+	if args["connectionString"] != "db-secret" {
+		t.Errorf("authorized = %#v", authorized)
+	}
+	restored, err := flow.RestoreForApp(ctx, "[FR_FLOW_token]")
+	if err != nil || restored != "db-secret" {
+		t.Fatalf("RestoreForApp = %#v, %v", restored, err)
+	}
+	snapshot, err := flow.Snapshot(ctx)
+	if err != nil || snapshot["liveMappings"] != float64(1) {
+		t.Fatalf("Snapshot = %#v, %v", snapshot, err)
+	}
+	if err := flow.Close(ctx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if len(calls) != 7 {
+		t.Fatalf("calls = %#v", calls)
+	}
+}
+
+func TestGatewayAgentFlowDenialCarriesSafeDecision(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":"ERR_AGENT_FLOW_BLOCKED","message":"blocked","decision":{"allowed":false,"violations":[{"reason":"capability_denied"}]}}`))
+	}))
+	defer server.Close()
+
+	flow := &RemoteAgentFlow{client: NewClient(server.URL, ClientOptions{}), ID: "flow123"}
+	_, err := flow.AuthorizeForSink(context.Background(), "http.fetch", map[string]any{"url": "opaque"})
+	var gatewayErr *GatewayError
+	if !errors.As(err, &gatewayErr) {
+		t.Fatalf("want GatewayError, got %v", err)
+	}
+	if gatewayErr.Status != http.StatusForbidden || !bytes.Contains(gatewayErr.Details, []byte("capability_denied")) {
+		t.Fatalf("GatewayError = %#v", gatewayErr)
+	}
+}
+
 func TestPackRejectsNonPortablePatterns(t *testing.T) {
 	// A construct whose meaning differs between engines must not load at all.
 	// Loading it and quietly skipping the check is how a redactor leaks.

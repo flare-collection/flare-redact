@@ -10,7 +10,7 @@ in every service you own. Every claim below is covered by the
 Not on PyPI yet — it installs from this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.5.1#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.0#subdirectory=sdk/python"
 ```
 
 ```python
@@ -216,6 +216,20 @@ with gateway.session(enable=["pii"]) as session:
     safe = session.redact(user_message)
     reply = session.restore(model_reply)
 ```
+
+For an agent, the gateway can enforce its operator-owned FlareFlow policy. The
+client names the trusted source and runtime-resolved sink; it cannot submit or
+widen the capabilities:
+
+```python
+with gateway.agent_flow() as flow:
+    safe = flow.protect_for_model("postgres.result", tool_result)
+    decision = flow.inspect_for_sink("postgres.execute", model_call)
+    local_call = flow.authorize_for_sink("postgres.execute", model_call)
+```
+
+A denial raises `GatewayError` with status `403`, code
+`ERR_AGENT_FLOW_BLOCKED`, and a value-free decision in `error.details`.
 
 Standard library only — no `requests`, no `httpx`. `transform_secret` is never
 serialised: configure keyed transforms on the gateway, not in every caller.

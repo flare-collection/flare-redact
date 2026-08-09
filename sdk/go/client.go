@@ -48,6 +48,9 @@ type GatewayError struct {
 	Status  int
 	Code    string
 	Message string
+	// Details is the complete safe JSON error payload. FlareFlow denials include
+	// their value-free decision here.
+	Details json.RawMessage
 }
 
 func (e *GatewayError) Error() string {
@@ -104,7 +107,7 @@ func (c *Client) do(ctx context.Context, method, path string, payload any, out a
 		return err
 	}
 	if response.StatusCode >= 300 {
-		failure := &GatewayError{Status: response.StatusCode, Message: strings.TrimSpace(string(raw))}
+		failure := &GatewayError{Status: response.StatusCode, Message: strings.TrimSpace(string(raw)), Details: append(json.RawMessage(nil), raw...)}
 		var parsed struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
@@ -210,4 +213,79 @@ func (s *RemoteSession) call(ctx context.Context, action string, value any) (any
 // Close discards the server-side mapping.
 func (s *RemoteSession) Close(ctx context.Context) error {
 	return s.client.do(ctx, http.MethodDelete, "/v1/sessions/"+s.ID, nil, nil)
+}
+
+// RemoteAgentFlow is a gateway-held, operator-policy-controlled source-to-sink
+// capability boundary.
+type RemoteAgentFlow struct {
+	client *Client
+	ID     string
+}
+
+// OpenAgentFlow creates a flow using only the gateway operator's policy.
+func (c *Client) OpenAgentFlow(ctx context.Context) (*RemoteAgentFlow, error) {
+	var response struct {
+		ID string `json:"id"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/v1/flows", map[string]any{}, &response); err != nil {
+		return nil, err
+	}
+	return &RemoteAgentFlow{client: c, ID: response.ID}, nil
+}
+
+// ProtectForModel detects and protects one trusted source before model context.
+func (f *RemoteAgentFlow) ProtectForModel(ctx context.Context, source string, value any) (any, error) {
+	var response struct {
+		Output any `json:"output"`
+	}
+	err := f.client.do(ctx, http.MethodPost, "/v1/flows/"+f.ID+"/protect", map[string]any{
+		"source": source,
+		"input":  value,
+	}, &response)
+	return response.Output, err
+}
+
+// InspectForSink preflights a model-produced call without restoring or consuming budget.
+func (f *RemoteAgentFlow) InspectForSink(ctx context.Context, sink string, value any) (map[string]any, error) {
+	var response struct {
+		Decision map[string]any `json:"decision"`
+	}
+	err := f.client.do(ctx, http.MethodPost, "/v1/flows/"+f.ID+"/inspect", map[string]any{
+		"sink":  sink,
+		"input": value,
+	}, &response)
+	return response.Decision, err
+}
+
+// AuthorizeForSink atomically restores an approved sink call.
+func (f *RemoteAgentFlow) AuthorizeForSink(ctx context.Context, sink string, value any) (any, error) {
+	var response struct {
+		Output any `json:"output"`
+	}
+	err := f.client.do(ctx, http.MethodPost, "/v1/flows/"+f.ID+"/authorize", map[string]any{
+		"sink":  sink,
+		"input": value,
+	}, &response)
+	return response.Output, err
+}
+
+// RestoreForApp restores every live mapping at the trusted final application boundary.
+func (f *RemoteAgentFlow) RestoreForApp(ctx context.Context, value any) (any, error) {
+	var response struct {
+		Output any `json:"output"`
+	}
+	err := f.client.do(ctx, http.MethodPost, "/v1/flows/"+f.ID+"/restore", map[string]any{"input": value}, &response)
+	return response.Output, err
+}
+
+// Snapshot returns value-free provenance, budget and audit state.
+func (f *RemoteAgentFlow) Snapshot(ctx context.Context) (map[string]any, error) {
+	var response map[string]any
+	err := f.client.do(ctx, http.MethodGet, "/v1/flows/"+f.ID+"/snapshot", nil, &response)
+	return response, err
+}
+
+// Close discards every protected mapping and budget counter.
+func (f *RemoteAgentFlow) Close(ctx context.Context) error {
+	return f.client.do(ctx, http.MethodDelete, "/v1/flows/"+f.ID, nil, nil)
 }

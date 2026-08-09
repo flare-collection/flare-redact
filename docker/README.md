@@ -32,6 +32,7 @@ Without Docker: `npx flare-redact gateway --upstream https://api.openai.com`.
 - [Which parts of the body](#which-parts-of-the-body)
 - [Restoring the answer](#restoring-the-answer)
 - [The redaction API](#the-redaction-api)
+- [FlareFlow for agent tools](#flareflow-for-agent-tools)
 - [Configuration](#configuration)
 - [Operating it](#operating-it)
 - [Security model](#security-model)
@@ -126,6 +127,13 @@ not what you want:
 | `POST /v1/sessions/:id/redact` | mask, remembering the mapping |
 | `POST /v1/sessions/:id/restore` | put the originals back |
 | `DELETE /v1/sessions/:id` | discard the mapping |
+| `POST /v1/flows` | open an operator-policy-controlled FlareFlow |
+| `POST /v1/flows/:id/protect` | protect `{source,input}` before model context |
+| `POST /v1/flows/:id/inspect` | preflight `{sink,input}` without restoration |
+| `POST /v1/flows/:id/authorize` | atomically restore or return a value-free 403 decision |
+| `POST /v1/flows/:id/restore` | trusted final-application restoration |
+| `GET /v1/flows/:id/snapshot` | value-free provenance, budget and audit state |
+| `DELETE /v1/flows/:id` | discard mappings and counters |
 | `GET /healthz`, `GET /readyz` | liveness |
 | `GET /metrics` | Prometheus text |
 
@@ -133,8 +141,8 @@ Set `FLARE_GATEWAY_TOKEN` and every `/v1` call needs
 `Authorization: Bearer <token>`. Health and metrics stay open so a probe does not
 need a credential.
 
-Those eight paths are the only ones the gateway answers itself, and they are the
-only ones that shadow your upstream. Everything else under `/v1` — `/v1/chat/
+Those listed control paths are the only ones the gateway answers itself, and
+they are the only ones that shadow your upstream. Everything else under `/v1` — `/v1/chat/
 completions`, `/v1/models`, `/v1/messages` — is proxied like any other path, which
 is the whole point of putting the sidecar in front of a vendor that owns that
 namespace.
@@ -143,6 +151,52 @@ Sessions are held in memory, expire after `sessions.ttlMs` and are capped at
 `sessions.max`. An unbounded map of secrets is a memory leak with a disclosure
 attached. Because they are per-process, a replicated gateway needs sticky routing
 for session traffic — the stateless `/v1/redact` path does not.
+
+## FlareFlow for agent tools
+
+Ordinary sessions remember placeholder mappings. FlareFlow additionally decides
+where each protected value may be restored, using runtime-owned source,
+detector, sink, JSON Pointer path, and cumulative-budget constraints. It is a
+declassification boundary around model-produced tool calls, not a model prompt.
+
+Enable it only with an operator policy in the gateway configuration:
+
+```json
+{
+  "agentFlow": {
+    "enabled": true,
+    "sinks": {
+      "postgres.execute": {
+        "capabilities": [{
+          "id": "database-credential",
+          "sources": ["config"],
+          "detectors": ["url_credentials"],
+          "paths": ["/args/connectionString"],
+          "maxUses": 1
+        }]
+      },
+      "http.fetch": { "capabilities": [] }
+    }
+  }
+}
+```
+
+Clients open a flow with an empty `POST /v1/flows` body. They cannot submit or
+widen its policy. A complete round trip is:
+
+```text
+POST /v1/flows
+POST /v1/flows/<id>/protect    {"source":"config","input":...}
+POST /v1/flows/<id>/authorize {"sink":"postgres.execute","input":...}
+DELETE /v1/flows/<id>
+```
+
+Denials are HTTP 403 with `ERR_AGENT_FLOW_BLOCKED` and a decision containing
+only paths, labels, counts, and limit names. A denial restores nothing and does
+not consume budget. Flow records are memory-only, idle-TTL-bound, capped by
+`agentFlow.max`, and exported as the `flare_gateway_agent_flows` gauge. See the
+[FlareFlow specification](../spec/FLAREFLOW.md) for the threat model and exact
+invariant.
 
 ## Configuration
 
@@ -166,7 +220,7 @@ flare-redact gateway --config docker/flare-gateway.example.json --print-config
 | `FLARE_GATEWAY_LOG` | `silent`, `info`, `debug` |
 
 See [`flare-gateway.example.json`](./flare-gateway.example.json) for the full
-shape, including per-route policies.
+shape, including per-route policies and an operator-owned FlareFlow policy.
 
 ## Operating it
 
@@ -196,6 +250,8 @@ which makes "is the proxy actually in the path?" answerable from a single curl.
 - **The gateway's policy wins.** A client may pass options, but the configured
   policy is layered over them, so no caller can send `{"disable":["email"]}` and
   opt out. `transformSecret` from a client is rejected outright.
+- **Agent clients cannot define declassification policy.** `/v1/flows` accepts
+  only an empty body; `agentFlow.sinks` comes from operator configuration.
 - **It binds to loopback by default.** In a container that has to be `0.0.0.0`;
   publish it as `127.0.0.1:8787:8787` or keep it on an internal network. A
   redaction proxy reachable from the internet is a proxy anyone can send data
