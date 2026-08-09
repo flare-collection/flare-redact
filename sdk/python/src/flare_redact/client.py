@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 from .engine import Finding, Options
 from .wire import finding_from_wire, options_to_wire
 
-__all__ = ["GatewayClient", "GatewayError", "RemoteSession"]
+__all__ = ["GatewayClient", "GatewayError", "RemoteAgentFlow", "RemoteSession"]
 
 DEFAULT_TIMEOUT = 10.0
 
@@ -36,10 +36,18 @@ DEFAULT_TIMEOUT = 10.0
 class GatewayError(RuntimeError):
     """The gateway returned an error, or could not be reached."""
 
-    def __init__(self, message: str, *, status: Optional[int] = None, code: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: Optional[int] = None,
+        code: Optional[str] = None,
+        details: Optional[Mapping[str, Any]] = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
         self.code = code
+        self.details = details
 
 
 class GatewayClient:
@@ -79,14 +87,19 @@ class GatewayClient:
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
             code = None
+            parsed_error = None
             try:
                 parsed = json.loads(detail)
                 detail = parsed.get("message", detail)
                 code = parsed.get("code")
+                parsed_error = parsed
             except (ValueError, AttributeError):
                 pass
             raise GatewayError(
-                f"gateway responded {exc.code}: {detail}", status=exc.code, code=code
+                f"gateway responded {exc.code}: {detail}",
+                status=exc.code,
+                code=code,
+                details=parsed_error,
             ) from exc
         except urllib.error.URLError as exc:
             raise GatewayError(f"gateway at {self.base_url} is unreachable: {exc.reason}") from exc
@@ -145,6 +158,11 @@ class GatewayClient:
         response = self._request("POST", "/v1/sessions", {"options": self._merge(options, overrides)})
         return RemoteSession(self, str(response["id"]))
 
+    def agent_flow(self) -> "RemoteAgentFlow":
+        """Open an operator-policy-controlled FlareFlow session."""
+        response = self._request("POST", "/v1/flows", {})
+        return RemoteAgentFlow(self, str(response["id"]))
+
 
 class RemoteSession:
     """A gateway-held vault. Use it as a context manager so it is always closed."""
@@ -172,6 +190,62 @@ class RemoteSession:
         self._client._request("DELETE", f"/v1/sessions/{self.id}")
 
     def __enter__(self) -> "RemoteSession":
+        return self
+
+    def __exit__(self, *_exc: Any) -> None:
+        self.close()
+
+
+class RemoteAgentFlow:
+    """A gateway-held source-to-sink capability boundary."""
+
+    __slots__ = ("_client", "id", "_closed")
+
+    def __init__(self, client: GatewayClient, flow_id: str) -> None:
+        self._client = client
+        self.id = flow_id
+        self._closed = False
+
+    def protect_for_model(self, source: str, value: Any) -> Any:
+        """Protect a trusted source before its data enters model context."""
+        response = self._client._request(
+            "POST", f"/v1/flows/{self.id}/protect", {"source": source, "input": value}
+        )
+        return response["output"]
+
+    def inspect_for_sink(self, sink: str, value: Any) -> Dict[str, Any]:
+        """Preflight a model-produced call without restoring or consuming budget."""
+        response = self._client._request(
+            "POST", f"/v1/flows/{self.id}/inspect", {"sink": sink, "input": value}
+        )
+        return response["decision"]
+
+    def authorize_for_sink(self, sink: str, value: Any) -> Any:
+        """Restore an allowed sink call, or raise ``GatewayError`` on denial."""
+        response = self._client._request(
+            "POST", f"/v1/flows/{self.id}/authorize", {"sink": sink, "input": value}
+        )
+        return response["output"]
+
+    def restore_for_app(self, value: Any) -> Any:
+        """Restore live mappings only at the trusted final application boundary."""
+        response = self._client._request(
+            "POST", f"/v1/flows/{self.id}/restore", {"input": value}
+        )
+        return response["output"]
+
+    def snapshot(self) -> Dict[str, Any]:
+        """Return the value-free audit and budget snapshot."""
+        return self._client._request("GET", f"/v1/flows/{self.id}/snapshot")
+
+    def close(self) -> None:
+        """Discard every protected mapping and budget counter. Idempotent."""
+        if self._closed:
+            return
+        self._closed = True
+        self._client._request("DELETE", f"/v1/flows/{self.id}")
+
+    def __enter__(self) -> "RemoteAgentFlow":
         return self
 
     def __exit__(self, *_exc: Any) -> None:

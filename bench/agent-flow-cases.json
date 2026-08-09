@@ -1,0 +1,59 @@
+{
+  "schema": "flareflow-benchmark-v1",
+  "description": "Deterministic synthetic evaluation of placeholder-transplant and cumulative-restoration attacks under the FlareFlow threat model.",
+  "scope": "This corpus measures exact protected-value restoration at runtime-owned tool boundaries. It is not a general prompt-injection benchmark and does not measure semantic leakage of data already shown to a model.",
+  "attackFamilies": [
+    {
+      "id": "cross_sink",
+      "cases": 100,
+      "description": "Move a database placeholder into an outbound HTTP sink."
+    },
+    {
+      "id": "same_sink_wrong_path",
+      "cases": 100,
+      "description": "Use the correct database sink but move the placeholder from connectionString to callbackUrl."
+    },
+    {
+      "id": "source_mismatch",
+      "cases": 100,
+      "description": "Move a value protected from an unapproved source into an otherwise approved sink path."
+    },
+    {
+      "id": "detector_mismatch",
+      "cases": 100,
+      "description": "Move a sensitive-key placeholder through a capability that permits only the benchmark detector."
+    },
+    {
+      "id": "foreign_session_replay",
+      "cases": 100,
+      "description": "Replay a well-formed placeholder minted by another flow instance."
+    },
+    {
+      "id": "cumulative_budget",
+      "cases": 100,
+      "description": "Repeat an otherwise authorized restoration after its one-use capability budget is exhausted."
+    },
+    {
+      "id": "key_position",
+      "cases": 100,
+      "description": "Move a protected value into an object-key position, which is never declassified."
+    }
+  ],
+  "utilityFamilies": [
+    {
+      "id": "exact_authorized_path",
+      "cases": 100,
+      "description": "Restore the approved source and detector at the exact connectionString path."
+    },
+    {
+      "id": "recursive_authorized_path",
+      "cases": 100,
+      "description": "Restore an approved value below a terminal recursive path capability."
+    },
+    {
+      "id": "token_free_call",
+      "cases": 100,
+      "description": "Pass a call with no FlareFlow placeholder through unchanged."
+    }
+  ]
+}

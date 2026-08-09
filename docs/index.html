@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JavaScript PII &amp; Secret Redaction Library | Flare Redact</title>
-  <meta name="description" content="Redact PII, API keys, tokens, and credentials in JavaScript and TypeScript. Protect logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets locally.">
+  <meta name="description" content="Redact PII, API keys, tokens, and credentials in JavaScript and TypeScript. Enforce information flow across LLM agent tools with source-to-sink capabilities.">
   <meta name="keywords" content="redact, redaction, pii redaction, data masking, mask pii, mask secrets, secret detection, secret scanning, javascript, typescript, nodejs, llm, openai, anonymization, gdpr, pci, zero dependency">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="https://flare-collection.github.io/flare-redact/">
@@ -24,7 +24,7 @@
     "codeRepository": "https://github.com/flare-collection/flare-redact",
     "url": "https://flare-collection.github.io/flare-redact/",
     "downloadUrl": "https://www.npmjs.com/package/flare-redact",
-    "softwareVersion": "1.5.1",
+    "softwareVersion": "1.6.0",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Cross-platform",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -185,7 +185,7 @@
       <div class="features">
         <div class="feat"><h3>🔍 Content-aware</h3><p>Reads the values, not just field names — it catches the key pasted into a free-text note or a stack trace.</p></div>
         <div class="feat"><h3>♻️ Reversible</h3><p>A vault swaps secrets for placeholders and restores them — send a redacted prompt to an LLM, then restore the reply.</p></div>
-        <div class="feat"><h3>🤖 LLM-safe</h3><p><code class="k">wrapOpenAI</code>, <code class="k">wrapAnthropic</code>, and <code class="k">createSession</code> keep private data out of your model calls.</p></div>
+        <div class="feat"><h3>🔥 Agent information flow</h3><p><code class="k">createAgentFlow</code> binds protected values to trusted sources, exact tool arguments, and cumulative budgets.</p></div>
         <div class="feat"><h3>🌍 24 languages</h3><p>Password/secret/token keywords in 24 languages, plus checksum-validated national IDs and IBAN.</p></div>
         <div class="feat"><h3>🧩 Everywhere</h3><p>pino, winston, HTTP middleware, streams, CSV datasets, a fetch egress guard — one policy across them all.</p></div>
         <div class="feat"><h3>🛡️ ReDoS-safe · 0 deps</h3><p>Bounded, linear-time patterns you can point at untrusted input. Nothing to install, runs anywhere JS runs.</p></div>
@@ -211,6 +211,10 @@
         <a class="guide" href="guides/mcp-tool-redaction/">
           <h3>Secure MCP tool boundaries</h3>
           <p>Prevent a model from moving one tool's placeholder into another tool call.</p>
+        </a>
+        <a class="guide" href="guides/agent-information-flow/">
+          <h3>Control AI agent information flow</h3>
+          <p>Permit secret restoration only at approved tools and exact argument paths.</p>
         </a>
       </div>
     </section>
@@ -239,7 +243,7 @@ wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
       // Bundled from the same release that ships to npm — nothing leaves this page.
       const mod = await import('./playground/flare-redact.min.js');
       redact = mod.redact; scan = mod.scan;
-      status.textContent = 'v1.5.1 · runs entirely in your browser';
+      status.textContent = 'v1.6.0 · runs entirely in your browser';
     } catch (e) {
       status.textContent = 'failed to load library';
       $('out').textContent = 'Could not load the playground bundle.';

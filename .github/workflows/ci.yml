@@ -27,6 +27,8 @@ jobs:
       - if: matrix.node == 24
         run: npm run benchmark:adversarial
       - if: matrix.node == 24
+        run: npm run benchmark:agent -- --json
+      - if: matrix.node == 24
         run: npm --prefix examples/openai-privacy install
       - if: matrix.node == 24
         run: npm --prefix examples/openai-privacy start
@@ -38,6 +40,10 @@ jobs:
         run: npm --prefix examples/universal-boundaries install
       - if: matrix.node == 24
         run: npm --prefix examples/universal-boundaries start
+      - if: matrix.node == 24
+        run: npm --prefix examples/flareflow-agent install
+      - if: matrix.node == 24
+        run: npm --prefix examples/flareflow-agent start
 
   runtimes:
     name: Bun & Deno smoke

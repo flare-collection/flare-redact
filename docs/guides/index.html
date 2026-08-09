@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Secret and PII Redaction Guides for JavaScript | Flare Redact</title>
-  <meta name="description" content="Practical JavaScript and TypeScript guides for redacting PII, hiding secrets in Node.js logs, protecting LLM prompts, and securing MCP tool boundaries.">
+  <meta name="description" content="Practical guides for redacting PII, hiding secrets in Node.js logs, protecting LLM prompts, and enforcing information flow across AI agent tools.">
   <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Secret and PII Redaction Guides for JavaScript">
@@ -42,7 +42,7 @@
   <main class="page wide">
     <p class="eyebrow">Developer guides</p>
     <h1>Put a redaction boundary where data can leak</h1>
-    <p class="lede">These guides solve four concrete problems with complete, copyable JavaScript. Each pattern runs locally with the zero-dependency Flare Redact core.</p>
+    <p class="lede">These guides solve five concrete problems with complete, copyable JavaScript. Each pattern runs locally with the zero-dependency Flare Redact core.</p>
 
     <div class="cards">
       <a class="card" href="pii-redaction-javascript/">
@@ -60,6 +60,10 @@
       <a class="card" href="mcp-tool-redaction/">
         <h2>Secure MCP tool boundaries</h2>
         <p>Stop cross-tool placeholder restoration by binding every reversible placeholder to a trusted tool scope.</p>
+      </a>
+      <a class="card" href="agent-information-flow/">
+        <h2>Control information flow across agent tools</h2>
+        <p>Authorize exact protected values by source, detector, destination tool, JSON argument path, and cumulative budget.</p>
       </a>
     </div>
 

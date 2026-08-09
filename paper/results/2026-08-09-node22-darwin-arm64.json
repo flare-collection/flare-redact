@@ -1,0 +1,97 @@
+{
+  "schema": "flareflow-benchmark-v1-result",
+  "command": "npm run benchmark:agent -- --json --iterations=100000 --samples=9",
+  "scope": "This corpus measures exact protected-value restoration at runtime-owned tool boundaries. It is not a general prompt-injection benchmark and does not measure semantic leakage of data already shown to a model.",
+  "runtime": {
+    "node": "v22.23.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "processor": "Apple A18 Pro",
+    "memoryBytes": 8589934592
+  },
+  "summary": {
+    "shared_vault": {
+      "attackCases": 700,
+      "attacksBlocked": 0,
+      "secretExposures": 480,
+      "harmlessPasses": 220,
+      "utilityCases": 300,
+      "utilityPassed": 300,
+      "exposuresByFamily": {
+        "cross_sink": 80,
+        "same_sink_wrong_path": 100,
+        "source_mismatch": 100,
+        "detector_mismatch": 100,
+        "foreign_session_replay": 0,
+        "cumulative_budget": 100,
+        "key_position": 0
+      }
+    },
+    "scoped_vault": {
+      "attackCases": 700,
+      "attacksBlocked": 0,
+      "secretExposures": 300,
+      "harmlessPasses": 400,
+      "utilityCases": 300,
+      "utilityPassed": 300,
+      "exposuresByFamily": {
+        "cross_sink": 0,
+        "same_sink_wrong_path": 100,
+        "source_mismatch": 0,
+        "detector_mismatch": 100,
+        "foreign_session_replay": 0,
+        "cumulative_budget": 100,
+        "key_position": 0
+      }
+    },
+    "flareflow": {
+      "attackCases": 700,
+      "attacksBlocked": 680,
+      "secretExposures": 0,
+      "harmlessPasses": 20,
+      "utilityCases": 300,
+      "utilityPassed": 300,
+      "blockedByFamily": {
+        "cross_sink": 80,
+        "same_sink_wrong_path": 100,
+        "source_mismatch": 100,
+        "detector_mismatch": 100,
+        "foreign_session_replay": 100,
+        "cumulative_budget": 100,
+        "key_position": 100
+      }
+    }
+  },
+  "performance": [
+    {
+      "label": "shared_vault_restore",
+      "iterations": 100000,
+      "samples": 9,
+      "medianDurationMs": 116.55,
+      "minDurationMs": 110.538,
+      "maxDurationMs": 126.474,
+      "operationsPerSecond": 858002,
+      "checksum": 16200000
+    },
+    {
+      "label": "scoped_vault_restore",
+      "iterations": 100000,
+      "samples": 9,
+      "medianDurationMs": 116.421,
+      "minDurationMs": 114.038,
+      "maxDurationMs": 125.242,
+      "operationsPerSecond": 858948,
+      "checksum": 16200000
+    },
+    {
+      "label": "flareflow_authorize",
+      "iterations": 100000,
+      "samples": 9,
+      "medianDurationMs": 452.562,
+      "minDurationMs": 432.289,
+      "maxDurationMs": 735.299,
+      "operationsPerSecond": 220964,
+      "checksum": 16200000
+    }
+  ]
+}

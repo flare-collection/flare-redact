@@ -8,6 +8,7 @@
  * that can be pointed anywhere by a header is an open relay.
  */
 
+import { createAgentFlow, type AgentFlowLimits, type AgentFlowSinkPolicy } from '../agent.js';
 import type { RedactOptions } from '../index.js';
 
 export interface ListenConfig {
@@ -65,6 +66,14 @@ export interface GatewayConfig {
   policy: RedactOptions;
   routes: RouteConfig[];
   sessions: { ttlMs: number; max: number };
+  /** Operator-owned FlareFlow policy exposed through authenticated /v1/flows endpoints. */
+  agentFlow: {
+    enabled: boolean;
+    sinks: Readonly<Record<string, AgentFlowSinkPolicy>>;
+    limits: Partial<AgentFlowLimits>;
+    ttlMs: number;
+    max: number;
+  };
   limits: { maxBodyBytes: number; requestTimeoutMs: number };
   /** Count findings per detector for logs and metrics. Costs one extra scan. */
   auditFindings: boolean;
@@ -86,6 +95,7 @@ const DEFAULTS: GatewayConfig = {
   policy: {},
   routes: [],
   sessions: { ttlMs: 30 * 60_000, max: 10_000 },
+  agentFlow: { enabled: false, sinks: {}, limits: {}, ttlMs: 30 * 60_000, max: 10_000 },
   limits: { maxBodyBytes: 8 * 1024 * 1024, requestTimeoutMs: 120_000 },
   auditFindings: true,
   metrics: true,
@@ -108,6 +118,7 @@ export interface RawConfig {
   routes?: RawRoute[];
   upstream?: string;
   sessions?: Partial<GatewayConfig['sessions']>;
+  agentFlow?: Partial<GatewayConfig['agentFlow']> & { limits?: Partial<AgentFlowLimits> };
   limits?: Partial<GatewayConfig['limits']>;
   auditFindings?: boolean;
   metrics?: boolean;
@@ -222,6 +233,11 @@ function mergeRaw(base: RawConfig, override: RawConfig): RawConfig {
     listen: { ...base.listen, ...override.listen },
     policy: { ...base.policy, ...override.policy },
     sessions: { ...base.sessions, ...override.sessions },
+    agentFlow: {
+      ...base.agentFlow,
+      ...override.agentFlow,
+      limits: { ...base.agentFlow?.limits, ...override.agentFlow?.limits },
+    },
     limits: { ...base.limits, ...override.limits },
     routes: override.routes ?? base.routes,
     upstream: override.upstream ?? base.upstream,
@@ -262,6 +278,35 @@ export function resolveConfig(...layers: Array<RawConfig | undefined>): GatewayC
     throw new GatewayConfigError(`listen.port must be between 0 and 65535, received ${JSON.stringify(port)}`);
   }
 
+  const flowTtlMs = raw.agentFlow?.ttlMs ?? DEFAULTS.agentFlow.ttlMs;
+  const maxFlows = raw.agentFlow?.max ?? DEFAULTS.agentFlow.max;
+  const flowEnabled = raw.agentFlow?.enabled ?? DEFAULTS.agentFlow.enabled;
+  if (typeof flowEnabled !== 'boolean') {
+    throw new GatewayConfigError(`agentFlow.enabled must be a boolean, received ${JSON.stringify(flowEnabled)}`);
+  }
+  if (!Number.isSafeInteger(flowTtlMs) || flowTtlMs <= 0) {
+    throw new GatewayConfigError(`agentFlow.ttlMs must be a positive integer, received ${JSON.stringify(flowTtlMs)}`);
+  }
+  if (!Number.isSafeInteger(maxFlows) || maxFlows <= 0 || maxFlows > 1_000_000) {
+    throw new GatewayConfigError(`agentFlow.max must be an integer from 1 to 1,000,000, received ${JSON.stringify(maxFlows)}`);
+  }
+  const agentFlow: GatewayConfig['agentFlow'] = {
+    enabled: flowEnabled,
+    sinks: raw.agentFlow?.sinks ?? DEFAULTS.agentFlow.sinks,
+    limits: raw.agentFlow?.limits ?? DEFAULTS.agentFlow.limits,
+    ttlMs: flowTtlMs,
+    max: maxFlows,
+  };
+  if (agentFlow.enabled) {
+    try {
+      // Validate the complete runtime-owned policy at startup rather than on the
+      // first request. No data is protected and no placeholder is minted here.
+      createAgentFlow({ policy: raw.policy ?? DEFAULTS.policy, sinks: agentFlow.sinks, limits: agentFlow.limits });
+    } catch (error) {
+      throw new GatewayConfigError(`agentFlow: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   return {
     listen: { host: raw.listen?.host ?? DEFAULTS.listen.host, port },
     ...(raw.token ? { token: raw.token } : {}),
@@ -271,6 +316,7 @@ export function resolveConfig(...layers: Array<RawConfig | undefined>): GatewayC
       ttlMs: raw.sessions?.ttlMs ?? DEFAULTS.sessions.ttlMs,
       max: raw.sessions?.max ?? DEFAULTS.sessions.max,
     },
+    agentFlow,
     limits: {
       maxBodyBytes: raw.limits?.maxBodyBytes ?? DEFAULTS.limits.maxBodyBytes,
       requestTimeoutMs: raw.limits?.requestTimeoutMs ?? DEFAULTS.limits.requestTimeoutMs,

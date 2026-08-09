@@ -63,7 +63,7 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 |   |   |   |
 |---|---|---|
 | 🔍 **Context-aware** — spans carry risk and confidence | 🔐 **Secure vaults** — opaque tokens, optional AES-GCM persistence | 🎭 **Useful test data** — keyed pseudonyms and typed surrogates |
-| 🤖 **Scoped LLM + tool boundaries** — stops cross-tool placeholder restore | 🔌 **Universal middleware** — wrap any SDK, handler, queue, or RPC function | 🪶 **Zero runtime dependencies** — Node, browser, and edge |
+| 🔥 **FlareFlow agent IFC** — source→sink capabilities, exact paths, cumulative budgets | 🔌 **Universal middleware** — wrap any SDK, handler, queue, or RPC function | 🪶 **Zero runtime dependencies** — Node, browser, and edge |
 | 🐍 **Python, Go, and Rust SDKs** — one spec, four engines, one conformance corpus | 🐳 **Sidecar gateway** — a Docker reverse proxy that needs no code change | 📜 **Detectors as data** — portable FRS-1 packs any engine can load |
 
 ## Contents
@@ -81,6 +81,7 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 - [Contextual and model-assisted PII](#contextual-and-model-assisted-pii)
 - [Learned confidence, fewer false positives](#learned-confidence-fewer-false-positives)
 - [Build a private chat app](#build-a-private-chat-app)
+- [Enforce information flow across agent tools](#enforce-information-flow-across-agent-tools)
 - [Protect tool calls and MCP loops](#protect-tool-calls-and-mcp-loops)
 - [Your own words](#your-own-words)
 - [See what leaks, and why](#see-what-leaks-and-why)
@@ -154,6 +155,7 @@ Clone the repository and run these small applications locally:
 | [`openai-privacy`](examples/openai-privacy) | The model sees an opaque placeholder while the app receives the restored value | `npm --prefix examples/openai-privacy start` |
 | [`express-pino`](examples/express-pino) | Express keeps the original request while Pino receives a safe snapshot | `npm --prefix examples/express-pino run smoke` |
 | [`universal-boundaries`](examples/universal-boundaries) | Any SDK method is sanitized and cross-tool placeholder exfiltration is blocked | `npm --prefix examples/universal-boundaries start` |
+| [`flareflow-agent`](examples/flareflow-agent) | An injected model can carry an opaque secret token but cannot restore it at an unauthorized sink or path | `npm --prefix examples/flareflow-agent start` |
 | [`github-secret-scan`](examples/github-secret-scan) | Pull requests fail when tracked source or configuration files contain detected secrets or PII | Copy the workflow into your repository |
 
 Run `npm run build` and install an example's dependencies before its first run.
@@ -173,8 +175,8 @@ dependencies of any kind.
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.5.1#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.5.1" }` | [`sdk/rust`](sdk/rust) |
+| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
+| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.6.0" }` | [`sdk/rust`](sdk/rust) |
 
 The Python and Rust engines are not published to PyPI and crates.io yet, so they
 install from this repository. The commands above are the ones that work today.
@@ -561,6 +563,67 @@ process(out.flush());
 including nested tool calls, and `session.reset()` starts a fresh conversation.
 Detected original values stay local while your app keeps a reversible reference.
 
+## Enforce information flow across agent tools
+
+Tool-scoped vaults stop one class of attack, but a production agent often needs
+finer control: a database credential may be valid for `postgres.execute`, yet
+only in `args.connectionString`, only when it came from configuration, and at
+most once. **FlareFlow** makes that declassification policy executable outside
+the model.
+
+```js
+import { createAgentFlow } from 'flare-redact/agent';
+
+const flow = createAgentFlow({
+  sinks: {
+    'postgres.execute': {
+      capabilities: [{
+        id: 'database-credential',
+        sources: ['config'],
+        detectors: ['url_credentials'],
+        paths: ['/args/connectionString'],
+        maxUses: 1,
+      }],
+      budget: { maxUniqueValues: 1, maxBytes: 512 },
+    },
+    'http.fetch': { capabilities: [] },
+  },
+});
+
+const safe = flow.protectForModel('config', {
+  connection: 'postgres://admin:password@db.internal/prod',
+});
+// The model sees [FR_FLOW_<128 random bits>]db.internal/prod, never credentials.
+
+// Resolve names through your own registry. Never trust the model's label.
+const tool = toolRegistry.resolve(modelCall.name);
+const localCall = flow.authorizeForSink(tool.id, modelCall.arguments);
+await tool.execute(localCall);
+```
+
+Every token carries runtime provenance: source and detector. Authorization also
+checks the resolved sink, its exact JSON Pointer path, per-capability use count,
+and cumulative sink-wide use, unique-value, and UTF-8 byte budgets. One failed
+occurrence blocks the whole call without restoring anything or consuming a
+budget. Forged, expired, cross-flow, and object-key tokens fail closed.
+
+`inspectForSink()` preflights without restoring, `snapshot()` returns bounded
+value-free audit state, `revokeSource()` invalidates one source, and
+`restoreForApp()` is reserved for the trusted final application boundary. The
+implementation preserves cyclic/shared graphs, rejects same-flow re-entrancy
+during audit delivery, and never asks the model whether the flow is safe.
+
+Read the normative [FlareFlow 1 specification](spec/FLAREFLOW.md), run the
+[reproducible 700-attack / 300-utility benchmark](bench/agent-flow-cases.json),
+read the [technical preprint](paper/flareflow-preprint.md), or start the
+[runnable example](examples/flareflow-agent). The benchmark tests exact
+placeholder restoration; it is deliberately not presented as a general
+prompt-injection benchmark.
+
+The same operator-owned policy is available through the sidecar's `/v1/flows`
+API, with standard-library clients for Python and Go. That makes FlareFlow usable
+from any language that can send JSON over HTTP.
+
 ## Protect tool calls and MCP loops
 
 An agent loop has two directions: model-produced arguments need their local
@@ -785,7 +848,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.5.1 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.6.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -1004,6 +1067,13 @@ createScopedToolBoundary(opts?)                // scope-safe model ↔ tool/MCP 
 createToolBoundary(opts?)                      // legacy single-trust-domain boundary
 redactToolCall / redactToolResult / redactMcpMessage
 
+// from 'flare-redact/agent'
+createAgentFlow({ policy?, sinks, limits? })    // provenance + path + budget enforcement
+flow.protectForModel(source, value)
+flow.inspectForSink(sink, call)                 // no restoration or budget consumption
+flow.authorizeForSink(sink, call)               // atomic restore or AgentFlowBlockedError
+flow.restoreForApp(value) / revokeSource(source) / snapshot() / reset()
+
 // from 'flare-redact/stream'
 redactStream(opts?): Transform                  // chunk-safe + bounded multiline PEM redaction
 
@@ -1050,6 +1120,10 @@ npm run benchmark:adversarial
   forward restored model output to another untrusted sink automatically.
 - A model-produced tool name is untrusted input. Resolve it to a runtime-owned
   tool/trust-domain scope before calling `restoreForTool()`.
+- FlareFlow policy, source ids, and sink ids are runtime-owned. A model may carry
+  a token but must never choose the identity or capability used to restore it.
+- FlareFlow controls exact placeholder declassification. It is not a general
+  prompt-injection defense and cannot protect data already shown to the model.
 - The legacy `createToolBoundary()` restores every placeholder in its shared
   vault. Use `createScopedToolBoundary()` whenever more than one tool or trust
   domain can receive model-produced arguments.

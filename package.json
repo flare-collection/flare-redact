@@ -1,7 +1,7 @@
 {
   "name": "flare-redact",
-  "version": "1.5.1",
-  "description": "Zero-dependency secret and PII redaction for any SDK, logs, HTTP, LLM prompts, and MCP tools — with a Docker sidecar gateway and Python, Go and Rust SDKs.",
+  "version": "1.6.0",
+  "description": "Zero-dependency secret and PII redaction for logs, prompts, and agent tools — with FlareFlow information-flow control and a polyglot sidecar.",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -55,6 +55,10 @@
       "types": "./dist/middleware.d.ts",
       "default": "./dist/middleware.js"
     },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "default": "./dist/agent.js"
+    },
     "./pack": {
       "types": "./dist/pack.d.ts",
       "default": "./dist/pack.js"
@@ -74,6 +78,7 @@
     "dist",
     "bin",
     "spec/SPEC.md",
+    "spec/FLAREFLOW.md",
     "spec/detectors.json",
     "spec/detectors.schema.json",
     "spec/conformance",
@@ -83,6 +88,8 @@
     "bench/performance.mjs",
     "bench/adversarial-runtime.mjs",
     "bench/graph-vault.mjs",
+    "bench/agent-flow.mjs",
+    "bench/agent-flow-cases.json",
     "README.md",
     "CHANGELOG.md",
     "MIGRATION.md",
@@ -98,6 +105,7 @@
     "spec:conformance": "npm run build && node scripts/build-conformance.mjs",
     "gateway": "npm run build && node bin/flare-gateway.mjs",
     "benchmark": "npm run build && node bench/performance.mjs",
+    "benchmark:agent": "npm run build && node bench/agent-flow.mjs",
     "benchmark:adversarial": "npm run build && node bench/adversarial-runtime.mjs",
     "prepublishOnly": "npm run build",
     "benchmark:graph": "npm run build && node bench/graph-vault.mjs",
@@ -170,7 +178,10 @@
     "mcp",
     "ai-agents",
     "data-loss-prevention",
-    "sdk"
+    "sdk",
+    "information-flow-control",
+    "agent-security",
+    "prompt-injection"
   ],
   "author": "Umud Hasanli (https://github.com/umudhasanli)",
   "license": "MIT",

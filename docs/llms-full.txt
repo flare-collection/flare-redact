@@ -95,6 +95,43 @@ Chat sessions: `import { createSession } from 'flare-redact/session'` — redact
 
 Tool / MCP boundaries: `import { createScopedToolBoundary, createToolBoundary, redactToolCall, redactToolResult, redactMcpMessage } from 'flare-redact/tool'`. Prefer `createScopedToolBoundary()`: call `redactForModel(runtimeOwnedScope, value)` and `restoreForTool(runtimeOwnedScope, call)`. A placeholder minted in another scope stays opaque. `restoreForApp()` restores all scopes only at the trusted final boundary. Legacy `createToolBoundary()` restores every known placeholder and is appropriate only for a single tool/trust domain.
 
+## FlareFlow agent information control (from 'flare-redact/agent')
+
+```js
+import { createAgentFlow } from 'flare-redact/agent';
+
+const flow = createAgentFlow({
+  policy: { enable: ['pii'] },
+  sinks: {
+    'postgres.execute': {
+      capabilities: [{
+        id: 'credential',
+        sources: ['config'],
+        detectors: ['url_credentials'],
+        paths: ['/args/connectionString'],
+        maxUses: 1,
+      }],
+      budget: { maxUniqueValues: 1, maxBytes: 512 },
+    },
+  },
+});
+
+const safe = flow.protectForModel('config', input);
+flow.inspectForSink('postgres.execute', modelCall);  // no restore or consumption
+const local = flow.authorizeForSink('postgres.execute', modelCall); // atomic or throws
+```
+
+Capabilities match source, detector, runtime-resolved sink, and JSON Pointer
+path. `*` matches one path segment; terminal `**` matches descendants. Optional
+budgets limit cumulative occurrences per capability and uses, unique values, and
+UTF-8 bytes per sink. Forged, expired, cross-flow, key-position, wrong-path, and
+over-budget tokens block the complete call. `snapshot()` is value-free;
+`revokeSource(source)` invalidates one origin; `restoreForApp()` is privileged.
+
+FlareFlow controls exact placeholder restoration. It is not a general prompt-
+injection defense and cannot protect information already shown to the model.
+Source ids, sink ids, and policy must be runtime-owned, never model-supplied.
+
 ## Integrations
 
 ```js

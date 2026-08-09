@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.6.0 — 2026-08-09
+
+### FlareFlow: deterministic information-flow control for agents
+
+- Add `flare-redact/agent` with `createAgentFlow()`, a model-independent
+  declassification boundary for tool-using agents. Every protected value keeps
+  runtime provenance — source and detector — and is restored only when an
+  operator capability also matches the runtime-resolved sink and exact JSON
+  Pointer destination.
+- Add cumulative per-capability use limits and sink-wide use, unique-value, and
+  UTF-8 byte budgets across model turns. Authorization preflights the complete
+  call: one forged, expired, foreign-flow, key-position, wrong-source,
+  wrong-detector, wrong-sink, wrong-path, or over-budget occurrence blocks the
+  whole call without partial restoration or budget consumption.
+- Use opaque 128-bit Web Crypto tokens, bounded TTL mappings and audit history,
+  transactional protection and revocation, non-reentrant audit delivery,
+  trusted final-app restoration, and value-free decisions and snapshots.
+  Cycles, shared references, maps, sets, errors, URLs, symbols, sparse arrays,
+  and descriptors follow the core graph safety contract.
+- Publish the normative [FlareFlow 1 specification](spec/FLAREFLOW.md), including
+  the threat model, state machine, capability syntax, atomicity rules, security
+  invariant, resource bounds, and explicit limitations.
+
+### One policy from every runtime
+
+- Add operator-controlled `/v1/flows` endpoints to the sidecar for protect,
+  inspect, authorize, trusted restore, snapshot, and deletion. Clients cannot
+  supply or widen flow policy; invalid policies fail gateway startup.
+- Add TTL- and count-bounded in-memory flow storage, a Prometheus active-flow
+  gauge, value-free debug events, safe HTTP 403 decisions, health status, and
+  complete gateway tests for enabled, denied, disabled, and invalid-policy paths.
+- Add `RemoteAgentFlow` to the standard-library Python client and
+  `RemoteAgentFlow` / `OpenAgentFlow` to the standard-library Go client,
+  including safe structured denial details.
+
+### Reproducible evaluation and documentation
+
+- Add a deterministic benchmark with 700 exact-token attack trials across seven
+  policy-violation families and 300 utility trials, comparing a shared vault, a
+  tool-scoped vault, and FlareFlow. The benchmark scope explicitly excludes
+  general prompt injection and semantic leakage claims.
+- Add a no-network runnable agent example, CI coverage for the benchmark and
+  example, complete README and gateway integration guidance, and a research
+  preprint with a reproducible evaluation protocol.
+
+No existing API changed behavior. FlareFlow is opt-in, and the gateway endpoints
+remain disabled until an operator supplies and enables a policy.
+
 ## 1.5.1 — 2026-08-06
 
 ### Actually zero dependencies

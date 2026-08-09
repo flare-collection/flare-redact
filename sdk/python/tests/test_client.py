@@ -34,9 +34,11 @@ class _StubHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         _REQUESTS.append(("GET", self.path, None, dict(self.headers)))
         if self.path == "/healthz":
-            self._send(200, {"status": "ok", "version": "1.5.0"})
+            self._send(200, {"status": "ok", "version": "1.6.0"})
         elif self.path == "/v1/detectors":
             self._send(200, {"detectors": [{"id": "email", "default": True}]})
+        elif self.path == "/v1/flows/flow123/snapshot":
+            self._send(200, {"liveMappings": 1, "sources": {"config": 1}, "sinks": {}, "events": []})
         else:
             self._send(404, {"code": "ERR_NOT_FOUND", "message": "no route"})
 
@@ -52,6 +54,16 @@ class _StubHandler(BaseHTTPRequestHandler):
             ]})
         elif self.path == "/v1/sessions":
             self._send(201, {"id": "abc123"})
+        elif self.path == "/v1/flows":
+            self._send(201, {"id": "flow123"})
+        elif self.path == "/v1/flows/flow123/protect":
+            self._send(200, {"output": "[FR_FLOW_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]"})
+        elif self.path == "/v1/flows/flow123/inspect":
+            self._send(200, {"decision": {"allowed": True, "occurrences": 1}})
+        elif self.path == "/v1/flows/flow123/authorize":
+            self._send(200, {"output": {"args": {"connectionString": "db-secret"}}})
+        elif self.path == "/v1/flows/flow123/restore":
+            self._send(200, {"output": "db-secret"})
         elif self.path.endswith("/redact"):
             self._send(200, {"output": "[EMAIL_1]"})
         elif self.path.endswith("/restore"):
@@ -107,6 +119,20 @@ class GatewayClientTest(unittest.TestCase):
             self.assertEqual(session.id, "abc123")
             self.assertEqual(session.redact("ada@example.com"), "[EMAIL_1]")
             self.assertEqual(session.restore("[EMAIL_1]"), "ada@example.com")
+        self.assertEqual(_REQUESTS[-1][0], "DELETE")
+
+    def test_agent_flow_round_trip_inspection_snapshot_and_close(self) -> None:
+        with self.client.agent_flow() as flow:
+            safe = flow.protect_for_model("config", "db-secret")
+            self.assertRegex(safe, r"^\[FR_FLOW_[a-f0-9]{32}\]$")
+            call = {"args": {"connectionString": safe}}
+            self.assertTrue(flow.inspect_for_sink("postgres.execute", call)["allowed"])
+            self.assertEqual(
+                flow.authorize_for_sink("postgres.execute", call)["args"]["connectionString"],
+                "db-secret",
+            )
+            self.assertEqual(flow.restore_for_app(safe), "db-secret")
+            self.assertEqual(flow.snapshot()["liveMappings"], 1)
         self.assertEqual(_REQUESTS[-1][0], "DELETE")
 
     def test_http_errors_carry_the_gateway_code(self) -> None:

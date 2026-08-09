@@ -142,6 +142,22 @@ gateway := flareredact.NewClient("http://127.0.0.1:8787", flareredact.ClientOpti
 safe, err := gateway.Redact(ctx, payload, flareredact.Options{Enable: []string{"pii"}})
 ```
 
+For a tool-using agent, open a gateway-held FlareFlow. The sidecar operator owns
+the capabilities; the client supplies only trusted source and runtime-resolved
+sink identifiers:
+
+```go
+flow, err := gateway.OpenAgentFlow(ctx)
+defer flow.Close(ctx)
+
+safe, err := flow.ProtectForModel(ctx, "postgres.result", toolResult)
+decision, err := flow.InspectForSink(ctx, "postgres.execute", modelCall)
+localCall, err := flow.AuthorizeForSink(ctx, "postgres.execute", modelCall)
+```
+
+A denial is a `*GatewayError` with status 403 and a value-free decision in
+`Details`.
+
 ## Custom detector packs
 
 ```go

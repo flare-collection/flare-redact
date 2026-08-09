@@ -264,6 +264,43 @@ A container image ships in the repository under docker/.
 Full flag list: flare-redact gateway help`,
   },
   {
+    name: 'agent-flow',
+    summary: 'FlareFlow: source-to-sink capabilities for AI tools',
+    body: `AGENT FLOW — control where protected values may be restored
+
+FlareFlow is a library and gateway API for model-produced tool calls. It binds
+each protected value to a runtime-owned source and detector, then restores it
+only when a capability also matches the resolved sink, exact JSON Pointer path,
+and remaining cumulative budget.
+
+  import { createAgentFlow } from 'flare-redact/agent';
+
+  const flow = createAgentFlow({
+    sinks: {
+      'postgres.execute': {
+        capabilities: [{
+          id: 'credential', sources: ['config'],
+          detectors: ['url_credentials'],
+          paths: ['/args/connectionString'], maxUses: 1
+        }]
+      }
+    }
+  });
+
+  const safe = flow.protectForModel('config', sourceData);
+  const local = flow.authorizeForSink(runtimeTool.id, modelCall);
+
+Do not take source ids, sink ids, or policy from model output. A forged,
+cross-flow, expired, wrong-path, key-position, or over-budget token blocks the
+whole call without partial restoration.
+
+This controls exact placeholder declassification. It is not a general prompt-
+injection defense and cannot protect data the model already saw.
+
+Specification: spec/FLAREFLOW.md
+Benchmark:     npm run benchmark:agent -- --json`,
+  },
+  {
     name: 'library',
     summary: 'using it from JavaScript and TypeScript',
     body: `LIBRARY — the JavaScript and TypeScript API
@@ -283,6 +320,7 @@ Adapters live behind subpath imports, so you pay for what you import:
   flare-redact/http        flare-redact/fetch        HTTP layers
   flare-redact/llm         flare-redact/session      prompts and conversations
   flare-redact/tool        MCP and multi-tool agent boundaries
+  flare-redact/agent       provenance, path and budget enforcement for agents
   flare-redact/stream      flare-redact/csv          streams and tabular data
   flare-redact/middleware  framework middleware
   flare-redact/ml          the learned confidence classifier
@@ -306,10 +344,10 @@ else, and it pulls no dependencies of any kind.
   Go      go get github.com/flare-collection/flare-redact/sdk/go
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.5.1#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.6.0#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.5.1" }
+                           tag = "v1.6.0" }
 
 The Python and Rust engines are not on PyPI or crates.io yet, so they install
 from the repository. The commands above are the ones that work today.

@@ -19,12 +19,12 @@
     "headline": "Secure secret redaction for MCP and AI tools",
     "description": "A threat-driven guide to scoped placeholder restoration in multi-tool AI agents.",
     "datePublished": "2026-08-04",
-    "dateModified": "2026-08-04",
+    "dateModified": "2026-08-09",
     "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
     "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
     "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/mcp-tool-redaction/",
     "proficiencyLevel": "Advanced",
-    "dependencies": "flare-redact 1.4 or newer"
+    "dependencies": "flare-redact 1.4 or newer; FlareFlow requires 1.6"
   }
   </script>
 </head>
@@ -45,7 +45,7 @@
     <p class="eyebrow">Agent and MCP security guide</p>
     <h1>Secure secret redaction for MCP and AI tools</h1>
     <p class="lede">Reversible redaction needs an authorization boundary. In a multi-tool agent, each placeholder should be restorable only by the tool or trust domain that originally exposed it.</p>
-    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 4, 2026 · Examples tested with Flare Redact 1.4</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 9, 2026 · Examples tested with Flare Redact 1.6</p>
 
     <div class="answer"><strong>Short answer:</strong> use <code>createScopedToolBoundary()</code>, assign scopes in your trusted tool registry, redact a result under the executed tool's scope, and restore a future call only under the destination scope resolved by application code.</div>
 
@@ -107,6 +107,9 @@ boundary.reset();</code></pre>
 
     <h2>When the legacy boundary is acceptable</h2>
     <p><code>createToolBoundary()</code> remains available for a single tool or one trust domain. It intentionally restores any placeholder in its shared vault. Do not reuse one legacy boundary across tools that have different network access, credentials, tenants, or data permissions.</p>
+
+    <h2>Need exact argument paths and leakage budgets?</h2>
+    <p>Tool scopes answer “which trust domain?” FlareFlow also checks where a value came from, which detector classified it, the exact destination JSON Pointer, and how often or how many bytes may be restored across turns. See the <a href="../agent-information-flow/">agent information-flow guide</a> when one tool has arguments with different authority.</p>
 
     <h2>Agent boundary checklist</h2>
     <ul>
