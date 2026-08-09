@@ -132,6 +132,12 @@ FlareFlow controls exact placeholder restoration. It is not a general prompt-
 injection defense and cannot protect information already shown to the model.
 Source ids, sink ids, and policy must be runtime-owned, never model-supplied.
 
+NeMo Guardrails integration: after IORails validates an OpenAI-shaped tool call,
+resolve `toolCall.function.name` through an application-owned registry, parse
+`toolCall.function.arguments`, and call `authorizeForSink(registryTool.sink,
+{ args })` immediately before application-owned execution. See the tested guide:
+https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/
+
 ## Integrations
 
 ```js

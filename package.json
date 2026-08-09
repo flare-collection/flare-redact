@@ -1,6 +1,6 @@
 {
   "name": "flare-redact",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Zero-dependency secret and PII redaction for logs, prompts, and agent tools — with FlareFlow information-flow control and a polyglot sidecar.",
   "type": "module",
   "sideEffects": false,
@@ -181,7 +181,8 @@
     "sdk",
     "information-flow-control",
     "agent-security",
-    "prompt-injection"
+    "prompt-injection",
+    "nemo-guardrails"
   ],
   "author": "Umud Hasanli (https://github.com/umudhasanli)",
   "license": "MIT",

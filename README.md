@@ -156,6 +156,7 @@ Clone the repository and run these small applications locally:
 | [`express-pino`](examples/express-pino) | Express keeps the original request while Pino receives a safe snapshot | `npm --prefix examples/express-pino run smoke` |
 | [`universal-boundaries`](examples/universal-boundaries) | Any SDK method is sanitized and cross-tool placeholder exfiltration is blocked | `npm --prefix examples/universal-boundaries start` |
 | [`flareflow-agent`](examples/flareflow-agent) | An injected model can carry an opaque secret token but cannot restore it at an unauthorized sink or path | `npm --prefix examples/flareflow-agent start` |
+| [`nemo-guardrails-flareflow`](examples/nemo-guardrails-flareflow) | A NeMo-validated tool call still cannot move a protected database value into an unauthorized HTTP sink | `npm --prefix examples/nemo-guardrails-flareflow start` |
 | [`github-secret-scan`](examples/github-secret-scan) | Pull requests fail when tracked source or configuration files contain detected secrets or PII | Copy the workflow into your repository |
 
 Run `npm run build` and install an example's dependencies before its first run.
@@ -175,8 +176,8 @@ dependencies of any kind.
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.6.0" }` | [`sdk/rust`](sdk/rust) |
+| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.1#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
+| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.6.1" }` | [`sdk/rust`](sdk/rust) |
 
 The Python and Rust engines are not published to PyPI and crates.io yet, so they
 install from this repository. The commands above are the ones that work today.
@@ -624,6 +625,24 @@ The same operator-owned policy is available through the sidecar's `/v1/flows`
 API, with standard-library clients for Python and Go. That makes FlareFlow usable
 from any language that can send JSON over HTTP.
 
+### NeMo Guardrails interoperability
+
+NeMo Guardrails IORails validates model-produced tool names and arguments; the
+application remains responsible for execution. Resolve the validated name
+through an application-owned registry and call `authorizeForSink()` immediately
+before execution. FlareFlow then adds source, detector, sink, exact JSON path,
+and cumulative-budget checks to the existing tool allowlist and schema checks.
+
+The [tested, no-network example](examples/nemo-guardrails-flareflow) proves both
+an unauthorized HTTP exfiltration denial and an approved database restoration.
+The [integration guide](https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/)
+documents the live application boundary and limitations.
+
+NVIDIA and the NVIDIA logo are trademarks and/or registered trademarks of
+NVIDIA Corporation. NeMo Guardrails is referenced only for interoperability.
+Flare Redact is independent and is not affiliated with, sponsored by, or
+endorsed by NVIDIA.
+
 ## Protect tool calls and MCP loops
 
 An agent loop has two directions: model-produced arguments need their local
@@ -848,7 +867,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.6.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.6.1 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and

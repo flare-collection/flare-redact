@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.1 — 2026-08-09
+
+### NeMo Guardrails interoperability
+
+- Add a deterministic, no-network NeMo Guardrails IORails + FlareFlow example.
+  It consumes the OpenAI-shaped tool-call boundary that the application executes,
+  resolves the tool through a trusted local registry, and authorizes protected
+  values immediately before execution.
+- Prove both sides with runtime assertions: a structurally valid HTTP call cannot
+  receive a protected database credential, while the approved database sink can
+  restore it only at the configured JSON Pointer path and within its budget.
+- Publish an original integration guide, add it to the guide hub, homepage,
+  sitemap, README, and LLM-readable documentation, and run the example in CI.
+- Document the exact division of responsibility: NeMo validates tool
+  allowlists/schemas and FlareFlow enforces provenance-aware declassification.
+  No NVIDIA logo or endorsement claim is used; the compatibility references are
+  nominative and carry an explicit independence notice.
+
+No runtime API changed. Existing FlareFlow policies remain fully compatible.
+
 ## 1.6.0 — 2026-08-09
 
 ### FlareFlow: deterministic information-flow control for agents
