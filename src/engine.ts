@@ -4,6 +4,7 @@ import { pseudonymize, surrogate } from './transforms.js';
 import { MULTILANG_KEY_SET } from './i18n.js';
 import { buildTermsDetector, type TermSpec } from './terms.js';
 import { secretProbability } from './ml.js';
+import { ENTITY_DETECTORS, ENTITY_LABELS, isEntityDetector, recognizeEntities, type EntityLabel, type EntityOptions } from './entities.js';
 
 export type Mode = 'mask' | 'label' | 'hash' | 'pseudonym' | 'surrogate' | 'fpe';
 export type Risk = 'low' | 'medium' | 'high' | 'critical';
@@ -66,6 +67,13 @@ export interface RedactOptions {
   termsCaseSensitive?: boolean;
   /** Optional local detector/model for names, addresses, and other semantic PII. */
   semanticProvider?: SemanticProvider;
+  /**
+   * Recognise people, addresses, phone numbers, personal dates, account numbers,
+   * handles, personal URLs and secrets in free text, without a model. `true`
+   * turns on every label; an object picks labels and tunes the recogniser.
+   * `enable: ['entities']` is the same as `entities: true`.
+   */
+  entities?: boolean | EntityOptions;
   /** Drop findings below this confidence (default: 0). */
   minConfidence?: number;
   /**
@@ -127,6 +135,14 @@ export function resolveDetectors(opts: RedactOptions): Detector[] {
       const off = disable?.some((e) => matches(e, d)) ?? false;
       return on && !off;
     });
+  }
+  if (opts.entities) {
+    const labels: readonly EntityLabel[] = (typeof opts.entities === 'object' && opts.entities.labels) || ENTITY_LABELS;
+    for (const det of ENTITY_DETECTORS) {
+      if (chosen.includes(det) || !labels.includes(det.id as EntityLabel)) continue;
+      if (opts.disable?.some((e) => matches(e, det))) continue;
+      chosen = [...chosen, det];
+    }
   }
   const termsDet = buildTermsDetector(opts.terms, opts.termsCaseSensitive);
   return termsDet ? [termsDet, ...chosen] : chosen;
@@ -229,7 +245,12 @@ export function scanString(
   const normalized = normalizedView(text);
   const subject = normalized.text;
   const hits: Hit[] = [];
+  let entityDetectors: Detector[] | undefined;
   for (const det of dets) {
+    if (isEntityDetector(det)) {
+      (entityDetectors ??= []).push(det);
+      continue;
+    }
     if (det.prefilter && !det.prefilter.some((literal) => subject.toLowerCase().includes(literal.toLowerCase()))) continue;
     const re = scanPattern(det);
     re.lastIndex = 0;
@@ -292,6 +313,19 @@ export function scanString(
         confidence: finding.confidence ?? 0.8,
       };
       hits.push({ ...finding, value, risk: det.risk!, confidence: det.confidence!, det });
+      if (hits.length > maxFindings) {
+        throw new RedactionLimitError(`Finding count exceeds the configured limit of ${maxFindings}.`);
+      }
+    }
+  }
+  if (entityDetectors) {
+    const byId = new Map(entityDetectors.map((det) => [det.id, det]));
+    const tuning = typeof opts.entities === 'object' ? opts.entities : {};
+    for (const finding of recognizeEntities(text, { ...tuning, labels: [...byId.keys()] as EntityLabel[] })) {
+      const det = byId.get(finding.detector)!;
+      const value = text.slice(finding.start, finding.end);
+      if (allow(value) || finding.confidence < (opts.minConfidence ?? 0)) continue;
+      hits.push({ ...finding, label: det.label, why: det.why, value, det });
       if (hits.length > maxFindings) {
         throw new RedactionLimitError(`Finding count exceeds the configured limit of ${maxFindings}.`);
       }

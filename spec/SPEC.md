@@ -162,7 +162,7 @@ survives only if **all** validators return true.
 | `luhn` | digits only; length within `[minDigits, maxDigits]` (defaults 2 / unbounded); Luhn sum ≡ 0 (mod 10) |
 | `entropy` | Shannon entropy over Unicode code points ≥ `min` bits/symbol |
 | `phone` | 8–15 digits; a value without a leading `+` needs ≥ 9 digits and must not end in a separated `19xx`/`20xx` year |
-| `iban` | ISO 13616 mod-97 |
+| `iban` | remove ASCII whitespace, `-`, U+00A0, U+2009 and U+202F; ISO 13616 mod-97 |
 | `tckn` | Türkiye T.C. Kimlik No, two check digits |
 | `cpf` | Brazil, two mod-11 check digits, rejects repeated digits |
 | `dni` | Spain DNI/NIE control letter (mod 23) |
@@ -175,7 +175,7 @@ survives only if **all** validators return true.
 | `tfn` | Australia weighted sum ≡ 0 (mod 11) |
 | `cn_resident_id` | China ISO 7064 MOD 11-2 |
 | `jp_my_number` | Japan weighted mod-11 |
-| `us_ssn` | never-issued ranges (area 0, 666, ≥ 900; group 0; serial 0) |
+| `us_ssn` | 3-2-4 digits separated by `-`, a space or nothing; never-issued ranges (area 0, 666, ≥ 900; group 0; serial 0) |
 | `aba` | US routing 3-7-1 mod-10 |
 | `nhs` | UK weighted mod-11, rejects repeated digits |
 | `vin` | transliterated weighted mod-11, check character at position 9 |
@@ -457,11 +457,17 @@ purpose and listed here.
 4. **`person_name` matches `name is X` as `\s+is\s+`** rather than `\s*\bis\b\s*`,
    which requires the whitespace that the word boundary implied anyway.
 5. **Whitespace inside patterns is the six ASCII space characters** `[ \t\n\x0B\f\r]`,
-   not `\s`. No detector in this pack intends to match a non-breaking space or an
-   ideographic space as a separator.
+   not `\s`. The one exception is the group separator of a printed IBAN, which is
+   a space, U+00A0, U+2009 or U+202F, because that is how banks and word
+   processors print them. No other detector matches a non-breaking or ideographic
+   space as a separator.
 6. **`risk` and `confidence` are explicit on every detector** rather than inferred
    from tags and id substrings. The inferred values are preserved exactly; making
    them data removes a rule engines would otherwise have to reimplement.
+7. **The `entities` recogniser is not in FRS-1 v1.** It is a scoring program over
+   cue lists, name lists and context, not a set of patterns, so it does not fit a
+   detector pack. Node runs it; other runtimes reach it through the gateway with
+   `enable: ["entities"]`.
 
 ---
 

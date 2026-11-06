@@ -33,6 +33,45 @@ export function ibanValid(value: string): boolean {
   return remainder === 1;
 }
 
+/**
+ * Total IBAN length per country: the SWIFT IBAN registry, then the countries
+ * that use the format without being in it. The compact form needs no table, but
+ * the printed form does: "BE68 5390 0754 7034 EUR" only stops before "EUR" if
+ * the pattern knows a Belgian IBAN ends after three groups.
+ */
+export const IBAN_LENGTHS: Readonly<Record<string, number>> = {
+  AD: 24, AE: 23, AL: 28, AT: 20, AZ: 28, BA: 20, BE: 16, BG: 22, BH: 22, BI: 27,
+  BR: 29, BY: 28, CH: 21, CR: 22, CY: 28, CZ: 24, DE: 22, DJ: 27, DK: 18, DO: 28,
+  EE: 20, EG: 29, ES: 24, FI: 18, FK: 18, FO: 18, FR: 27, GB: 22, GE: 22, GI: 23,
+  GL: 18, GR: 27, GT: 28, HN: 28, HR: 21, HU: 28, IE: 22, IL: 23, IQ: 23, IS: 26,
+  IT: 27, JO: 30, KW: 30, KZ: 20, LB: 28, LC: 32, LI: 21, LT: 20, LU: 20, LV: 21,
+  LY: 25, MC: 27, MD: 24, ME: 22, MK: 19, MN: 20, MR: 27, MT: 31, MU: 30, NI: 28,
+  NL: 18, NO: 15, OM: 23, PK: 24, PL: 28, PS: 29, PT: 25, QA: 29, RO: 24, RS: 22,
+  RU: 33, SA: 24, SC: 31, SD: 18, SE: 24, SI: 19, SK: 24, SM: 27, SO: 23, ST: 25,
+  SV: 28, TL: 23, TN: 24, TR: 26, UA: 29, VA: 22, VG: 24, XK: 20, YE: 30,
+  AO: 25, BF: 28, BJ: 28, CF: 27, CG: 27, CI: 28, CM: 27, CV: 25, DZ: 26, GA: 27,
+  GQ: 27, GW: 25, IR: 26, KM: 27, MA: 28, MG: 27, ML: 28, MZ: 25, NE: 28, SN: 28,
+  TD: 27, TG: 28,
+};
+
+/**
+ * Pattern source for an IBAN in ISO 13616 print format: groups of four after
+ * the country and check digits, the last group shorter. `separator` is a
+ * character class; `digit` lets the FRS-1 pack spell `\d` as `[0-9]`.
+ */
+export function ibanPrintedPattern(separator: string, digit = '[0-9]'): string {
+  const byShape = new Map<string, string[]>();
+  for (const [country, length] of Object.entries(IBAN_LENGTHS)) {
+    const groups = Math.floor((length - 4) / 4);
+    const tail = (length - 4) % 4;
+    const shape = `(?:${separator}[A-Z0-9]{4}){${groups}}` + (tail ? `${separator}[A-Z0-9]{${tail}}` : '');
+    const list = byShape.get(shape) ?? [];
+    list.push(country);
+    byShape.set(shape, list);
+  }
+  return [...byShape].map(([shape, countries]) => `(?:${countries.join('|')})${digit}{2}${shape}`).join('|');
+}
+
 /** Turkey T.C. Kimlik No — 11 digits, two check digits. */
 export function tcknValid(value: string): boolean {
   const d = onlyDigits(value);
@@ -147,7 +186,7 @@ export function vinValid(value: string): boolean {
 
 /** US SSN — no checksum exists, but whole ranges are never issued. */
 export function ssnValid(value: string): boolean {
-  const m = value.match(/^(\d{3})-?(\d{2})-?(\d{4})$/);
+  const m = value.match(/^(\d{3})[- ]?(\d{2})[- ]?(\d{4})$/);
   if (!m) return false;
   const area = Number(m[1]);
   const group = Number(m[2]);

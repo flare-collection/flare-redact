@@ -1,6 +1,7 @@
 import { assignmentPattern } from './i18n.js';
 import { LOCALE_DETECTORS } from './locales.js';
 import { EXTRA_DETECTORS } from './extra.js';
+import { ENTITY_DETECTORS } from './entities.js';
 
 export { SECRET_KEYWORDS, MULTILANG_KEY_SET } from './i18n.js';
 
@@ -136,8 +137,9 @@ export const DETECTORS: Detector[] = [
     id: 'private_key',
     label: 'Private key',
     why: 'A PEM private key is a full cryptographic identity — whoever holds it is you.',
-    pattern:
-      /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/g,
+    // Fails closed from the BEGIN line: the key ends at the first END footer of
+    // any label, or at the end of the input when a truncated key has none.
+    pattern: /-----BEGIN (?:[A-Z0-9]+ ){0,3}PRIVATE KEY(?: BLOCK)?-----(?:[\s\S]*?-----END [A-Z0-9 ]{1,60}-----|[\s\S]*)/g,
     mask: () => '[REDACTED PRIVATE KEY]',
     default: true,
   },
@@ -377,7 +379,8 @@ export const DETECTORS: Detector[] = [
     id: 'person_name',
     label: 'Person name',
     why: 'A person name appearing after an explicit identity label.',
-    pattern: /(?:full[ _-]?name|customer[ _-]?name|contact[ _-]?name|name|ad[ıi]|isim|nombre|nom|nome|姓名|الاسم)\s*(?:[:=]|\bis\b)\s*["']?([\p{L}][\p{L}'’.-]{1,39}(?:\s+[\p{L}][\p{L}'’.-]{1,39}){1,3})/giu,
+    // Name tokens are joined by spaces or tabs only: "Fatima Haddad\nAddress" is a name and the next field.
+    pattern: /(?:full[ _-]?name|customer[ _-]?name|contact[ _-]?name|name|ad[ıi]|isim|nombre|nom|nome|姓名|الاسم)\s*(?:[:=]|\bis\b)\s*["']?([\p{L}][\p{L}'’.-]{1,39}(?:[ \t]+[\p{L}][\p{L}'’.-]{1,39}){1,3})/giu,
     capture: 1,
     mask: () => '[REDACTED PERSON]',
     default: false,
@@ -414,4 +417,5 @@ export const DETECTORS: Detector[] = [
   },
   ...LOCALE_DETECTORS,
   ...EXTRA_DETECTORS,
+  ...ENTITY_DETECTORS,
 ];

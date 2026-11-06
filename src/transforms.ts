@@ -90,8 +90,11 @@ export function surrogate(value: string, detector: Detector, secret: string): st
     case 'email': return emailSurrogate(value, secret);
     case 'credit_card': return cardSurrogate(value, secret);
     case 'phone': return digitSurrogate(value, secret);
-    case 'person_name': return personSurrogate(value, secret);
-    case 'street_address': return addressSurrogate(value, secret);
+    case 'person_name':
+    case 'private_person': return personSurrogate(value, secret);
+    case 'street_address':
+    case 'private_address': return addressSurrogate(value, secret);
+    case 'private_phone': return digitSurrogate(value, secret);
     default: return pseudonymize(value, secret);
   }
 }

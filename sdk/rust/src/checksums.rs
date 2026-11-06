@@ -25,6 +25,10 @@ fn strip(value: &str, drop: &[char]) -> String {
 }
 
 const SPACES_AND_DASH: [char; 7] = [' ', '\t', '\n', '\r', '\u{0B}', '\u{0C}', '-'];
+// IBANs are printed in groups, sometimes with no-break or thin spaces.
+const IBAN_SEPARATORS: [char; 10] = [
+    ' ', '\t', '\n', '\r', '\u{0B}', '\u{0C}', '-', '\u{A0}', '\u{2009}', '\u{202F}',
+];
 const SPACES_DOT_DASH: [char; 8] = [' ', '\t', '\n', '\r', '\u{0B}', '\u{0C}', '.', '-'];
 
 /// Luhn (mod-10) over the digits of `value`, with an optional length window.
@@ -113,7 +117,7 @@ pub fn phone(value: &str) -> bool {
 
 /// ISO 13616 IBAN check: rearrange, letters to numbers, mod 97 must be 1.
 pub fn iban(value: &str) -> bool {
-    let text = strip(value, &SPACES_AND_DASH).to_uppercase();
+    let text = strip(value, &IBAN_SEPARATORS).to_uppercase();
     // Byte slicing below is only sound on ASCII, and every IBAN is ASCII.
     if !text.is_ascii() || text.len() < 14 || text.len() > 34 {
         return false;
