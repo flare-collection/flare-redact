@@ -6,8 +6,10 @@ export interface RedactStreamOptions extends RedactOptions {
   maxRecordLength?: number;
 }
 
-const PEM_BEGIN = /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/;
-const PEM_END = /-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/;
+const PEM_BEGIN = /-----BEGIN (?:[A-Z0-9]+ ){0,3}PRIVATE KEY(?: BLOCK)?-----/;
+// Any footer closes the record, matching the private_key detector: a key whose
+// END line carries the wrong label is still a key.
+const PEM_END = /-----END [A-Z0-9 ]{1,60}-----/;
 
 export function redactStream(opts: RedactStreamOptions = {}): Transform {
   let carry = '';
@@ -25,7 +27,8 @@ export function redactStream(opts: RedactStreamOptions = {}): Transform {
       multiline = '';
       return out;
     }
-    if (PEM_BEGIN.test(line) && !PEM_END.test(line)) {
+    const begin = line.search(PEM_BEGIN);
+    if (begin !== -1 && !PEM_END.test(line.slice(begin))) {
       multiline = line;
       return '';
     }

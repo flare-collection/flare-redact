@@ -1,6 +1,6 @@
 {
   "name": "flare-redact",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Zero-dependency secret and PII redaction for logs, prompts, and agent tools — with FlareFlow information-flow control and a polyglot sidecar.",
   "type": "module",
   "sideEffects": false,
@@ -22,6 +22,10 @@
     "./ml": {
       "types": "./dist/ml.d.ts",
       "default": "./dist/ml.js"
+    },
+    "./entities": {
+      "types": "./dist/entities.d.ts",
+      "default": "./dist/entities.js"
     },
     "./tool": {
       "types": "./dist/tool.d.ts",
@@ -90,6 +94,8 @@
     "bench/graph-vault.mjs",
     "bench/agent-flow.mjs",
     "bench/agent-flow-cases.json",
+    "bench/entities.mjs",
+    "bench/entities-cases.json",
     "README.md",
     "CHANGELOG.md",
     "MIGRATION.md",
@@ -107,6 +113,7 @@
     "benchmark": "npm run build && node bench/performance.mjs",
     "benchmark:agent": "npm run build && node bench/agent-flow.mjs",
     "benchmark:adversarial": "npm run build && node bench/adversarial-runtime.mjs",
+    "benchmark:entities": "npm run build && node bench/entities.mjs",
     "prepublishOnly": "npm run build",
     "benchmark:graph": "npm run build && node bench/graph-vault.mjs",
     "build:playground": "npm run build && npx --yes esbuild dist/index.js --bundle --format=esm --minify --outfile=docs/playground/flare-redact.min.js"

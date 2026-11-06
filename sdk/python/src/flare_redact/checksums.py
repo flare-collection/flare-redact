@@ -78,7 +78,7 @@ def phone(value: str) -> bool:
 
 def iban(value: str) -> bool:
     """ISO 13616: rearrange, letters to numbers, mod 97 must be 1."""
-    text = re.sub(r"[ \t\n\x0b\f\r-]", "", value).upper()
+    text = re.sub(r"[ \t\n\x0b\f\r\u00a0\u2009\u202f-]", "", value).upper()
     if not re.fullmatch(r"[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}", text):
         return False
     rearranged = text[4:] + text[:4]
@@ -261,7 +261,7 @@ def jp_my_number(value: str) -> bool:
 
 def us_ssn(value: str) -> bool:
     """US SSN — no checksum exists, but whole ranges were never issued."""
-    m = re.fullmatch(r"([0-9]{3})-?([0-9]{2})-?([0-9]{4})", value)
+    m = re.fullmatch(r"([0-9]{3})[- ]?([0-9]{2})[- ]?([0-9]{4})", value)
     if not m:
         return False
     area, group, serial = int(m.group(1)), int(m.group(2)), int(m.group(3))

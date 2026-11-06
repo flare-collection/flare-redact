@@ -34,6 +34,14 @@ export {
   CONFIDENCE_MODEL,
   type ConfidenceModel,
 } from './ml.js';
+export {
+  recognizeEntities,
+  createEntityRecognizer,
+  ENTITY_LABELS,
+  type EntityLabel,
+  type EntityOptions,
+  type EntityFinding,
+} from './entities.js';
 export { pseudonymize, surrogate, fpe } from './transforms.js';
 export { hmacFingerprint } from './crypto.js';
 export {

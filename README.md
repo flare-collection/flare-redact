@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/npm/types/flare-redact.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero dependencies">
   <img src="https://img.shields.io/badge/languages-24-4f46e5" alt="24 languages">
-  <img src="https://img.shields.io/badge/detectors-82-4f46e5" alt="82 detectors">
+  <img src="https://img.shields.io/badge/detectors-90-4f46e5" alt="90 detectors">
   <img src="https://img.shields.io/badge/runtime-node%20%7C%20browser%20%7C%20edge-blue" alt="Runtimes">
 </p>
 
@@ -78,6 +78,7 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 - [Redact prompts before they reach an LLM](#redact-prompts-before-they-reach-an-llm)
 - [Ways to hide a value](#ways-to-hide-a-value)
 - [Reversible redaction](#reversible-redaction)
+- [Free-text PII without a model](#free-text-pii-without-a-model)
 - [Contextual and model-assisted PII](#contextual-and-model-assisted-pii)
 - [Learned confidence, fewer false positives](#learned-confidence-fewer-false-positives)
 - [Build a private chat app](#build-a-private-chat-app)
@@ -176,8 +177,8 @@ dependencies of any kind.
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.6.1#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.6.1" }` | [`sdk/rust`](sdk/rust) |
+| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.7.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
+| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.7.0" }` | [`sdk/rust`](sdk/rust) |
 
 The Python and Rust engines are not published to PyPI and crates.io yet, so they
 install from this repository. The commands above are the ones that work today.
@@ -454,6 +455,61 @@ export FLARE_REDACT_VAULT_PASSWORD='use-a-secret-manager-in-production'
 flare-redact --vault session.vault.json < input.txt > safe.txt
 flare-redact --restore session.vault.json < safe.txt > restored.txt
 ```
+
+## Free-text PII without a model
+
+Masking models published on Hugging Face, such as OpenAI's privacy-filter, find
+people, addresses and dates in prose. They also mean a model download, a runtime
+and a slow CPU path. `entities` gets close to what they do with no model at all:
+cue phrases in the 24 library languages ("my name is", "ich heiße", "меня зовут",
+"我叫"), name lists, address, phone and date shapes, context scoring, and later
+mentions of a name already found ("Alice Johnson ... Alice said").
+
+```js
+import { redact, recognizeEntities } from 'flare-redact';
+
+redact(
+  'Hi, my name is Alice Johnson and I live at 221B Baker Street, London NW1 6XE. Call me at 415-555-0132.',
+  { enable: ['entities'] },
+);
+// 'Hi, my name is [REDACTED PERSON] and I live at [REDACTED ADDRESS]. Call me at [REDACTED PHONE].'
+
+redact('我的名字是李华，住在北京市朝阳区建国路88号。', { enable: ['entities'] });
+// '我的名字是[REDACTED PERSON]，住在[REDACTED ADDRESS]。'
+
+recognizeEntities('Patient: Maria García, DOB: 03/04/1985, MRN 00482913.');
+// private_person 'Maria García' (0.99), private_date '03/04/1985' (0.95),
+// account_number '00482913' (0.86)
+```
+
+| Label | Finds |
+|---|---|
+| `private_person` | names after introductions, form labels, titles, greetings, sign-offs and email headers, plus known names in running text |
+| `private_address` | street addresses in Latin, Cyrillic, Chinese, Japanese and Korean formats, PO boxes, postcode lines |
+| `private_phone` | numbers after a phone cue, international numbers, North American numbers |
+| `private_date` | birth dates and dates tied to a person (admission, discharge, appointment) |
+| `account_number` | customer, policy, passport, patient, employee and other IDs that only their label identifies |
+| `private_handle` | `@handles` and usernames |
+| `private_url` | profile links, and URLs whose query carries an email, name or token |
+| `secret` | passwords, PINs and one-time codes written in a sentence |
+
+The labels are the privacy-filter ones, so the outputs can be compared or swapped.
+They are ordinary detectors: `disable: ['private_url']` drops one,
+`entities: { labels: ['private_person'], minConfidence: 0.7, propagate: false }`
+tunes the recogniser, and vaults, `surrogate` mode, streams, the CLI
+(`--enable entities`) and the gateway all take them. `createEntityRecognizer()`
+from `flare-redact/entities` returns the same recogniser as a `semanticProvider`.
+
+On the hand-labelled corpus in [`bench/entities-cases.json`](bench/entities-cases.json)
+(`npm run benchmark:entities`), the holdout of 57 lines was written after tuning
+stopped. On its first run the regex detectors alone, with every PII detector
+switched on, reached 35.1% F1 and left 67.4% of the PII characters visible. With
+`entities` it reached 84.1% F1 with 12.0% left visible and 1.4% of the clean text
+masked. The corpus is small and synthetic, so read it as a regression signal and
+not as a comparison with published model scores. A trained model still does
+better on names with no cue and no match in the name lists, on unusual address
+formats and on languages outside the 24. When you need that, plug one in through
+`semanticProvider`.
 
 ## Contextual and model-assisted PII
 
@@ -867,7 +923,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.6.1 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.7.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -971,6 +1027,7 @@ Opt in with `enable`:
 | `finance` | SWIFT/BIC, US ABA routing numbers |
 | `vehicle` | VINs (checksum-validated) |
 | `network` | IPs, MAC addresses, coordinates, internal URLs |
+| `entities` | people, addresses, phones, personal dates, account numbers, handles, personal URLs and secrets in prose, without a model ([details](#free-text-pii-without-a-model)) |
 | `phone` | E.164 and formatted national numbers (`+90 532 123 45 67`, `(555) 123-4567`, `0532 123 45 67`) — digit-count validated, date-safe |
 
 Plus object values whose **key name** is sensitive (`password`, `token`,
@@ -1146,8 +1203,10 @@ npm run benchmark:adversarial
 - The legacy `createToolBoundary()` restores every placeholder in its shared
   vault. Use `createScopedToolBoundary()` whenever more than one tool or trust
   domain can receive model-produced arguments.
-- The 24-language badge describes secret-key vocabulary, not general multilingual
-  named-entity recognition. Use a local `semanticProvider` for that task.
+- The 24-language badge describes secret-key vocabulary and the cue words of the
+  `entities` recogniser. That recogniser uses rules and name lists, not a trained
+  model: a name with no cue and no list match is missed. Use a local
+  `semanticProvider` when you need model-level recall.
 
 Encrypted vaults do not protect a compromised host or secrets already resident
 in process memory. Deterministic transforms reveal when two inputs are equal.

@@ -7,6 +7,7 @@ Key facts for code generation:
 - `redact(input)` accepts strings, arrays, or objects and returns the same shape with sensitive values masked. No configuration required for the default detectors.
 - Modes: `mask` (default), `label`, `hash`, `pseudonym`, `surrogate`. The last three REQUIRE `transformSecret` in options (or `FLARE_REDACT_SECRET` env for the CLI).
 - National IDs, phone numbers, crypto addresses, and network detectors are opt-in: `redact(text, { enable: ['pii', 'phone'] })` or by country tag (`enable: ['tr', 'fr', 'in']`).
+- Free-text PII without a model: `redact(text, { enable: ['entities'] })` adds private_person, private_address, private_phone, private_date, account_number, private_handle, private_url and secret (the privacy-filter labels), found from cues in 24 languages, name lists and context. `recognizeEntities(text)` returns the spans.
 - Reversible flow: `const vault = createVault(); const safe = vault.redact(data); vault.restore(reply)`.
 - LLM privacy: `import { wrapOpenAI, wrapAnthropic } from 'flare-redact/llm'` — wraps the client so prompts are redacted before sending and replies are restored, including streaming.
 - Universal integration: `import { createRedactionMiddleware } from 'flare-redact/middleware'` — wrap any SDK method, route handler, queue consumer, RPC function, or persistence call in redact/observe/block mode.

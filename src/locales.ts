@@ -15,9 +15,13 @@ import {
   tfnValid,
   cnResidentIdValid,
   jpMyNumberValid,
+  ibanPrintedPattern,
 } from './checksums.js';
 
 const mask = (): string => '[REDACTED ID]';
+
+/** Space, no-break space, thin space, narrow no-break space: how grouped numbers are printed. */
+const GROUP_SEPARATOR = '[ \\u00A0\\u2009\\u202F]';
 
 /**
  * National identifiers and IBANs. Every one is checksum-validated, so a random
@@ -32,7 +36,9 @@ export const LOCALE_DETECTORS: Detector[] = [
     id: 'iban',
     label: 'IBAN',
     why: 'An international bank account number.',
-    pattern: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g,
+    // Compact (GB82WEST12345698765432) or printed in groups of four
+    // (GB82 WEST 1234 5698 7654 32), which is how statements and invoices show it.
+    pattern: new RegExp(`\\b(?:[A-Z]{2}\\d{2}[A-Z0-9]{11,30}|${ibanPrintedPattern(GROUP_SEPARATOR, '\\d')})\\b`, 'g'),
     validate: ibanValid,
     mask: () => '[REDACTED IBAN]',
     default: true,
@@ -52,7 +58,7 @@ export const LOCALE_DETECTORS: Detector[] = [
     id: 'br_cpf',
     label: 'Brazilian CPF',
     why: 'Brazil taxpayer registry number — high-value PII.',
-    pattern: /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g,
+    pattern: /\b(?:\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{3} \d{3} \d{3}[ -]\d{2})\b/g,
     validate: cpfValid,
     mask,
     default: false,
@@ -92,7 +98,8 @@ export const LOCALE_DETECTORS: Detector[] = [
     id: 'de_tax_id',
     label: 'German tax ID (Steuer-IdNr)',
     why: 'Germany tax identification number.',
-    pattern: /\b\d{11}\b/g,
+    // Compact, or as printed on tax letters: 12 345 678 901.
+    pattern: /\b(?:\d{11}|\d{2} \d{3} \d{3} \d{3})\b/g,
     validate: deTaxIdValid,
     mask,
     default: false,
@@ -172,7 +179,7 @@ export const LOCALE_DETECTORS: Detector[] = [
     id: 'us_ssn',
     label: 'US Social Security number',
     why: 'A US national identifier — high-value PII.',
-    pattern: /\b\d{3}-\d{2}-\d{4}\b/g,
+    pattern: /\b(?:\d{3}-\d{2}-\d{4}|\d{3} \d{2} \d{4})\b/g,
     validate: ssnValid,
     mask,
     default: false,

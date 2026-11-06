@@ -47,6 +47,10 @@
     { "name": "basic/header", "input": "Authorization: Basic YWRtaW46aHVudGVyMg==" },
     { "name": "url/credentials", "input": "DATABASE_URL=postgres://app:s3cr3t-pass@db.internal:5432/main" },
     { "name": "private-key/pem", "input": "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\n-----END RSA PRIVATE KEY-----" },
+    { "name": "private-key/mismatched-footer", "input": "-----BEGIN RSA PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\n-----END CERTIFICATE-----\nnext line" },
+    { "name": "private-key/truncated", "input": "log: -----BEGIN OPENSSH PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ" },
+    { "name": "private-key/pgp-block", "input": "-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\n-----END PGP PRIVATE KEY BLOCK-----\ndone" },
+    { "name": "private-key/two-keys", "input": "a -----BEGIN RSA PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\n-----END RSA PRIVATE KEY----- b -----BEGIN EC PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\n-----END EC PRIVATE KEY----- c" },
 
     { "name": "assignment/english", "input": "password=hunter2000" },
     { "name": "assignment/quoted", "input": "client_secret: \"abcd-1234-efgh\"" },
@@ -61,6 +65,10 @@
     { "name": "iban/de", "input": "transfer to DE89370400440532013000 today" },
     { "name": "iban/gb", "input": "IBAN GB82WEST12345698765432" },
     { "name": "iban/negative", "input": "code DE89370400440532013001 is not an IBAN" },
+    { "name": "iban/printed", "input": "iban GB82 WEST 1234 5698 7654 32 paid" },
+    { "name": "iban/printed-trailing-word", "input": "IBAN: BE68 5390 0754 7034 EUR, BIC: GKCCBEBB" },
+    { "name": "iban/printed-no-break-space", "input": "NO93\u00a08601\u00a01117\u00a0947 and FR76\u202f3000\u202f6000\u202f0112\u202f3456\u202f7890\u202f189" },
+    { "name": "iban/printed-negative", "input": "GB82 WEST 1234 5698 7654 33 is a typo" },
 
     { "name": "obfuscated-email/brackets", "input": "reach me at ada [at] example [dot] com" },
     { "name": "obfuscated-email/parens", "input": "grace (at) example (dot) org" },
@@ -100,12 +108,15 @@
     { "name": "entropy/refined-secret", "input": "api_key GkL3nQ7pRt2vXz9WbYc4Hs6MdF8jA1eU", "options": { "enable": ["high_entropy"], "refineConfidence": true, "minConfidence": 0.5 } },
 
     { "name": "id/us-ssn", "input": "SSN 123-45-6789 on file", "options": { "enable": ["us_ssn"] } },
+    { "name": "id/us-ssn-spaced", "input": "SSN 123 45 6789 on file", "options": { "enable": ["us_ssn"] } },
     { "name": "id/tr-tckn", "input": "TCKN 10000000146", "options": { "enable": ["tr"] } },
     { "name": "id/br-cpf", "input": "CPF 529.982.247-25", "options": { "enable": ["br"] } },
+    { "name": "id/br-cpf-spaced", "input": "CPF 529 982 247 25", "options": { "enable": ["br"] } },
     { "name": "id/es-dni", "input": "DNI 12345678Z", "options": { "enable": ["es"] } },
     { "name": "id/nl-bsn", "input": "BSN 111222333", "options": { "enable": ["nl"] } },
     { "name": "id/pl-pesel", "input": "PESEL 44051401359", "options": { "enable": ["pl"] } },
     { "name": "id/de-tax", "input": "IdNr 26954371827", "options": { "enable": ["de"] } },
+    { "name": "id/de-tax-printed", "input": "IdNr 26 954 371 827", "options": { "enable": ["de"] } },
     { "name": "id/it-codice-fiscale", "input": "CF RSSMRA85M01H501Q", "options": { "enable": ["it"] } },
     { "name": "id/ca-sin", "input": "SIN 046 454 286", "options": { "enable": ["ca"] } },
     { "name": "id/fr-nir", "input": "NIR 1 84 12 76 451 089 46", "options": { "enable": ["fr"] } },
@@ -123,6 +134,7 @@
 
     { "name": "contextual/person-name", "input": "full name: Grace Hopper", "options": { "enable": ["contextual"] } },
     { "name": "contextual/person-name-is", "input": "customer name is Ada Lovelace", "options": { "enable": ["contextual"] } },
+    { "name": "contextual/person-name-stops-at-line-break", "input": "Name: Fatima Haddad\nAddress: 48 Elm Grove", "options": { "enable": ["contextual"] } },
     { "name": "contextual/street-address", "input": "address: 221 Baker Street", "options": { "enable": ["contextual"] } },
     { "name": "contextual/date-of-birth", "input": "date of birth: 1980-04-17", "options": { "enable": ["contextual"] } },
 

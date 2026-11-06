@@ -102,9 +102,13 @@ func validPhone(value string) bool {
 
 var ibanShape = regexp.MustCompile(`^[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}$`)
 
+// IBANs are printed in groups, sometimes with no-break or thin spaces.
+var ibanSeparators = strings.NewReplacer(" ", "", "\t", "", "\n", "", "\r", "", "\f", "", "\v", "", "-", "",
+	"\u00a0", "", "\u2009", "", "\u202f", "")
+
 // validIBAN implements the ISO 13616 mod-97 check.
 func validIBAN(value string) bool {
-	text := strings.ToUpper(strings.NewReplacer(" ", "", "\t", "", "\n", "", "\r", "", "\f", "", "\v", "", "-", "").Replace(value))
+	text := strings.ToUpper(ibanSeparators.Replace(value))
 	if !ibanShape.MatchString(text) {
 		return false
 	}
@@ -370,7 +374,7 @@ func validJPMyNumber(value string) bool {
 	return check == atoiByte(d[11])
 }
 
-var ssnShape = regexp.MustCompile(`^([0-9]{3})-?([0-9]{2})-?([0-9]{4})$`)
+var ssnShape = regexp.MustCompile(`^([0-9]{3})[- ]?([0-9]{2})[- ]?([0-9]{4})$`)
 
 // validSSN rejects the ranges the US never issued. There is no checksum.
 func validSSN(value string) bool {

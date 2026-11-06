@@ -25,6 +25,11 @@ untrusted code running in the same process, or keys already present in process
 memory. Restoring a placeholder intentionally reveals its original value, and
 deterministic transforms intentionally reveal equality between matching inputs.
 
+The `entities` recogniser finds names, addresses and other free-text PII with
+rules and name lists, not a trained model. A miss on a name with no cue is a known
+limit, not a vulnerability. A recogniser pattern that backtracks, or a cue that
+leaves part of a value visible after the label it promises to mask, is in scope.
+
 `scan()` omits matched values by default. Enabling `includeValues` is an explicit
 confidentiality tradeoff: those findings must not be logged or exported. HTTP
 redaction covers only the returned snapshot, never the live request. Tool and LLM

@@ -275,6 +275,20 @@
     ],
     "redact": "customer name is [REDACTED PERSON]"
   },
+  "contextual/person-name-stops-at-line-break": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.86,
+        "detector": "person_name",
+        "end": 19,
+        "line": 1,
+        "risk": "high",
+        "start": 6
+      }
+    ],
+    "redact": "Name: [REDACTED PERSON]\nAddress: 48 Elm Grove"
+  },
   "contextual/street-address": {
     "findings": [
       {
@@ -585,6 +599,61 @@
     "findings": [],
     "redact": "code DE89370400440532013001 is not an IBAN"
   },
+  "iban/printed": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "iban",
+        "end": 32,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "iban [REDACTED IBAN] paid"
+  },
+  "iban/printed-negative": {
+    "findings": [],
+    "redact": "GB82 WEST 1234 5698 7654 33 is a typo"
+  },
+  "iban/printed-no-break-space": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.99,
+        "detector": "iban",
+        "end": 18,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 24,
+        "confidence": 0.99,
+        "detector": "iban",
+        "end": 56,
+        "line": 1,
+        "risk": "high",
+        "start": 23
+      }
+    ],
+    "redact": "[REDACTED IBAN] and [REDACTED IBAN]"
+  },
+  "iban/printed-trailing-word": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.99,
+        "detector": "iban",
+        "end": 25,
+        "line": 1,
+        "risk": "high",
+        "start": 6
+      }
+    ],
+    "redact": "IBAN: [REDACTED IBAN] EUR, BIC: GKCCBEBB"
+  },
   "id/aba-routing": {
     "findings": [
       {
@@ -614,6 +683,20 @@
     "redact": "TFN [REDACTED ID]"
   },
   "id/br-cpf": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "br_cpf",
+        "end": 18,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "CPF [REDACTED ID]"
+  },
+  "id/br-cpf-spaced": {
     "findings": [
       {
         "column": 5,
@@ -662,6 +745,20 @@
         "confidence": 0.99,
         "detector": "de_tax_id",
         "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "IdNr [REDACTED ID]"
+  },
+  "id/de-tax-printed": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "de_tax_id",
+        "end": 19,
         "line": 1,
         "risk": "high",
         "start": 5
@@ -800,6 +897,20 @@
     "redact": "NHS [REDACTED ID]"
   },
   "id/us-ssn": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "us_ssn",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "SSN [REDACTED ID] on file"
+  },
+  "id/us-ssn-spaced": {
     "findings": [
       {
         "column": 5,
@@ -1276,6 +1387,20 @@
     ],
     "redact": "PMAK-***"
   },
+  "private-key/mismatched-footer": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "private_key",
+        "end": 122,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED PRIVATE KEY]\nnext line"
+  },
   "private-key/pem": {
     "findings": [
       {
@@ -1289,6 +1414,57 @@
       }
     ],
     "redact": "[REDACTED PRIVATE KEY]"
+  },
+  "private-key/pgp-block": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "private_key",
+        "end": 139,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED PRIVATE KEY]\ndone"
+  },
+  "private-key/truncated": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.92,
+        "detector": "private_key",
+        "end": 170,
+        "line": 1,
+        "risk": "critical",
+        "start": 5
+      }
+    ],
+    "redact": "log: [REDACTED PRIVATE KEY]"
+  },
+  "private-key/two-keys": {
+    "findings": [
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "private_key",
+        "end": 128,
+        "line": 1,
+        "risk": "critical",
+        "start": 2
+      },
+      {
+        "column": 33,
+        "confidence": 0.92,
+        "detector": "private_key",
+        "end": 255,
+        "line": 3,
+        "risk": "critical",
+        "start": 131
+      }
+    ],
+    "redact": "a [REDACTED PRIVATE KEY] b [REDACTED PRIVATE KEY] c"
   },
   "selection/disable-email": {
     "findings": [

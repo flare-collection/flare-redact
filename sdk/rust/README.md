@@ -12,7 +12,7 @@ Not on crates.io yet — it builds from this repository:
 
 ```toml
 [dependencies]
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.6.1" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.7.0" }
 ```
 
 ```rust

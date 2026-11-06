@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.7.0 (2026-11-06)
+
+### Security: printed values and broken PEM blocks (GHSA-2jx3-6xv8-798v)
+
+- IBANs printed in groups of four (`GB82 WEST 1234 5698 7654 32`) are masked by
+  the default policy. Groups may be separated by spaces, no-break spaces, thin
+  spaces or narrow no-break spaces. The match stops at each country's registry
+  length, so a currency code or BIC after the number is left alone, and the
+  check digits are still validated.
+- US SSNs, Brazilian CPFs and German tax IDs written with spaces are masked like
+  their compact forms.
+- A private key whose END footer is missing or carries another label is masked
+  through that footer, or to the end of the input when no footer follows. Before,
+  such a block passed through unmasked. `redactStream()` buffers it the same way.
+- The fixes ship in all four engines (Node, Python, Go and Rust) and in the FRS-1
+  pack, which moves to version 1.7.0, with new conformance cases. Thanks to
+  roshcompanylabs for the report.
+
+### Free-text PII without a model
+
+- Add `enable: ['entities']` (or `entities: true`): a model-free recogniser for
+  `private_person`, `private_address`, `private_phone`, `private_date`,
+  `account_number`, `private_handle`, `private_url` and `secret`, the label set
+  of OpenAI's privacy-filter. It combines cue phrases in the 24 library
+  languages, name lists, address, phone and date shapes, context scoring and
+  propagation to later mentions of a name.
+- Add `recognizeEntities()`, `createEntityRecognizer()`, `ENTITY_LABELS` and the
+  `flare-redact/entities` subpath. The labels are ordinary detectors, so
+  `disable`, `only`, vaults, every replacement mode, streams, the CLI and the
+  gateway take them.
+- Add `npm run benchmark:entities` and a hand-labelled corpus. On a holdout
+  written after tuning stopped, the first run reached 84.1% F1 with 12.0% of PII
+  characters left visible, against 35.1% F1 and 67.4% for the regex detectors
+  alone.
+- Every pattern is bounded; 200,000-character hostile inputs finish in
+  milliseconds and the suite checks it.
+
+### Fixes
+
+- The label-only `person_name` detector no longer runs across a line break:
+  `Name: Fatima Haddad` followed by `Address: ...` used to take
+  `Fatima Haddad\nAddress`. Fixed in all four engines.
+
 ## 1.6.1 — 2026-08-09
 
 ### NeMo Guardrails interoperability

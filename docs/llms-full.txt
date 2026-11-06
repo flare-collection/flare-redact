@@ -57,6 +57,7 @@ openVault(envelope, password): Promise<Array<[placeholder, original]>>
   allow?: RegExp | string[],   // never redact these exact values
   terms?: string[] | Record<string, string>, // custom words to always catch
   semanticProvider?: { detect(text): SemanticFinding[] | Promise<...> }, // plug local NER
+  entities?: boolean | { labels?, minConfidence?, propagate? }, // model-free free-text PII (same as enable: ['entities'])
   limits?: { maxInputLength?, maxFindings? },
 }
 ```
@@ -64,6 +65,8 @@ openVault(envelope, password): Promise<Array<[placeholder, original]>>
 ## Detectors
 
 Default-on (no config): private_key (PEM), aws_access_key, aws_secret_key (in assignments), github_token, gitlab_token, slack_token, stripe_key, stripe_webhook_secret, anthropic_key (sk-ant-…), openai_key, openrouter_key, google_api_key, gcp_service_account, gcp_refresh_token, sendgrid_key, twilio_key, npm_token, jwt, bearer_token, basic_auth, url_credentials, generic_assignment (password/secret keywords in 24 languages), email, obfuscated_email, credit_card (Luhn), iban (mod-97), huggingface_token, vault_token (HashiCorp), groq_key, xai_key, perplexity_key, replicate_token, databricks_token, airtable_pat, postman_key, linear_key, figma_token, notion_token, doppler_token, supabase_key, netlify_token, mailgun_key, discord_bot_token, discord_webhook, telegram_bot_token, shopify_token, square_token, digitalocean_token, azure_storage_key, sentry_dsn, new_relic_key.
+
+Free-text PII without a model (opt-in: `enable: ['entities']`): private_person, private_address, private_phone, private_date, account_number, private_handle, private_url, secret. These are the privacy-filter labels. The recogniser uses cue phrases in 24 languages, name lists, address/phone/date shapes, context scoring and propagation to later mentions. `recognizeEntities(text, { labels, minConfidence, propagate })` returns spans; `createEntityRecognizer()` from `flare-redact/entities` returns it as a semanticProvider. It is rules, not a trained model: a name with no cue and no list match is missed.
 
 Opt-in via `enable`: phone (E.164 + national formats), ipv4, ipv6, mac_address, high_entropy, person_name, street_address, date_of_birth, eth_address, btc_address, seed_phrase (BIP39), aba_routing, swift_bic, vin, coordinates, internal_url.
 
