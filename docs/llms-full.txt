@@ -58,6 +58,7 @@ openVault(envelope, password): Promise<Array<[placeholder, original]>>
   terms?: string[] | Record<string, string>, // custom words to always catch
   semanticProvider?: { detect(text): SemanticFinding[] | Promise<...> }, // plug local NER
   entities?: boolean | { labels?, minConfidence?, propagate? }, // model-free free-text PII (same as enable: ['entities'])
+  preset?: 'logs' | 'llm' | 'gdpr' | 'strict', // named policy; adds to defaults, enable/disable apply on top, only ignores it
   limits?: { maxInputLength?, maxFindings? },
 }
 ```
@@ -186,6 +187,9 @@ Enable inline: `redact(text, { enable: ['high_entropy'], refineConfidence: true,
 ## CLI
 
 ```bash
+npx flare-redact init                          # integration lines for the libraries in package.json
+npx flare-redact init --ci                     # also write .github/workflows/flare-redact.yml
+npx flare-redact --preset gdpr < app.log       # named policy: logs | llm | gdpr | strict
 npx flare-redact --scan config.env             # findings + why; exit 1 if any
 npx flare-redact --scan .                      # recursive project scan; safe skips
 npx flare-redact --scan . --exclude 'test/**' --max-file-size 2mb

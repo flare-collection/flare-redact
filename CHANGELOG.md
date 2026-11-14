@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.8.0 (2026-11-14)
+
+### Simpler setup
+
+- Add presets, so a caller names a goal instead of a list of tags:
+  `logs` (defaults plus phone numbers), `llm` (every personal identifier plus
+  the `entities` recogniser), `gdpr` (`llm` plus network, device and wallet
+  identifiers) and `strict` (every detector). `redact(text, { preset: 'llm' })`,
+  `--preset` on the CLI and the gateway, and `FLARE_REDACT_PRESET`. `enable`
+  and `disable` apply on top and `only` ignores a preset. An unknown name throws
+  `ERR_UNKNOWN_PRESET`; the gateway refuses one at startup and answers a client
+  that sends one with HTTP 400.
+- Add `flare-redact init`. It reads `package.json`, prints a ready-to-paste
+  step for each library it recognises (openai, `@anthropic-ai/sdk`, pino,
+  winston, express, with console as the fallback) and never edits source
+  files. `--ci` writes a GitHub workflow that runs `flare-redact --scan` on
+  every pull request, and keeps an existing one unless `--force` is given.
+- Export `PRESETS` and the `Preset` type.
+
+No existing option changed meaning; code without `preset` behaves as before.
+
 ## 1.7.0 (2026-11-06)
 
 ### Security: printed values and broken PEM blocks (GHSA-2jx3-6xv8-798v)

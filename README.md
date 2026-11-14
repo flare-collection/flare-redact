@@ -111,6 +111,40 @@ Upgrading from `0.9.x`? Read the [`1.0 migration guide`](MIGRATION.md). Existing
 projects are not forced across the major version; upgrade explicitly with
 `npm install flare-redact@^1.0.0`.
 
+### Set up in one command
+
+```bash
+npx flare-redact init        # the lines to paste for openai, @anthropic-ai/sdk, pino, winston, express
+npx flare-redact init --ci   # also writes .github/workflows/flare-redact.yml
+```
+
+`init` reads `package.json`, prints one ready-to-paste step per library it
+recognises (console when there is no logger), and never edits source files.
+`--ci` adds a workflow that runs `flare-redact --scan` on every pull request.
+
+### Presets
+
+Pick a goal instead of a list of detector tags:
+
+| Preset | Adds to the defaults |
+|---|---|
+| `logs` | phone numbers |
+| `llm` | every personal identifier (`pii`) plus names, addresses and other PII in prose (`entities`) |
+| `gdpr` | `llm` plus IP and MAC addresses, coordinates, VINs and wallet addresses |
+| `strict` | every detector, `high_entropy` included |
+
+```js
+redact(text, { preset: 'llm' });
+const openai = wrapOpenAI(new OpenAI(), { preset: 'llm' });
+const log = pino(pinoRedact({ preset: 'logs' }));
+```
+
+The CLI takes `--preset gdpr`, the gateway `--preset` or `FLARE_REDACT_PRESET`.
+`enable` and `disable` apply on top of a preset and `only` ignores it. An unknown
+name throws `ERR_UNKNOWN_PRESET` instead of quietly redacting less. Presets belong
+to the Node package, the CLI and the gateway; the Python, Go and Rust clients
+reach them through the gateway.
+
 ### React and the browser
 
 The core is plain ESM with no Node built-ins, is tree-shakeable
@@ -177,8 +211,8 @@ dependencies of any kind.
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.7.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.7.0" }` | [`sdk/rust`](sdk/rust) |
+| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.8.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
+| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.8.0" }` | [`sdk/rust`](sdk/rust) |
 
 The Python and Rust engines are not published to PyPI and crates.io yet, so they
 install from this repository. The commands above are the ones that work today.
@@ -923,7 +957,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.7.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.8.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and

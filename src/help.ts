@@ -22,6 +22,7 @@ export const HELP = `flare-redact — hide secrets & PII before they hit a log
 
 USAGE
   flare-redact [options] [files...]        stdin if no files
+  flare-redact init [--ci]                 suggest the integrations for this project
   flare-redact gateway [options]           run the redaction sidecar proxy
   flare-redact help [topic]                explain a topic in depth
 
@@ -45,6 +46,7 @@ OPTIONS
                     hashes, and slugs); pairs with --min-confidence
   --include-values  include raw matched values in --scan output
                     (unsafe for logs and reports)
+  --preset <name>   a named policy: logs | llm | gdpr | strict
   --only <ids>      use only these detectors (comma-separated)
   --enable <ids>    turn on extra detectors (e.g. ipv4,high_entropy)
   --disable <ids>   turn off detectors (e.g. email)
@@ -113,6 +115,14 @@ say what you mean without listing thirty ids:
   flare-redact --enable pii app.log            every PII detector
   flare-redact --only secret .env              secrets only, nothing else
   flare-redact --disable email,ipv4 app.log    defaults minus two
+
+Or name a goal with --preset, which adds to the defaults before --enable and
+--disable apply:
+
+  logs      phone numbers
+  llm       every personal identifier, plus names and addresses in prose
+  gdpr      llm plus network, device and wallet identifiers
+  strict    every detector
 
 Contextual detectors (names, addresses, dates of birth) are off by default and
 tagged 'contextual'. They read surrounding words to decide, so they are the ones
@@ -344,10 +354,10 @@ else, and it pulls no dependencies of any kind.
   Go      go get github.com/flare-collection/flare-redact/sdk/go
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.7.0#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.8.0#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.7.0" }
+                           tag = "v1.8.0" }
 
 The Python and Rust engines are not on PyPI or crates.io yet, so they install
 from the repository. The commands above are the ones that work today.

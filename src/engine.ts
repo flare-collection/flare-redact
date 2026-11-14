@@ -43,7 +43,29 @@ export interface SemanticProvider {
   detect(text: string): SemanticFinding[] | Promise<SemanticFinding[]>;
 }
 
+/**
+ * Named policies, so a caller picks a goal instead of a list of tags. Each one
+ * adds to the default detectors; `enable` and `disable` still apply on top.
+ */
+export const PRESETS = {
+  /** Log lines: the defaults plus phone numbers. */
+  logs: ['phone'],
+  /** Prompts and chat: every personal identifier plus free-text people and addresses. */
+  llm: ['pii', 'entities'],
+  /** Everything GDPR treats as personal data, network and device identifiers included. */
+  gdpr: ['pii', 'entities', 'network', 'vehicle', 'crypto'],
+  /** Every detector, including the noisy entropy and finance ones. */
+  strict: ['*'],
+} as const satisfies Record<string, readonly string[]>;
+
+export type Preset = keyof typeof PRESETS;
+
 export interface RedactOptions {
+  /**
+   * A named policy: `logs`, `llm`, `gdpr` or `strict`. Adds to the defaults;
+   * `enable` and `disable` apply on top, and `only` ignores it.
+   */
+  preset?: Preset;
   only?: string[];
   enable?: string[];
   disable?: string[];
@@ -122,16 +144,30 @@ function matches(entry: string, d: Detector): boolean {
   return d.id === entry || (d.tags?.includes(entry) ?? false);
 }
 
+/** The tags a preset turns on. Throws on a name that is not a preset. */
+export function presetTags(preset: string | undefined): readonly string[] {
+  if (preset === undefined) return [];
+  if (!Object.prototype.hasOwnProperty.call(PRESETS, preset)) {
+    throw new FlareRedactError(
+      'ERR_UNKNOWN_PRESET',
+      `unknown preset ${JSON.stringify(preset)}; use one of: ${Object.keys(PRESETS).join(', ')}`,
+    );
+  }
+  return PRESETS[preset as Preset];
+}
+
 export function resolveDetectors(opts: RedactOptions): Detector[] {
   const base = opts.detectors ?? DETECTORS;
   const all = opts.custom?.length ? [...base, ...opts.custom] : base;
+  const preset = presetTags(opts.preset);
+  const everything = preset.includes('*');
   let chosen: Detector[];
   if (opts.only?.length) {
     chosen = all.filter((d) => opts.only!.some((e) => matches(e, d)));
   } else {
     const { enable, disable } = opts;
     chosen = all.filter((d) => {
-      const on = d.default || (enable?.some((e) => matches(e, d)) ?? false);
+      const on = d.default || everything || preset.some((e) => matches(e, d)) || (enable?.some((e) => matches(e, d)) ?? false);
       const off = disable?.some((e) => matches(e, d)) ?? false;
       return on && !off;
     });

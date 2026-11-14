@@ -10,6 +10,7 @@
 
 import { createAgentFlow, type AgentFlowLimits, type AgentFlowSinkPolicy } from '../agent.js';
 import type { RedactOptions } from '../index.js';
+import { presetTags } from '../engine.js';
 
 export interface ListenConfig {
   host: string;
@@ -209,6 +210,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv): RawConfig {
   if (only) policy.only = only;
   if (enable) policy.enable = enable;
   if (disable) policy.disable = disable;
+  if (env.FLARE_REDACT_PRESET) policy.preset = env.FLARE_REDACT_PRESET as RedactOptions['preset'];
   if (env.FLARE_REDACT_MODE) policy.mode = env.FLARE_REDACT_MODE as RedactOptions['mode'];
   if (env.FLARE_REDACT_SECRET) policy.transformSecret = env.FLARE_REDACT_SECRET;
   if (Object.keys(policy).length) raw.policy = policy;
@@ -259,6 +261,13 @@ export function resolveConfig(...layers: Array<RawConfig | undefined>): GatewayC
       ? [{ prefix: '/', upstream: raw.upstream }]
       : [];
   const routes = rawRoutes.map(normaliseRoute);
+  for (const policy of [raw.policy, ...rawRoutes.map((route) => route.policy)]) {
+    try {
+      presetTags(policy?.preset);
+    } catch (error) {
+      throw new GatewayConfigError((error as Error).message);
+    }
+  }
 
   const seen = new Set<string>();
   for (const route of routes) {

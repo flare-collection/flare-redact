@@ -25,6 +25,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 import { AgentFlowBlockedError, createAgentFlow } from '../agent.js';
+import { presetTags } from '../engine.js';
 import {
   compilePolicy,
   createVault,
@@ -145,6 +146,11 @@ function sanitiseClientOptions(input: unknown): RedactOptions {
     throw new HttpError(400, 'ERR_BAD_OPTIONS', 'options must be a JSON object');
   }
   const options = { ...(input as Record<string, unknown>) };
+  try {
+    presetTags(options.preset as string | undefined);
+  } catch (error) {
+    throw new HttpError(400, 'ERR_BAD_OPTIONS', (error as Error).message);
+  }
   for (const forbidden of CLIENT_FORBIDDEN_OPTIONS) {
     if (forbidden in options) {
       throw new HttpError(
