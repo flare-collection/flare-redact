@@ -48,6 +48,14 @@ test('any Sentry SDK gets the Sentry step, importing that SDK', () => {
   assert.match(step.code, /import \* as Sentry from '@sentry\/nextjs';/);
   assert.match(step.code, /sentryRedact\(\{ preset: 'gdpr' \}\)/);
   assert.deepEqual(planInit({ dependencies: { '@sentry/cli': '^2' } }).found, [], 'the CLI alone is not an SDK');
+  assert.doesNotMatch(step.code, /traceLifecycle/, 'Sentry 9 still sends transactions');
+  for (const range of ['^11.12.0', '11', '>=11 <13', '~12.1.0']) {
+    const [modern] = planInit({ dependencies: { '@sentry/node': range } }).steps;
+    assert.match(modern.code, /sentryRedact\(\{ preset: 'gdpr' \}, \{ traceLifecycle: 'stream' \}\)/, range);
+  }
+  for (const range of ['latest', '*', 'workspace:*', '^10.48.0']) {
+    assert.doesNotMatch(planInit({ dependencies: { '@sentry/node': range } }).steps[0].code, /traceLifecycle/, range);
+  }
 });
 
 test('the console step offers the no-code start', () => {

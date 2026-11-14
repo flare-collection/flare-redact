@@ -77,41 +77,5 @@ export function assignmentPattern(): RegExp {
   return new RegExp(`(?:${keywordAlternation()})["'\\s]*[:=]\\s*["']?([^\\s"',;]{4,})["']?`, 'giu');
 }
 
-const WS = '[ \\t\\n\\x0B\\f\\r]';
-
-/**
- * Values in `password = …` that are code, not a secret: an environment or
- * template reference, a call, an index, a field of a well-known object or one
- * ending in a sensitive name, a type annotation, an empty value, the variable
- * of the same name, or a placeholder. Without this a scan of source code (or
- * a pre-commit hook) stops on `token = process.env.TOKEN`, and people learn
- * to ignore it. A quoted value is a literal and never matches.
- *
- * Written in the FRS-1 subset and shipped verbatim as the pack's `reject` for
- * `generic_assignment`, so the four engines agree. It is a prefix match on the
- * whole assignment, case-insensitive, and every quantifier is bounded or
- * unambiguous, so it stays linear on hostile input.
- */
-export const ASSIGNMENT_REJECT: string = [
-  `[^:=]*[:=]${WS}*(?:`,
-  [
-    // $VAR, ${VAR}, $(cmd), ${{ ... }}
-    '\\$[A-Za-z_{(]',
-    // {{ template }}, <placeholder>, [REDACTED] or a list, %(name)s
-    '\\{\\{', '<', '\\[', '%\\(',
-    // %WINDOWS_VAR%
-    '%[A-Za-z_][A-Za-z0-9_]{0,63}%',
-    // a call or an index: getToken(), os.getenv(, os.environ[, ENV[
-    '[A-Za-z_$][A-Za-z0-9_$.]{0,127}[(\\[]',
-    // a field of a well-known object: process.env.TOKEN, config.apiKey, req.body.password
-    '(?:process\\.env|import\\.meta\\.env|os\\.environ|deno\\.env|bun\\.env|env|config|conf|cfg|settings|self|this|req|request|ctx|context|options|opts|args|params|props|secrets|vars|creds|credentials|system|window|globalthis)\\??\\.[A-Za-z_$]',
-    // a field path ending in a sensitive name: user.password, session.authToken
-    '[A-Za-z_$][A-Za-z0-9_$.?]{0,127}\\.[A-Za-z0-9_$]{0,40}(?:password|passwd|pwd|secret|token|key|credentials?)["\']?$',
-    // a type, an empty value, the variable of the same name, or a placeholder
-    '(?:string|str|number|int|integer|bool|boolean|any|unknown|bytes|secretstr|none|null|nil|undefined|true|false|required|optional|password|passwd|pwd|secret|token|apikey|api_key|key|your[_-][A-Za-z0-9_-]{0,64}|x{3,64}|\\*{3,64})["\']?$',
-  ].join('|'),
-  ')',
-].join('');
-
 /** Object keys that are sensitive by name, in any listed language. */
 export const MULTILANG_KEY_SET: ReadonlySet<string> = new Set(SECRET_KEYWORDS);

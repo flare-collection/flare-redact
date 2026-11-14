@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writ
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addedBlocks } from '../dist/staged.js';
+import { addedBlocks, stagedEntries } from '../dist/staged.js';
 import { preCommitHook, HOOK_COMMAND } from '../dist/init.js';
 
 const cli = fileURLToPath(new URL('../bin/flare-redact.mjs', import.meta.url));
@@ -77,6 +77,69 @@ test('only lines the commit adds are reported, at their staged line', () => {
     assert.equal(flare(dir, '--staged', '--exclude', '*.md', '--exclude', 'a.txt').status, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('name-status output is read entry by entry, renames with both paths', () => {
+  assert.deepEqual(stagedEntries('A\0new file.txt\0M\0src/a.js\0R087\0old/name.js\0new/name.js\0C100\0a\0b\0'), [
+    { file: 'new file.txt' },
+    { file: 'src/a.js' },
+    { file: 'new/name.js', from: 'old/name.js' },
+    { file: 'b' },
+  ]);
+  assert.deepEqual(stagedEntries(''), []);
+});
+
+test('moving a file does not report what it already contained', () => {
+  const dir = repo();
+  try {
+    const body = Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n');
+    writeFileSync(join(dir, 'old.txt'), `${body}\nold token ${token('e')}\n`);
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'init');
+    git(dir, 'mv', 'old.txt', 'moved.txt');
+    assert.equal(flare(dir, '--staged').status, 0, 'a pure rename adds nothing');
+
+    writeFileSync(join(dir, 'moved.txt'), `${body}\nold token ${token('e')}\nkey = "AKIAIOSFODNN7EXAMPLE"\n`);
+    git(dir, 'add', '.');
+    const result = flare(dir, '--staged');
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /^1 finding:/);
+    assert.match(result.stdout, /at moved\.txt:32:8/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a staged file over the size limit is skipped and counted', () => {
+  const dir = repo();
+  try {
+    writeFileSync(join(dir, 'big.txt'), `token ${token('f')}\n` + 'x'.repeat(79).concat('\n').repeat(40000));
+    writeFileSync(join(dir, 'small.txt'), 'nothing here\n');
+    git(dir, 'add', '.');
+    const report = JSON.parse(flare(dir, '--staged', '--format', 'json').stdout);
+    assert.equal(report.summary.skipped.oversized, 1);
+    assert.equal(report.summary.filesScanned, 1);
+    assert.equal(report.summary.total, 0);
+    const raised = JSON.parse(flare(dir, '--staged', '--format', 'json', '--max-file-size', '8mb').stdout);
+    assert.equal(raised.summary.total, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the hook lets a commit through when Node is not on the PATH', () => {
+  const dir = repo();
+  const empty = mkdtempSync(join(tmpdir(), 'flare-empty-path-'));
+  try {
+    const hook = join(dir, 'pre-commit');
+    writeFileSync(hook, preCommitHook(version));
+    const result = spawnSync('/bin/sh', [hook], { cwd: dir, encoding: 'utf8', env: { PATH: empty } });
+    assert.equal(result.status, 0);
+    assert.match(result.stderr, /Node not found on PATH, commit not scanned/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(empty, { recursive: true, force: true });
   }
 });
 

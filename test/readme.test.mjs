@@ -29,5 +29,5 @@ test('version and CI badges are live, never typed by hand', () => {
 });
 
 test('the README uses no long dashes', () => {
-  assert.doesNotMatch(readme, /[–—]/);
+  assert.doesNotMatch(readme, /[\u2013\u2014]/);
 });

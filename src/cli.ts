@@ -1,6 +1,7 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { discoverScanFiles, type SkipSummary } from './file-discovery.js';
 import { readStagedChanges } from './staged.js';
+import { codeAwareDetectors } from './code-reference.js';
 import {
   redact,
   summary,
@@ -49,6 +50,7 @@ interface ParsedArgs {
   maxFileSize: number;
   defaultExcludes: boolean;
   staged: boolean;
+  codeFilter: boolean;
 }
 
 function csv(s: string | undefined): string[] {
@@ -75,6 +77,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let maxFileSize = 1024 * 1024;
   let defaultExcludes = true;
   let staged = false;
+  let codeFilter = true;
   const terms: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -82,6 +85,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     switch (a) {
       case '--scan': scanMode = true; break;
       case '--staged': scanMode = true; staged = true; break;
+      case '--no-code-filter': codeFilter = false; break;
       case '--format': scanFormat = parseScanFormat(argv[++i]); break;
       case '--sarif': scanMode = true; scanFormat = 'sarif'; break;
       case '--summary': summaryMode = true; break;
@@ -149,6 +153,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     maxFileSize,
     defaultExcludes,
     staged,
+    codeFilter,
   };
 }
 
@@ -287,12 +292,16 @@ function runScan(
   format: ScanFormat,
   discovery: { excludes: string[]; maxFileSize: number; defaultExcludes: boolean },
   staged = false,
+  codeFilter = true,
 ): number {
   const findings: LocatedFinding[] = [];
   let scannedFiles: string[] = [];
   let skipped: SkipSummary = { excluded: 0, binary: 0, oversized: 0, symlink: 0 };
   try {
-    const policy = compilePolicy(opts);
+    // A report is read by a person or stops a commit, so an assignment whose
+    // value is code (`token = process.env.TOKEN`) is left out. Redaction never
+    // uses this: it keeps masking them.
+    const policy = compilePolicy(codeFilter ? { ...opts, detectors: codeAwareDetectors(opts.detectors ?? DETECTORS) } : opts);
     if (staged) {
       const changes = readStagedChanges(process.cwd(), discovery);
       scannedFiles = changes.files;
@@ -382,6 +391,7 @@ export async function main(argv: string[]): Promise<number> {
     maxFileSize,
     defaultExcludes,
     staged,
+    codeFilter,
   } = parsed;
 
   if (!opts.transformSecret && process.env[secretEnv]) opts.transformSecret = process.env[secretEnv];
@@ -399,7 +409,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 
   if (scanMode && !summaryMode && !vaultFile && !restoreFile) {
-    return runScan(files, jsonMode, opts, scanFormat, { excludes, maxFileSize, defaultExcludes }, staged);
+    return runScan(files, jsonMode, opts, scanFormat, { excludes, maxFileSize, defaultExcludes }, staged, codeFilter);
   }
 
   let raw: string;

@@ -29,6 +29,8 @@ USAGE
 OPTIONS
   --scan            list what would be redacted, and why (input unchanged)
   --staged          scan only the lines the next git commit adds
+  --no-code-filter  in a scan, also report assignments whose value is code
+                    (token = process.env.TOKEN, password: string)
   --format <f>      scan output: pretty | json | sarif (default: pretty)
   --sarif           shorthand for --scan --format sarif
   --summary         print a count of findings per detector
@@ -227,9 +229,11 @@ Exit codes make it a CI gate:
   # hook that runs this, so only what a commit adds can block it
   flare-redact --staged
 
-Code is not a secret: 'token = process.env.TOKEN', 'password: string',
-'api_key = os.getenv("KEY")' and 'secret = \${SECRET}' are not reported. A
-quoted value is a literal and always is.
+A scan leaves out assignments whose value is code, not a secret:
+'token = process.env.TOKEN', 'password: string', 'api_key = os.getenv("KEY")',
+'secret = \${SECRET}'. A quoted string and anything that could be a literal
+(password=\$ecret123) is still reported. --no-code-filter reports them all.
+Redaction is not affected: it masks every such assignment, code or not.
 
 Too noisy? Generic detectors like high_entropy match anything that looks random.
 --refine-confidence runs the learned classifier over them and --min-confidence

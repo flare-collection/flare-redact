@@ -55,38 +55,6 @@
     ],
     "redact": "密码: ***"
   },
-  "assignment/code-already-masked": {
-    "findings": [],
-    "redact": "password=******** token: [REDACTED]"
-  },
-  "assignment/code-call": {
-    "findings": [],
-    "redact": "password = os.getenv(\"DB_PASSWORD\"); token = getToken()"
-  },
-  "assignment/code-env-reference": {
-    "findings": [],
-    "redact": "export const token = process.env.TOKEN;\napi_key = os.environ[\"API_KEY\"]"
-  },
-  "assignment/code-field-path": {
-    "findings": [],
-    "redact": "password = user.password; apiKey = config.apiKey; token = session.authToken"
-  },
-  "assignment/code-placeholder": {
-    "findings": [],
-    "redact": "api_key = YOUR_API_KEY, password: <your-password>, secret = None, pwd: null"
-  },
-  "assignment/code-same-name": {
-    "findings": [],
-    "redact": "this.token = token; self.password = password"
-  },
-  "assignment/code-shell-variable": {
-    "findings": [],
-    "redact": "PASSWORD=$DB_PASSWORD token: ${GITHUB_TOKEN} secret: {{ vault_secret }}"
-  },
-  "assignment/code-type-annotation": {
-    "findings": [],
-    "redact": "interface Login { password: string; token: Optional[str] }"
-  },
   "assignment/english": {
     "findings": [
       {
@@ -100,47 +68,6 @@
       }
     ],
     "redact": "password=***"
-  },
-  "assignment/literal-still-caught": {
-    "findings": [
-      {
-        "column": 1,
-        "confidence": 0.92,
-        "detector": "generic_assignment",
-        "end": 19,
-        "line": 1,
-        "risk": "critical",
-        "start": 0
-      },
-      {
-        "column": 21,
-        "confidence": 0.92,
-        "detector": "generic_assignment",
-        "end": 47,
-        "line": 1,
-        "risk": "critical",
-        "start": 20
-      },
-      {
-        "column": 49,
-        "confidence": 0.92,
-        "detector": "generic_assignment",
-        "end": 68,
-        "line": 1,
-        "risk": "critical",
-        "start": 48
-      },
-      {
-        "column": 70,
-        "confidence": 0.92,
-        "detector": "generic_assignment",
-        "end": 89,
-        "line": 1,
-        "risk": "critical",
-        "start": 69
-      }
-    ],
-    "redact": "password=*** token = \"***\" secret=*** password=***"
   },
   "assignment/quoted": {
     "findings": [

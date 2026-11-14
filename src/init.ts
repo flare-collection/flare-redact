@@ -48,8 +48,15 @@ interface Recipe {
   /** Any of these dependencies triggers the recipe; the first one found is named. */
   deps: readonly string[];
   title: string;
-  code: (dep: string) => string;
+  /** `range` is the version range package.json asks for. */
+  code: (dep: string, range: string) => string;
 }
+
+/** The major version a range like `^11.2.0` or `>=10 <12` starts at, if it names one. */
+const major = (range: string): number | undefined => {
+  const found = /^[^\d]*(\d+)/.exec(range);
+  return found ? Number(found[1]) : undefined;
+};
 
 /** One recipe per supported library, in the order they are printed. */
 const RECIPES: readonly Recipe[] = [
@@ -72,10 +79,11 @@ const anthropic = wrapAnthropic(new Anthropic(), { preset: '${LLM}' });`,
   {
     deps: SENTRY_SDKS,
     title: 'Sentry: events, breadcrumbs, spans and logs are redacted before they are sent',
-    code: (dep) => `import * as Sentry from '${dep}';
+    // Sentry 11 streams spans and warns about a beforeSendTransaction hook.
+    code: (dep, range) => `import * as Sentry from '${dep}';
 import { sentryRedact } from 'flare-redact/sentry';
 
-Sentry.init({ dsn: process.env.SENTRY_DSN, ...sentryRedact({ preset: '${GDPR}' }) });`,
+Sentry.init({ dsn: process.env.SENTRY_DSN, ...sentryRedact({ preset: '${GDPR}' }${(major(range) ?? 0) >= 11 ? ", { traceLifecycle: 'stream' }" : ''}) });`,
   },
   {
     deps: ['pino'],
@@ -122,7 +130,7 @@ export function planInit(pkg: PackageJson | undefined): InitPlan {
   const has = (name: string): boolean => Object.prototype.hasOwnProperty.call(deps, name);
   const steps: InitStep[] = RECIPES.flatMap((recipe) => {
     const dep = recipe.deps.find(has);
-    return dep ? [{ found: dep, title: recipe.title, code: recipe.code(dep) }] : [];
+    return dep ? [{ found: dep, title: recipe.title, code: recipe.code(dep, String(deps[dep] ?? '')) }] : [];
   });
   // No logger found: console is the logger.
   if (!steps.some((step) => step.found === 'pino' || step.found === 'winston')) steps.push(CONSOLE_STEP);
@@ -200,6 +208,12 @@ export function preCommitHook(version: string): string {
 # Added by 'flare-redact init --hook': stop commits that add secrets or
 # personal data. Only the lines a commit adds are scanned.
 # Skip the check once with: git commit --no-verify
+if ! command -v node >/dev/null 2>&1 || ! command -v npx >/dev/null 2>&1; then
+  # A git client started without Node on its PATH: let the commit through
+  # and say so, rather than block every commit from that client.
+  echo "flare-redact: Node not found on PATH, commit not scanned" >&2
+  exit 0
+fi
 if [ -x node_modules/.bin/flare-redact ]; then
   exec node_modules/.bin/flare-redact --scan --staged
 fi

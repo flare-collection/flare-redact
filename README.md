@@ -929,11 +929,26 @@ Sentry.init({ dsn: process.env.SENTRY_DSN, ...sentryRedact({ preset: 'gdpr' }) }
 ```
 
 Messages, exception values, stack-frame variables and source lines, request
-data, user fields and span descriptions are redacted; cookies are masked whole.
-Sentry's own identifiers (event, trace, span and debug ids, release, timestamps)
-are kept exactly, so events still group, link to their traces and resolve source
-maps even with `preset: 'strict'`. Already have a `beforeSend`? Call
-`hooks.beforeSend(event)` from it.
+data, user fields, span names and log messages are redacted; cookies are masked
+whole. Sentry's own fields (event, trace, span and debug ids, release,
+timestamps, the file and function of each stack frame) are kept exactly, so
+events still group, link to their traces and resolve source maps even with
+`preset: 'strict'`. They are recognised by where they sit in the event, so a
+field of yours that happens to be called `release` or `sid` is still redacted.
+Already have a `beforeSend`? Call `hooks.beforeSend(event)` from it.
+
+Sentry 11 streams spans and warns about a `beforeSendTransaction` hook it no
+longer calls. Leave it out there:
+
+```js
+Sentry.init({ dsn, ...sentryRedact({ preset: 'gdpr' }, { traceLifecycle: 'stream' }) });
+```
+
+Two things Sentry sends pass through no hook, so no hook can redact them: the
+release-health session (it carries the user's id and IP address when
+`sendDefaultPii` is on) and the trace header, which carries the name of the root
+span. Keep personal data out of span names, as Sentry itself advises, and leave
+`sendDefaultPii` off unless you need it.
 
 Same `policy` object flows into `flare-redact/llm`, `wrapConsole`, `createVault`,
 and `redactStream` too.
@@ -995,10 +1010,15 @@ flare-redact --staged          # what the hook runs: only the lines being added
 A hook that scanned whole files would block every commit touching a file with an
 old finding, and people would learn to skip it. `--staged` reads the staged diff,
 so a commit is stopped only for what it introduces, and each finding points at
-its line in the staged file. Code is not reported as a secret:
-`token = process.env.TOKEN`, `password: string`, `api_key = os.getenv("KEY")`
-or `secret = ${SECRET}` pass, while a quoted literal never does. Skip the check
-once with `git commit --no-verify`.
+its line in the staged file. Skip the check once with `git commit --no-verify`.
+
+A scan leaves out assignments whose value is code rather than a secret:
+`token = process.env.TOKEN`, `password: string`, `api_key = os.getenv("KEY")`,
+`secret = ${SECRET}`. A quoted string, and anything that could be a literal
+(`password=$ecret123`, a password hash), is still reported, and
+`--no-code-filter` reports everything. This applies to `--scan` and `--staged`
+only: `redact()` keeps masking every such assignment, because hiding too much
+in a log is safe and missing a secret is not.
 
 In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
 hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
