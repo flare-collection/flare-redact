@@ -118,6 +118,26 @@ export function discoverScanFiles(inputs: string[], options: FileDiscoveryOption
   return { files, skipped };
 }
 
+/**
+ * A predicate for repository-relative paths that never touch the disk (staged
+ * files, for example): true when the path, or any directory on the way to it,
+ * is excluded by the defaults or by an `--exclude` glob.
+ */
+export function createPathFilter(options: Pick<FileDiscoveryOptions, 'excludes' | 'defaultExcludes'>): (path: string) => boolean {
+  const matchers = (options.excludes ?? []).map(compileExclude);
+  return (path) => {
+    const parts = normalizePath(path).split('/').filter(Boolean);
+    for (let i = 0; i < parts.length; i++) {
+      const name = parts[i]!;
+      const directory = i < parts.length - 1;
+      if (directory && options.defaultExcludes && DEFAULT_EXCLUDED_DIRECTORIES.has(name)) return true;
+      const prefix = parts.slice(0, i + 1).join('/');
+      if (matchers.some((matcher) => matcher.matches(prefix, name, directory))) return true;
+    }
+    return false;
+  };
+}
+
 function compileExclude(rawPattern: string): ExcludeMatcher {
   const normalized = normalizePath(rawPattern.trim())
     .replace(/^\.\/+/, '')

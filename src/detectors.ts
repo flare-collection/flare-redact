@@ -1,4 +1,6 @@
-import { assignmentPattern } from './i18n.js';
+import { ASSIGNMENT_REJECT, assignmentPattern } from './i18n.js';
+
+const ASSIGNMENT_CODE = new RegExp(`^(?:${ASSIGNMENT_REJECT})`, 'iu');
 import { LOCALE_DETECTORS } from './locales.js';
 import { EXTRA_DETECTORS } from './extra.js';
 import { ENTITY_DETECTORS } from './entities.js';
@@ -280,9 +282,13 @@ export const DETECTORS: Detector[] = [
     label: 'Assigned secret',
     why: 'A value assigned to a sensitive-looking field name (password=…, 密码: …) in any language.',
     pattern: assignmentPattern(),
+    // `token = process.env.TOKEN` is code, not a secret (see ASSIGNMENT_REJECT).
+    validate: (m) => !ASSIGNMENT_CODE.test(m),
     mask: (m) => m.replace(/([:=]\s*["']?)([^\s"',;]{4,})(["']?)\s*$/u, '$1***$3'),
     default: true,
     tags: ['secret'],
+    // Explicit, because a detector with `validate` would otherwise start at 0.99.
+    confidence: 0.92,
   },
   {
     id: 'email',

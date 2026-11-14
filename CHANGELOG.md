@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.9.0 (2026-11-14)
+
+### Turn it on without touching the code
+
+- Add `flare-redact/register`. `node --import flare-redact/register app.js` (or
+  `NODE_OPTIONS="--import flare-redact/register"`) redacts every
+  `console.log`, `info`, `warn`, `error` and `debug` call with no code
+  change. `FLARE_REDACT_PRESET` picks the preset; an unknown name stops the
+  process at startup. It is the only module marked as having side effects.
+- Add `flare-redact/sentry`. `Sentry.init({ dsn, ...sentryRedact({ preset:
+  'gdpr' }) })` redacts error events, transactions, spans, Sentry Logs and
+  breadcrumbs before they are sent, masks cookies whole, and keeps Sentry's own
+  identifiers (event, trace, span and debug ids, release, timestamps, SDK
+  metadata) exactly, so grouping, tracing and source maps keep working even with
+  `preset: 'strict'`. The caller's event is never mutated.
+- `flare-redact init` recognises the Sentry SDKs and prints the no-code
+  `--import` line alongside `wrapConsole`.
+
+### Stop a secret before the commit exists
+
+- Add `flare-redact --staged`: scan only the lines the next commit adds, read
+  from the staged diff, and report each finding at its line in the staged file.
+  A commit is stopped for what it introduces, not for old findings elsewhere in
+  the file. `--exclude` and the default excluded directories apply.
+- Add `flare-redact init --hook`, which writes a git pre-commit hook that runs
+  it, preferring the project's own copy and falling back to the pinned release.
+  An existing hook is kept unless `--force` is given; with husky, or a hooks
+  folder shared outside the repository, it prints the line to add instead of
+  writing anything.
+
+### Fewer false positives in source code
+
+- `generic_assignment` no longer reports code as a secret: environment and
+  template references (`process.env.TOKEN`, `os.getenv("KEY")`,
+  `${SECRET}`, `{{ secret }}`), calls and indexes, fields of well-known
+  objects or ones ending in a sensitive name (`config.apiKey`,
+  `user.password`), type annotations (`password: string`), empty values,
+  the variable of the same name, placeholders and already-masked values. A
+  quoted value is a literal and is still reported. The rule ships as a
+  `reject` pattern in the FRS-1 pack, which moves to version 1.9.0, so all four
+  engines agree; nine conformance cases cover it and every existing
+  expectation is unchanged.
+
+### Docs
+
+- The README has no long dashes, its version and CI badges point at fresh URLs
+  so a cached image cannot show an old release, and a test keeps the detector
+  and language counts in the badges equal to what ships.
+
 ## 1.8.0 (2026-11-14)
 
 ### Simpler setup

@@ -18,16 +18,17 @@ export interface HelpTopic {
   readonly body: string;
 }
 
-export const HELP = `flare-redact — hide secrets & PII before they hit a log
+export const HELP = `flare-redact: hide secrets & PII before they hit a log
 
 USAGE
   flare-redact [options] [files...]        stdin if no files
-  flare-redact init [--ci]                 suggest the integrations for this project
+  flare-redact init [--ci] [--hook]        suggest the integrations for this project
   flare-redact gateway [options]           run the redaction sidecar proxy
   flare-redact help [topic]                explain a topic in depth
 
 OPTIONS
   --scan            list what would be redacted, and why (input unchanged)
+  --staged          scan only the lines the next git commit adds
   --format <f>      scan output: pretty | json | sarif (default: pretty)
   --sarif           shorthand for --scan --format sarif
   --summary         print a count of findings per detector
@@ -72,7 +73,7 @@ OPTIONS
 
 SUBCOMMANDS
   gateway           run a reverse proxy that redacts request bodies and
-                    restores the originals in the reply — no code changes
+                    restores the originals in the reply, no code changes
                     in the calling application. See: flare-redact gateway help
   help              explain a topic. Run 'flare-redact help topics' for the
                     index, or 'flare-redact help <detector>' for one detector.
@@ -82,6 +83,7 @@ EXAMPLES
   flare-redact --scan config.env
   flare-redact --scan .
   flare-redact --scan . --exclude 'fixtures/**' --max-file-size 2mb
+  flare-redact --staged
   flare-redact --scan --format json .env app.log
   flare-redact --sarif .env > flare-redact.sarif
   flare-redact --json --mode hash < event.json
@@ -95,7 +97,7 @@ const TOPIC_LIST: readonly HelpTopic[] = [
   {
     name: 'detectors',
     summary: 'choosing what gets redacted, by id or tag',
-    body: `DETECTORS — choosing what gets redacted
+    body: `DETECTORS: choosing what gets redacted
 
 'flare-redact --list' prints every detector: a filled circle is on by default, a
 hollow one is off until you ask for it.
@@ -138,15 +140,15 @@ Custom values that no detector knows about:
   },
   {
     name: 'modes',
-    summary: 'mask, label, hash, pseudonym, surrogate — and which to pick',
-    body: `MODES — what replaces a matched value
+    summary: 'mask, label, hash, pseudonym, surrogate, and which to pick',
+    body: `MODES: what replaces a matched value
 
   --mode mask        the default. Partial, shape-preserving: a***@***, sk-***
   --mode label       the detector's name: [EMAIL], [OPENAI_KEY]
   --mode hash        keyed HMAC-SHA-256. Same input, same output, so you can
                      still count and join on it. Requires a key.
   --mode pseudonym   a fake value of the same shape. Requires a key.
-  --mode surrogate   a typed synthetic value — a card number that still passes
+  --mode surrogate   a typed synthetic value: a card number that still passes
                      Luhn, a date that is still a date. Requires a key.
 
   --mask <str>       ignore all of the above and write a fixed string
@@ -162,12 +164,12 @@ is deprecated; it names the same thing badly.
 
 'fpe' is accepted as an alias for 'pseudonym' and warns. It was the wrong word:
 none of this is format-preserving encryption, and nothing here is reversible
-without a vault — see 'flare-redact help vault'.`,
+without a vault; see 'flare-redact help vault'.`,
   },
   {
     name: 'vault',
     summary: 'reversible redaction: get the originals back',
-    body: `VAULT — redaction you can undo
+    body: `VAULT: redaction you can undo
 
 A mode replaces a value and forgets it. A vault replaces it with a stable
 placeholder and remembers the mapping, so the same secret is always the same
@@ -179,7 +181,7 @@ placeholder and the text can be turned back into the original later.
 
 The map on disk is not plaintext: PBKDF2-SHA-256 derives a key from the password
 and the file is an authenticated AES-256-GCM envelope. Lose the password and the
-map is gone. The password comes from an environment variable, never a flag —
+map is gone. The password comes from an environment variable, never a flag,
 use --vault-password-env <NAME> to point at a different one.
 
 Placeholders are opaque 96-bit random tokens by default, so a placeholder leaks
@@ -194,10 +196,11 @@ so placeholders never cross between callers.`,
   {
     name: 'scan',
     summary: 'find secrets without changing anything, and fail CI on them',
-    body: `SCAN — report, do not rewrite
+    body: `SCAN: report, do not rewrite
 
   flare-redact --scan config.env      what would be redacted, and why
   flare-redact --scan .               walk a whole project
+  flare-redact --staged               only the lines the next commit adds
   flare-redact --summary app.log      just the counts, per detector
 
 --scan never prints the matched value unless you pass --include-values, which is
@@ -215,10 +218,18 @@ Exit codes make it a CI gate:
 
   0   nothing found
   1   findings (scan mode only)
-  2   the command itself failed — bad flag, unreadable file, invalid JSON
+  2   the command itself failed: bad flag, unreadable file, invalid JSON
 
   # fail the build if a secret is committed
   npx --yes flare-redact --scan . --exclude package-lock.json
+
+  # stop the commit instead: 'flare-redact init --hook' writes a pre-commit
+  # hook that runs this, so only what a commit adds can block it
+  flare-redact --staged
+
+Code is not a secret: 'token = process.env.TOKEN', 'password: string',
+'api_key = os.getenv("KEY")' and 'secret = \${SECRET}' are not reported. A
+quoted value is a literal and always is.
 
 Too noisy? Generic detectors like high_entropy match anything that looks random.
 --refine-confidence runs the learned classifier over them and --min-confidence
@@ -229,7 +240,7 @@ drops the weak ones:
   {
     name: 'files',
     summary: 'scanning directories: what is walked, what is skipped',
-    body: `FILES — what a directory scan actually reads
+    body: `FILES: what a directory scan actually reads
 
 Give --scan a directory and it walks it. Three things are skipped without being
 asked, because scanning them is noise or a hazard:
@@ -250,7 +261,7 @@ cannot quietly mean a scan that read nothing.`,
   {
     name: 'gateway',
     summary: 'the sidecar proxy: redact without touching application code',
-    body: `GATEWAY — redaction without a code change
+    body: `GATEWAY: redaction without a code change
 
 The library needs you to call it. The gateway does not: it is a reverse proxy
 that redacts request bodies on the way out and restores the originals in the
@@ -258,7 +269,7 @@ reply, so an application integrates by changing one base URL.
 
   flare-redact gateway --upstream https://api.openai.com --enable pii
 
-  # then, in the application — nothing else changes
+  # then, in the application, nothing else changes
   export OPENAI_BASE_URL=http://127.0.0.1:8787/v1
 
 Streamed responses are restored incrementally, so a placeholder split across two
@@ -267,7 +278,7 @@ SSE frames still comes back whole.
 It is also a redaction service for languages without a native engine:
 POST /v1/redact, POST /v1/scan, GET /v1/detectors and server-side /v1/sessions,
 plus /healthz, /readyz and Prometheus /metrics. Those are the only paths the
-gateway answers itself — everything else under /v1 is proxied to your upstream.
+gateway answers itself; everything else under /v1 is proxied to your upstream.
 
 A container image ships in the repository under docker/.
 
@@ -276,7 +287,7 @@ Full flag list: flare-redact gateway help`,
   {
     name: 'agent-flow',
     summary: 'FlareFlow: source-to-sink capabilities for AI tools',
-    body: `AGENT FLOW — control where protected values may be restored
+    body: `AGENT FLOW: control where protected values may be restored
 
 FlareFlow is a library and gateway API for model-produced tool calls. It binds
 each protected value to a runtime-owned source and detector, then restores it
@@ -313,7 +324,7 @@ Benchmark:     npm run benchmark:agent -- --json`,
   {
     name: 'library',
     summary: 'using it from JavaScript and TypeScript',
-    body: `LIBRARY — the JavaScript and TypeScript API
+    body: `LIBRARY: the JavaScript and TypeScript API
 
   import { redact, scan, compilePolicy, createVault } from 'flare-redact';
 
@@ -327,6 +338,9 @@ structures are walked and only the leaves are rewritten.
 Adapters live behind subpath imports, so you pay for what you import:
 
   flare-redact/pino        flare-redact/winston      log transports
+  flare-redact/sentry      events, breadcrumbs, spans and logs sent to Sentry
+  flare-redact/register    node --import flare-redact/register: console.*
+                           redacted with no code change (FLARE_REDACT_PRESET)
   flare-redact/http        flare-redact/fetch        HTTP layers
   flare-redact/llm         flare-redact/session      prompts and conversations
   flare-redact/tool        MCP and multi-tool agent boundaries
@@ -342,8 +356,8 @@ covered by CI.`,
   },
   {
     name: 'sdks',
-    summary: 'the Python, Go and Rust engines — installed separately',
-    body: `SDKS — the same redactor in four languages
+    summary: 'the Python, Go and Rust engines, installed separately',
+    body: `SDKS: the same redactor in four languages
 
 Python, Go and Rust have their own native engines. They are separate packages:
 installing flare-redact from npm gives you the JavaScript engine and nothing
@@ -354,17 +368,17 @@ else, and it pulls no dependencies of any kind.
   Go      go get github.com/flare-collection/flare-redact/sdk/go
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.8.0#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.9.0#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.8.0" }
+                           tag = "v1.9.0" }
 
 The Python and Rust engines are not on PyPI or crates.io yet, so they install
 from the repository. The commands above are the ones that work today.
 
 They are not ports that drift. All four implement FRS-1, the specification in
 spec/SPEC.md, and all four run the same conformance corpus in spec/conformance/
-in their own test suites — so the same input and the same options produce the
+in their own test suites, so the same input and the same options produce the
 same output whichever engine you use.
 
 If you cannot add a dependency at all, the gateway gives every language an HTTP
@@ -434,7 +448,7 @@ function detectorHelp(id: string): string | undefined {
   const tags = detector.tags?.length ? detector.tags.join(', ') : 'none';
   const state = detector.default
     ? 'on by default'
-    : `off by default — turn it on with --enable ${detector.id}`;
+    : `off by default; turn it on with --enable ${detector.id}`;
   return `DETECTOR ${detector.id}
 
   ${detector.label}
@@ -451,7 +465,7 @@ function detectorHelp(id: string): string | undefined {
 
 /**
  * Suggest the nearest topic or detector for something we do not recognise.
- * Prefix and substring matching only — a typo table would be more machinery
+ * Prefix and substring matching only; a typo table would be more machinery
  * than the problem deserves.
  */
 function nearest(query: string): string[] {

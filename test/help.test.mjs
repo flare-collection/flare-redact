@@ -89,11 +89,11 @@ test('the gateway answers to bare help as well as --help', () => {
   for (const args of [['help'], ['--help'], ['-h']]) {
     const result = run(gatewayCli, args);
     assert.equal(result.status, 0, `flare-gateway ${args.join(' ')}`);
-    assert.match(result.stdout, /flare-redact gateway —/);
+    assert.match(result.stdout, /flare-redact gateway: /);
   }
   const throughParent = run(cli, ['gateway', 'help']);
   assert.equal(throughParent.status, 0);
-  assert.match(throughParent.stdout, /flare-redact gateway —/);
+  assert.match(throughParent.stdout, /flare-redact gateway: /);
 });
 
 test('an unknown flag points at the help instead of only complaining', () => {

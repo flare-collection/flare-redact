@@ -2,7 +2,7 @@
   "$schema": "./detectors.schema.json",
   "spec": "FRS-1",
   "id": "flare-redact/core",
-  "version": "1.7.0",
+  "version": "1.9.0",
   "title": "flare-redact core detector pack",
   "description": "The portable profile of the flare-redact detector set. Every pattern is written in the FRS-1 regular-expression subset so the JavaScript, Python, Go and Rust engines compile it to the same automaton and produce byte-identical output. See spec/SPEC.md.",
   "license": "MIT",
@@ -363,6 +363,9 @@
       "why": "A value assigned to a sensitive-looking field name (password=…, 密码: …) in any language.",
       "pattern": "(?:zugangsschlüssel|client_secret|секретныйключ|parola_chiave|mot_de_passe|chavesecreta|gizlianahtar|parolachiave|private_key|credentials|credenziale|access_key|access-key|secret_key|privatekey|credential|auth_token|passphrase|contraseña|contrasena|credencial|كلمةالمرور|motdepasse|clésecrète|schluessel|wachtwoord|kata_sandi|accesskey|motdepass|geheimnis|schlüssel|katasandi|password|كلمةالسر|passwort|kennwort|کلمهعبور|mat_khau|รหัสผ่าน|api_key|api-key|पासवर्ड|secreto|segredo|anahtar|segreto|رمزعبور|گذرواژه|محرمانه|таємний|sleutel|matkhau|rahasia|ความลับ|κωδικός|μυστικό|passwd|secret|apikey|пароль|секрет|geheim|parola|chiave|poufne|κλειδί|parolă|token|गुप्त|कुंजी|clave|مفتاح|senha|chave|токен|パスワード|şifre|sifre|gizli|hasło|haslo|tajne|klucz|bimat|sandi|kunci|סיסמה|şifrə|parol|məxfi|cheie|टोकन|clef|ключ|トークン|暗証番号|비밀번호|کلید|khoa|מפתח|açar|pwd|رمز|سري|clé|合言葉|비밀키|סוד|密码|密碼|秘密|令牌|密钥|私钥|口令|سر|암호|비밀|토큰)[\"' \\t\\n\\x0B\\f\\r]*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?([^ \\t\\n\\x0B\\f\\r\"',;]{4,})[\"']?",
       "flags": "i",
+      "reject": [
+        "[^:=]*[:=][ \\t\\n\\x0B\\f\\r]*(?:\\$[A-Za-z_{(]|\\{\\{|<|\\[|%\\(|%[A-Za-z_][A-Za-z0-9_]{0,63}%|[A-Za-z_$][A-Za-z0-9_$.]{0,127}[(\\[]|(?:process\\.env|import\\.meta\\.env|os\\.environ|deno\\.env|bun\\.env|env|config|conf|cfg|settings|self|this|req|request|ctx|context|options|opts|args|params|props|secrets|vars|creds|credentials|system|window|globalthis)\\??\\.[A-Za-z_$]|[A-Za-z_$][A-Za-z0-9_$.?]{0,127}\\.[A-Za-z0-9_$]{0,40}(?:password|passwd|pwd|secret|token|key|credentials?)[\"']?$|(?:string|str|number|int|integer|bool|boolean|any|unknown|bytes|secretstr|none|null|nil|undefined|true|false|required|optional|password|passwd|pwd|secret|token|apikey|api_key|key|your[_-][A-Za-z0-9_-]{0,64}|x{3,64}|\\*{3,64})[\"']?$)"
+      ],
       "mask": {
         "type": "replace",
         "pattern": "({{ANY}}*[:=][ \\t\\n\\x0B\\f\\r]*[\"']?)[^ \\t\\n\\x0B\\f\\r\"',;]{4,}([\"']?)",
