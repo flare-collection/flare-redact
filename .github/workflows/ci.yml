@@ -173,12 +173,20 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [test, runtimes, spec, python, go, rust]
     runs-on: ubuntu-latest
+    permissions:
+      # npm Trusted Publishing: the job proves it is this workflow with an OIDC
+      # token, so no long-lived npm token is stored in the repository.
+      id-token: write
+      # Create the version tag and GitHub Release after a successful publish.
+      contents: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+      # Trusted Publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@^11.5.1
       - run: npm ci
       - id: version
         name: Check registry version
@@ -186,6 +194,7 @@ jobs:
         run: |
           package_name="$(node -p "require('./package.json').name")"
           package_version="$(node -p "require('./package.json').version")"
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
           if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "$package_name@$package_version is already published"
@@ -206,5 +215,15 @@ jobs:
           }"
       - if: steps.version.outputs.publish == 'true'
         run: npm publish --provenance --access public
+      - if: steps.version.outputs.publish == 'true'
+        name: Create the GitHub Release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "v$VERSION already has a GitHub Release"
+            exit 0
+          fi
+          node scripts/release-notes.mjs "$VERSION" > release-notes.md
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "flare-redact v$VERSION" --notes-file release-notes.md
