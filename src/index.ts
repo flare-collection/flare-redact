@@ -13,8 +13,8 @@ import {
   type Hit,
 } from './engine.js';
 
-export type { Mode, Risk, Finding, RedactOptions, SemanticFinding, SemanticProvider } from './engine.js';
-export { FlareRedactError, RedactionLimitError } from './engine.js';
+export type { Mode, Risk, Finding, RedactOptions, SemanticFinding, SemanticProvider, Preset } from './engine.js';
+export { FlareRedactError, RedactionLimitError, PRESETS } from './engine.js';
 export type { Detector } from './detectors.js';
 export {
   DETECTORS,

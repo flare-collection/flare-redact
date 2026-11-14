@@ -88,6 +88,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '-v': case '--version': showVersion = true; break;
       case '--only': opts.only = csv(argv[++i]); break;
       case '--enable': opts.enable = csv(argv[++i]); break;
+      case '--preset': opts.preset = argv[++i] as RedactOptions['preset']; break;
       case '--disable': opts.disable = csv(argv[++i]); break;
       case '--allow': opts.allow = csv(argv[++i]); break;
       case '--exclude': {
@@ -317,6 +318,12 @@ export async function main(argv: string[]): Promise<number> {
   if (argv[0] === 'gateway') {
     const { main: runGateway } = await import('./gateway/cli.js');
     return runGateway(argv.slice(1));
+  }
+
+  // `init` reads package.json and prints the integration lines to paste.
+  if (argv[0] === 'init') {
+    const { runInit } = await import('./init.js');
+    return runInit(argv.slice(1), VERSION);
   }
 
   // `help` reads as a question, not a flag, so it is a subcommand: `help`,

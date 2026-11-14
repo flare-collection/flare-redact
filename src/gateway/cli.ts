@@ -36,6 +36,7 @@ OPTIONS
   --paths <a,b>         only redact these JSON body paths
                         (e.g. 'messages[*].content,input,prompt')
   --only <ids>          use only these detectors
+  --preset <name>       a named policy: logs | llm | gdpr | strict
   --enable <ids>        turn on extra detectors (e.g. pii,phone)
   --disable <ids>       turn off detectors
   --mode <m>            mask | label | hash | pseudonym | surrogate
@@ -114,6 +115,7 @@ export function parseGatewayArgs(argv: string[]): { raw: RawConfig; help: boolea
       case '--paths': paths = csv(argv[++index], '--paths'); break;
       case '--only': policy.only = csv(argv[++index], '--only'); break;
       case '--enable': policy.enable = csv(argv[++index], '--enable'); break;
+      case '--preset': policy.preset = required(argv[++index], '--preset') as RedactOptions['preset']; break;
       case '--disable': policy.disable = csv(argv[++index], '--disable'); break;
       case '--mode': policy.mode = required(argv[++index], '--mode') as RedactOptions['mode']; break;
       case '--token-env': tokenEnv = required(argv[++index], '--token-env'); break;
