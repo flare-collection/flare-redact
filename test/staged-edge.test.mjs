@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,24 +50,80 @@ test('a file marked -diff or binary in .gitattributes is still scanned', () => {
     git(dir, 'add', '.');
     const report = JSON.parse(flare(dir, '--staged', '--format', 'json').stdout);
     assert.deepEqual(report.findings.map((f) => f.file).sort(), ['a.cfg', 'b.dat']);
-    assert.equal(report.summary.skipped.binary, 0);
   } finally {
     cleanup(dir);
   }
 });
 
-test('real binary content is skipped and counted', () => {
+test('a NUL byte does not hide the rest of a staged file', () => {
   const dir = repo();
   try {
-    writeFileSync(join(dir, 'image.bin'), Buffer.concat([Buffer.from([0, 1, 2, 0, 255]), Buffer.from(`token ${token('d')}\n`)]));
-    writeFileSync(join(dir, 'note.txt'), 'hello\n');
+    writeFileSync(join(dir, 'big.txt'), 'x\n'.repeat(6000) + `token ${token('d')}\n` + 'nul \0 here\n');
+    writeFileSync(join(dir, 'image.bin'), Buffer.concat([Buffer.from([0, 1, 2, 0, 255, 10]), Buffer.from(`token ${token('h')}\n`)]));
     git(dir, 'add', '.');
     const report = JSON.parse(flare(dir, '--staged', '--format', 'json').stdout);
-    assert.equal(report.summary.skipped.binary, 1);
-    assert.equal(report.summary.filesScanned, 1);
-    assert.equal(report.summary.total, 0);
+    assert.deepEqual(report.findings.map((f) => [f.file, f.line]), [['big.txt', 6001], ['image.bin', 2]]);
   } finally {
     cleanup(dir);
+  }
+});
+
+test('line numbers hold whatever the diff settings of the repository', () => {
+  const dir = repo();
+  try {
+    writeFileSync(join(dir, 'a.txt'), 'one\n\nthree\n\nfive\nsix\n\neight\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'init');
+    git(dir, 'config', 'diff.interHunkContext', '5');
+    git(dir, 'config', 'diff.suppressBlankEmpty', 'true');
+    git(dir, 'config', 'diff.context', '7');
+    writeFileSync(join(dir, 'a.txt'), `ONE\n\nthree\n\nfive\ntoken ${token('i')}\n\neight\n`);
+    git(dir, 'add', '.');
+    const result = flare(dir, '--staged');
+    assert.match(result.stdout, /at a\.txt:6:7/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('the header of a type change is not read as content', () => {
+  const dir = repo();
+  try {
+    writeFileSync(join(dir, 'jane.roe@example.com.txt'), 'nothing\n');
+    writeFileSync(join(dir, 'target.txt'), 'nothing\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-qm', 'init');
+    unlinkSync(join(dir, 'jane.roe@example.com.txt'));
+    symlinkSync('target.txt', join(dir, 'jane.roe@example.com.txt'));
+    git(dir, 'add', '.');
+    const result = flare(dir, '--staged');
+    assert.equal(result.status, 0, result.stdout);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test('init --hook never writes through a pre-commit symlink', () => {
+  const dir = repo();
+  const outside = mkdtempSync(join(tmpdir(), 'flare-hook-target-'));
+  try {
+    const victim = join(outside, 'victim.sh');
+    writeFileSync(victim, 'original\n');
+    const hook = join(dir, '.git', 'hooks', 'pre-commit');
+    mkdirSync(join(dir, '.git', 'hooks'), { recursive: true });
+    symlinkSync(victim, hook);
+    assert.match(flare(dir, 'init', '--hook').stdout, /already exists; left unchanged/);
+    assert.equal(flare(dir, 'init', '--hook', '--force').status, 0);
+    assert.equal(readFileSync(victim, 'utf8'), 'original\n');
+    assert.match(readFileSync(hook, 'utf8'), /flare-redact --scan --staged/);
+    assert.equal(lstatSync(hook).isSymbolicLink(), false);
+
+    unlinkSync(hook);
+    symlinkSync(join(outside, 'missing.sh'), hook);
+    assert.match(flare(dir, 'init', '--hook').stdout, /already exists; left unchanged/);
+    assert.equal(existsSync(join(outside, 'missing.sh')), false);
+  } finally {
+    cleanup(dir, outside);
   }
 });
 

@@ -930,7 +930,7 @@ Sentry.init({ dsn: process.env.SENTRY_DSN, ...sentryRedact({ preset: 'gdpr' }) }
 
 Messages, exception values, stack-frame variables and source lines, request
 data, user fields, span names and log messages are redacted; cookies are masked
-whole, whatever the options. Sentry's own fields (event, trace, span and debug
+whole, whatever the options and wherever they sit. Sentry's own fields (event, trace, span and debug
 ids, release, timestamps, the file and function of each stack frame) are kept
 exactly, so events still group, link to their traces and resolve source maps
 even with `preset: 'strict'`. A field is kept only where Sentry puts it and only
@@ -1013,17 +1013,17 @@ old finding, and people would learn to skip it. `--staged` reads the staged diff
 so a commit is stopped only for what it introduces, and each finding points at
 its line in the staged file. Skip the check once with `git commit --no-verify`.
 
-A scan leaves out assignments whose value is code rather than a secret:
-`token = process.env.TOKEN`, `password: string`, `api_key = os.getenv("KEY")`,
-`secret = ${SECRET}`. It reads the whole line to decide, and reports whenever
-the line also holds a string that could be the secret:
-`process.env.PASSWORD || "hunter2"`, `os.environ.get("KEY", "default-value")`,
-`password: string = "hunter2"`. A quoted value, a `.env` or YAML style
-`DB_PASSWORD=value`, a password hash and `password=$ecret123` are always
-reported. It is a heuristic, tuned to report when unsure; `--no-code-filter`
-turns it off. It applies to `--scan` and `--staged` only: `redact()` keeps
-masking every such assignment, because hiding too much in a log is safe and
-missing a secret is not.
+A scan leaves out assignments whose value is plainly code rather than a
+secret: `token = process.env.TOKEN`, `password = os.getenv("DB_PASSWORD")`,
+`secret = ${SECRET}`, `password: string`, `apiKey = config.apiKey`,
+`token = getToken()`. It does not try to understand code. From the operator to
+the end of the line there must be exactly one of those forms and nothing else
+but closing punctuation or a comment. A default value, a second argument, a
+string, a number, a `.env` style `DB_PASSWORD=value`: the finding stays, so
+`process.env.PASSWORD || "hunter2"` and `config.get("db.password")` are both
+reported. `--no-code-filter` turns it off. It applies to `--scan` and
+`--staged` only: `redact()` keeps masking every such assignment, because
+hiding too much in a log is safe and missing a secret is not.
 
 In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
 hit). File scans report `file:line:column`, while machine-readable JSON and SARIF

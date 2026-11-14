@@ -18,20 +18,24 @@ const code = [
   'const apiKey = config.apiKey;',
   'password: string;',
   'interface Login { password: string; token: Optional[str] }',
+  'function login(password: string, remember: boolean): Promise<void> {',
+  'const check = (token: string | null) => token !== null;',
+  'secret: ${{ secrets.NPM_TOKEN }}',
+  'password: {{ .Values.password | b64enc }}',
+  'token = secrets.token_hex(32)',
+  'password = os.getenv("DB_PASSWORD")  # set by the deploy',
+  'const password = process.env.DB_PASSWORD ?? "";',
   'declare const env: { API_KEY: string }',
   'api_key = os.environ["API_KEY"]',
   'SECRET_KEY = os.environ.get("SECRET_KEY")',
   'password = os.getenv("DB_PASSWORD")',
   "password = os.getenv('DB_PASSWORD', '')",
-  'token = request.headers.get("Authorization")',
-  'password = config.get("db.password")',
   'token: ${GITHUB_TOKEN}',
   'token: "${GITHUB_TOKEN}"',
   'PASSWORD=$DB_PASSWORD',
   'export PGPASSWORD="$DB_PASSWORD"',
   'password: "$DB_PASSWORD"',
   'POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}',
-  'password=$(cat /run/secrets/db_password)',
   'secret: {{secret}}',
   'secret: %(secret)s',
   'password: %DB_PASS%',
@@ -88,6 +92,26 @@ const secrets = [
   'PASSWORD=$TR0NGPASS',
   'password: password',
   'password = jack.daniels.whiskey',
+  // found by the second review: anything left over on the line keeps the finding
+  'secret = pyotp.TOTP("JBSWY3DPEHPK3PXP")',
+  'api_key = bytes.fromhex("DEADBEEF0123456789ABCDEF01234567")',
+  'password = Secret("changeme")',
+  'const password = make_secret("letmein")',
+  'password: Summer(2024)',
+  'spring.datasource.password=Admin(2024)',
+  'password: self.Hunter2',
+  'db.password=password',
+  'password=password',
+  'PASSWORD=$(echo)S3cretValue99',
+  'password = "$(whoami)hunter2"',
+  'PASSWORD=$PREFIX"hunter2secret"',
+  'token = process.env.TOKEN || 1234567890',
+  'password = str(12345678)',
+  'password = os.environ.get("DB_PASSWORD",\n    "hunter2abcd")',
+  'password = config.get("db.password")',
+  'password=$(cat /run/secrets/db_password)',
+  'function f(password: string, salt = "hunter2abcd") {',
+  'password: string, pin = 12345678',
   // placeholders that are not placeholders
   'password = "[Tr0ub4dor&3]"',
   'password = <Tr0ub4dor3>',
@@ -111,7 +135,7 @@ test('the judgement reads its own line, not the ones around it', () => {
 });
 
 test('a more specific finding under a dropped assignment is still reported', () => {
-  const line = 'token = tokens[ghp_' + 'a'.repeat(36) + ']';
+  const line = 'token = ${ghp_' + 'a'.repeat(36) + '}';
   assert.deepEqual(scan(line).map((f) => f.detector), ['generic_assignment'], 'the assignment stands in for it');
   assert.deepEqual(report(line).map((f) => f.detector), ['github_token']);
 });
@@ -147,11 +171,22 @@ test('a hostile line costs nothing', () => {
     `token = f(${'"'.repeat(100_000)}`,
     `token = f(${'\\"'.repeat(100_000)}`,
     `${'x.'.repeat(50_000)}token = token`,
+    `password: string, ${'!=='.repeat(90)}="`,
+    `password: string, ${'<>!'.repeat(95)}'`,
   ];
   for (const line of lines) {
     const start = line.search(/password=|token = /);
     const started = performance.now();
     isCodeAssignment(line, start, start + 16);
     assert.ok(performance.now() - started < 50, line.slice(0, 30));
+  }
+  // Many findings in one text: the filter must not be slower than the scan by much.
+  const oneLine = 'password=abc123x '.repeat(20_000);
+  const manyLines = 'token = config.token\nmail alice@corp.com\n'.repeat(10_000);
+  for (const text of [oneLine, manyLines]) {
+    const found = scan(text);
+    const started = performance.now();
+    withoutCodeAssignments(text, found, () => scan(text, { disable: ['generic_assignment'] }));
+    assert.ok(performance.now() - started < 1500, `${text.slice(0, 20)}: ${(performance.now() - started).toFixed(0)} ms`);
   }
 });

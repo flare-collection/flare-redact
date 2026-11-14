@@ -229,13 +229,13 @@ Exit codes make it a CI gate:
   # hook that runs this, so only what a commit adds can block it
   flare-redact --staged
 
-A scan leaves out assignments whose value is code, not a secret:
-'token = process.env.TOKEN', 'password: string', 'api_key = os.getenv("KEY")',
-'secret = \${SECRET}'. It reads the whole line, and still reports when the line
-holds a string that could be the secret (process.env.X || "hunter2"), a quoted
-value, a .env style KEY=value or password=\$ecret123. It is a heuristic that
-reports when unsure; --no-code-filter turns it off. Redaction is not affected:
-it masks every such assignment, code or not.
+A scan leaves out assignments whose value is plainly code, not a secret:
+'token = process.env.TOKEN', 'password = os.getenv("DB_PASSWORD")',
+'secret = \${SECRET}', 'password: string', 'apiKey = config.apiKey'. From the
+operator to the end of the line there must be exactly one such form and nothing
+else. A default value, a second argument, a string or a number keeps the
+finding (process.env.X || "hunter2"). --no-code-filter turns it off. Redaction
+is not affected: it masks every such assignment, code or not.
 
 Too noisy? Generic detectors like high_entropy match anything that looks random.
 --refine-confidence runs the learned classifier over them and --min-confidence

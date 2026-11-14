@@ -18,9 +18,10 @@
   only where Sentry keeps it and only when its value has the shape that field
   has and no detector but entropy fires on it, so `extra.release`, a request
   field called `sid` or an email in an exception type is redacted like any
-  other user data. Cookies are masked whatever the options, in the request and
-  in the response context. The caller's event is never written to, frozen or
-  not. Checked against
+  other user data. A stack frame's file is kept only when it names a file and
+  has no query string. Cookies are masked whatever the options and wherever
+  they sit: the request, the response context, span attributes, breadcrumbs.
+  The caller's event is never written to, frozen or not. Checked against
   `@sentry/node` 11: `sentryRedact(opts, { traceLifecycle: 'stream' })` leaves
   out `beforeSendTransaction`, which Sentry 11 no longer calls and warns about.
   Two things Sentry sends pass through no hook and so cannot be redacted here:
@@ -35,30 +36,29 @@
   A commit is stopped for what it introduces, not for old findings elsewhere in
   the file, and a renamed file is compared with its old path, so moving a file
   reports nothing. Files that change type and files a `.gitattributes` rule
-  marks `-diff` or `binary` are scanned too; real binary content is skipped and
-  counted. `--exclude`, `--max-file-size` and the default excluded directories
-  apply.
+  marks `-diff` or `binary` are scanned too, and line numbers do not depend on
+  the repository's diff settings. `--exclude`, `--max-file-size` and the default
+  excluded directories apply.
 - Add `flare-redact init --hook`, which writes a git pre-commit hook that runs
   it, preferring the project's own copy and falling back to the pinned release.
   An existing hook is kept unless `--force` is given; with husky, or a hooks
   folder shared outside the repository, it prints the line to add instead of
-  writing anything. If Node is not on the PATH of the git client, the hook lets
+  writing anything, and it never writes through a symlink. If Node is not on the PATH of the git client, the hook lets
   the commit through and says so rather than block every commit.
 
 ### Scans that do not cry wolf
 
 - `--scan` and `--staged` leave out `generic_assignment` findings whose value
-  is code rather than a secret: environment and template references
-  (`process.env.TOKEN`, `os.getenv("KEY")`, `${SECRET}`), calls and indexes,
-  fields of configuration objects or ones ending in a sensitive name
-  (`config.apiKey`, `user.password`), type annotations (`password: string`),
-  empty values, the variable of the same name, placeholders and already-masked
-  values. The whole line is read, and the finding stays whenever the line also
-  holds a string that could be the secret (`process.env.X || "hunter2"`,
-  `os.environ.get("KEY", "default")`, `password: string = "hunter2"`), and for
-  a quoted value, a `.env` or YAML style `DB_PASSWORD=value`, a password hash
-  or `password=$ecret123`. A more specific finding under a dropped assignment
-  is still reported. It is a heuristic that reports when unsure;
+  is plainly code: a variable or template (`${SECRET}`, `$DB_PASSWORD`,
+  `{{ secret }}`), an environment read (`process.env.TOKEN`,
+  `os.getenv("KEY")`, `ENV["KEY"]`), a field named like a secret
+  (`config.apiKey`, `user.password`), a call with no arguments, a type
+  (`password: string`), the variable of the same name, or a placeholder. It
+  does not try to understand code: from the operator to the end of the line
+  there must be exactly one of those forms and nothing else but closing
+  punctuation or a comment. A default value, a second argument, a string, a
+  number, or a `.env` and YAML style `DB_PASSWORD=value` keeps the finding. A
+  more specific finding under a dropped assignment is still reported.
   `--no-code-filter` turns it off.
 - Redaction is not affected. `redact()`, `scan()` from code, the detector
   pack and the Python, Go and Rust engines behave exactly as in 1.8.0: an

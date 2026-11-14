@@ -44,14 +44,24 @@ const shaped = (shape: RegExp, mustBeClean = false): Guard => (original, redacte
   return !mustBeClean || checks.clean(original) ? original : redacted;
 };
 
-/** Hex ids and UUIDs. */
-const ID = shaped(/^[0-9A-Fa-f-]{8,64}$/);
+/**
+ * Hex of the lengths Sentry uses (16 for a span, 32 for an event or trace)
+ * and UUIDs. One made only of digits could be a card or account number, so
+ * it is put back only if no detector fires on it.
+ */
+const hex = (shape: RegExp): Guard => (original, redacted, checks) => {
+  if (typeof original !== 'string' || !shape.test(original)) return redacted;
+  return /[a-f]/i.test(original) || checks.clean(original) ? original : redacted;
+};
+const ID = hex(/^(?:[0-9a-f]{16}|[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+/** Build and code ids of debug images: hex of any length, with or without dashes. */
+const CODE_ID = hex(/^[0-9a-f-]{8,80}$/i);
 /** `api@2.3.1`, a commit hash, `2026.11.14-rc1`: never an email (the part after `@` starts with a digit). */
 const RELEASE = shaped(/^[A-Za-z0-9][A-Za-z0-9_.+/-]*(?:@v?[0-9][A-Za-z0-9_.+-]*)?$/, true);
 /** Numbers and booleans only. */
 const FLAG = shaped(/^$/);
-/** Seconds since the epoch or an ISO date. */
-const TIME = shaped(/^[0-9T:.+Z-]{1,40}$/);
+/** A number, digits with one decimal point, or an ISO date. Not an IP address. */
+const TIME = shaped(/^(?:[0-9]{9,13}(?:\.[0-9]{1,9})?|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:?[0-9]{2})?)$/);
 /**
  * Names Sentry or the code gives things: `db.query`, `TypeError`,
  * `Object.handleRequest`, `auto.http.otel`. No `?`, `=`, `&` or `://`, no `@`
@@ -70,18 +80,17 @@ const NAME: Guard = (original, redacted, checks) => {
 /** Sentry's own metadata, kept whole. */
 const WHOLE: Guard = (original) => original;
 /**
- * The file of a stack frame or debug image. The path is kept when it names a
- * file (it ends in an extension, or is a `node:` module); a query string or
- * fragment after it is redacted on its own, since the page URL of an inline
- * script can carry a token.
+ * The file of a stack frame or debug image, kept when it names a file (it
+ * ends in an extension, or is a `node:` module) and nothing fires on it. One
+ * with a query string or a fragment is never put back: the page URL of an
+ * inline script can carry a token or an address, and redaction may have
+ * replaced the whole URL.
  */
 const SCRIPT: Guard = (original, redacted, checks) => {
   if (typeof original !== 'string' || original.length > 2000) return redacted;
-  const cut = original.search(/[?#]/);
-  const path = cut < 0 ? original : original.slice(0, cut);
-  if (!/\.[A-Za-z0-9]{1,8}$/.test(path) && !/^(?:node:[A-Za-z0-9_/.-]+|<anonymous>|native)$/.test(path)) return redacted;
-  if (!checks.clean(path)) return redacted;
-  return cut < 0 ? path : path + checks.redactText(original.slice(cut));
+  if (/[?#]/.test(original)) return redacted;
+  if (!/\.[A-Za-z0-9]{1,8}$/.test(original) && !/^(?:node:[A-Za-z0-9_/.-]+|<anonymous>|native)$/.test(original)) return redacted;
+  return checks.clean(original) ? original : redacted;
 };
 
 /** Which fields of a Sentry object are Sentry's own, by position. */
@@ -168,7 +177,7 @@ const EVENT: Keep = {
         images: {
           items: {
             keys: {
-              type: NAME, debug_id: ID, code_id: NAME, code_file: SCRIPT, debug_file: SCRIPT, arch: NAME,
+              type: NAME, debug_id: CODE_ID, code_id: CODE_ID, code_file: SCRIPT, debug_file: SCRIPT, arch: NAME,
               image_addr: NAME, image_size: FLAG, image_vmaddr: NAME,
             },
           },
@@ -179,7 +188,9 @@ const EVENT: Keep = {
 };
 
 const MASK = '***';
-const COOKIE_HEADER = /^(?:set-)?cookie$/i;
+/** `cookie`, `Cookies`, `Set-Cookie`, `http.request.header.cookie`. */
+const COOKIE_KEY = /(?:^|[._-])(?:set[-_]?)?cookies?$/i;
+const MAX_DEPTH = 64;
 
 /** Every cookie value replaced, whatever its type: a string, a name-to-value map, a list. */
 function maskCookies(value: unknown): unknown {
@@ -193,18 +204,49 @@ function maskCookies(value: unknown): unknown {
   return MASK;
 }
 
-/** A copy of a request or response object with its cookies masked. */
-function withoutCookies(source: unknown): unknown {
-  if (!isObject(source) || Array.isArray(source)) return source;
-  const out: Plain = { ...source };
-  if (own(out, 'cookies')) out.cookies = maskCookies(out.cookies);
-  const { headers } = out;
-  if (isObject(headers) && !Array.isArray(headers)) {
-    const copy: Plain = { ...headers };
-    for (const name of Object.keys(copy)) {
-      if (COOKIE_HEADER.test(name)) copy[name] = maskCookies(copy[name]);
+/**
+ * A copy of `value` in which every field named like a cookie, at any depth,
+ * is masked: `request.cookies`, a `Cookie` header, a span attribute called
+ * `http.request.header.cookie`, a breadcrumb's `data.cookies`. Headers given
+ * as `[name, value]` pairs are covered too. Nothing is written to `value`;
+ * a level is copied only when something under it changes.
+ */
+function withoutCookies(value: unknown, depth = 0, seen: WeakMap<object, unknown> = new WeakMap()): unknown {
+  if (!isObject(value) || depth > MAX_DEPTH) return value;
+  if (seen.has(value)) return seen.get(value);
+  if (Array.isArray(value)) {
+    if (value.length === 2 && typeof value[0] === 'string' && COOKIE_KEY.test(value[0])) {
+      const pair = [value[0], maskCookies(value[1])];
+      seen.set(value, pair);
+      return pair;
     }
-    out.headers = copy;
+    seen.set(value, value);
+    let out: unknown[] = value;
+    for (let i = 0; i < value.length; i++) {
+      const item = withoutCookies(value[i], depth + 1, seen);
+      if (item === value[i]) continue;
+      if (out === value) {
+        out = [...value];
+        seen.set(value, out);
+      }
+      out[i] = item;
+    }
+    return out;
+  }
+  seen.set(value, value);
+  let out: Plain = value;
+  for (const key of Object.keys(value)) {
+    const field = value[key];
+    // An attribute may wrap its value as { value, type }.
+    const masked = COOKIE_KEY.test(key)
+      ? (isObject(field) && !Array.isArray(field) && own(field, 'value') && own(field, 'type') ? { ...field, value: maskCookies(field.value) } : maskCookies(field))
+      : withoutCookies(field, depth + 1, seen);
+    if (masked === field) continue;
+    if (out === value) {
+      out = { ...value };
+      seen.set(value, out);
+    }
+    out[key] = masked;
   }
   return out;
 }
@@ -291,23 +333,11 @@ export function sentryRedact(opts: RedactOptions = {}, sentry: SentryHookOptions
     return out;
   };
 
-  const scrub = <T>(input: T, spec: Keep): T => restore(input, policy.redact(input), spec) as T;
-
-  const scrubEvent = <T>(input: T): T => {
-    const out = scrub(input, EVENT);
-    if (!isObject(out) || Array.isArray(out)) return out;
-    const event: Plain = { ...out };
-    if (own(event, 'request')) event.request = withoutCookies(event.request);
-    const { contexts } = event;
-    if (isObject(contexts) && !Array.isArray(contexts) && own(contexts, 'response')) {
-      event.contexts = { ...contexts, response: withoutCookies(contexts.response) };
-    }
-    return event as T;
-  };
+  const scrub = <T>(input: T, spec: Keep): T => withoutCookies(restore(input, policy.redact(input), spec)) as T;
 
   const hooks: SentryRedactor = {
-    beforeSend: (event) => scrubEvent(event),
-    beforeSendTransaction: (event) => scrubEvent(event),
+    beforeSend: (event) => scrub(event, EVENT),
+    beforeSendTransaction: (event) => scrub(event, EVENT),
     beforeSendSpan: (span) => scrub(span, SPAN),
     beforeSendLog: (log) => scrub(log, LOG),
     beforeBreadcrumb: (breadcrumb) => scrub(breadcrumb, BREADCRUMB),

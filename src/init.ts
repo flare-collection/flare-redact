@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { Preset } from './engine.js';
 
@@ -271,12 +271,16 @@ function installHook(dir: string, cwd: string, version: string, force: boolean):
   }
   const target = join(hooksDir, 'pre-commit');
   const shown = relative(cwd, target) || target;
-  if (existsSync(target) && !force) {
+  // lstat, not exists: a symlink counts as a hook even when it dangles, and
+  // is replaced by --force rather than written through.
+  const present = lstatSync(target, { throwIfNoEntry: false }) !== undefined;
+  if (present && !force) {
     process.stdout.write(`${shown} already exists; left unchanged. Add this line to it, or use --force to replace it:\n   ${HOOK_COMMAND}\n`);
     return 0;
   }
   mkdirSync(hooksDir, { recursive: true });
-  writeFileSync(target, preCommitHook(version));
+  if (present) rmSync(target, { force: true });
+  writeFileSync(target, preCommitHook(version), { flag: 'wx' });
   chmodSync(target, 0o755);
   process.stdout.write(`Wrote ${shown}. Every commit is now scanned; skip once with git commit --no-verify.\n`);
   return 0;

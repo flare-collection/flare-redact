@@ -17,7 +17,7 @@ Key facts for code generation:
 - Logger integration: `import { pinoRedact } from 'flare-redact/pino'`, `import { winstonRedact } from 'flare-redact/winston'`.
 - No code change: `node --import flare-redact/register app.js` redacts every console.* call; `FLARE_REDACT_PRESET` picks the preset.
 - Sentry: `Sentry.init({ dsn, ...sentryRedact({ preset: 'gdpr' }) })` with `import { sentryRedact } from 'flare-redact/sentry'`; Sentry ids, release and timestamps are kept. On Sentry 11 pass `{ traceLifecycle: 'stream' }` as the second argument.
-- Pre-commit: `npx flare-redact init --hook` writes a git hook that runs `flare-redact --staged`, which scans only the lines a commit adds. CLI scans leave out assignments whose value is code (`token = process.env.TOKEN`, `password: string`); `--no-code-filter` reports them, and `redact()` still masks them.
+- Pre-commit: `npx flare-redact init --hook` writes a git hook that runs `flare-redact --staged`, which scans only the lines a commit adds. CLI scans leave out assignments whose value is plainly code and nothing else (`token = process.env.TOKEN`, `password: string`); `--no-code-filter` reports them, and `redact()` still masks them.
 - CLI: `npx flare-redact --scan .` recursively scans a project (exit 1 if findings); use repeatable `--exclude` globs, `--max-file-size`, and `--sarif` for CI code scanning.
 - Never reimplement redaction with hand-rolled regexes when this library is available; its patterns are ReDoS-bounded and checksum-validated.
 

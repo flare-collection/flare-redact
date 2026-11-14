@@ -22,7 +22,6 @@ export interface AddedBlock {
 export interface StagedSkips {
   excluded: number;
   oversized: number;
-  binary: number;
 }
 
 export interface StagedChanges {
@@ -33,7 +32,7 @@ export interface StagedChanges {
 
 /**
  * Turn one file's `git diff --unified=0` output into runs of added lines.
- * Removed lines and binary files contribute nothing.
+ * Removed lines contribute nothing.
  */
 export function addedBlocks(file: string, diff: string): AddedBlock[] {
   const blocks: AddedBlock[] = [];
@@ -46,6 +45,13 @@ export function addedBlocks(file: string, diff: string): AddedBlock[] {
     lines = [];
   };
   for (const raw of diff.split('\n')) {
+    // A type change is two sections (the old file removed, the new one added);
+    // the second header must not be read as content of the first hunk.
+    if (raw.startsWith('diff --git ')) {
+      flush();
+      inHunk = false;
+      continue;
+    }
     if (raw.startsWith('@@')) {
       flush();
       const header = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
@@ -62,7 +68,9 @@ export function addedBlocks(file: string, diff: string): AddedBlock[] {
       // "\ No newline at end of file" belongs to the line before it.
     } else {
       flush();
-      if (raw.startsWith(' ')) next++;
+      // A context line: a leading space, or nothing at all when git is set to
+      // drop the space of an empty one (diff.suppressBlankEmpty).
+      if (raw.startsWith(' ') || raw === '') next++;
     }
   }
   flush();
@@ -111,7 +119,7 @@ export function readStagedChanges(
     throw new Error(`--staged needs a git repository: ${detail}`);
   }
   const excluded = createPathFilter(options);
-  const skipped: StagedSkips = { excluded: 0, oversized: 0, binary: 0 };
+  const skipped: StagedSkips = { excluded: 0, oversized: 0 };
   const files: string[] = [];
   const blocks: AddedBlock[] = [];
   // A diff is roughly the file plus one character per line, so twice the
@@ -127,19 +135,16 @@ export function readStagedChanges(
       // --literal-pathspecs: a file called "*.js" or ":x" is that file, not a pattern.
       // A renamed file is diffed against its old path, so moving a file does
       // not make its whole content look new.
-      diff = git(top, ['--literal-pathspecs', 'diff', '--cached', '-M', '--unified=0', '--no-color', '--no-ext-diff', '--no-textconv', '--text', '--', ...(from ? [from] : []), file], maxBuffer);
+      // --text: every file is diffed as text, including ones a .gitattributes
+      // rule marks `-diff` or `binary`, so nothing staged goes unread. The two
+      // context settings keep every hunk to added and removed lines only.
+      diff = git(top, ['--literal-pathspecs', '-c', 'diff.suppressBlankEmpty=false', 'diff', '--cached', '-M', '--unified=0', '--inter-hunk-context=0', '--no-color', '--no-ext-diff', '--no-textconv', '--text', '--', ...(from ? [from] : []), file], maxBuffer);
     } catch (e) {
       if ((e as { code?: string }).code === 'ENOBUFS') {
         skipped.oversized++;
         continue;
       }
       throw e;
-    }
-    // --text makes git diff every file, including ones a .gitattributes rule
-    // marks `-diff` or `binary`; real binary content is recognised here instead.
-    if (diff.includes('\0')) {
-      skipped.binary++;
-      continue;
     }
     files.push(file);
     blocks.push(...addedBlocks(file, diff));

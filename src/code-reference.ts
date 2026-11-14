@@ -8,22 +8,34 @@
  * `password: string` is one people switch off. So this check is used only by
  * the CLI's scans, never by redaction.
  *
- * The detector's match stops at the first space or quote, so the match alone
- * is not enough to judge: `password: string = "hunter2"` and
- * `process.env.PASSWORD || "hunter2"` both start like code. The rest of the
- * line is read too, and a string literal anywhere in it that is not plainly
- * the name being looked up keeps the finding. When in doubt, report.
+ * It does not try to understand code. Everything from the operator to the end
+ * of the line must be exactly one of a few closed forms (a variable, an
+ * environment read, a field named like a secret, a call with no arguments, a
+ * type, a placeholder), followed by nothing but closing punctuation or a
+ * comment. A default value, a second argument, a string, a number, anything
+ * left over: the finding stays. Unknown shapes are reported, not guessed at.
  */
 
 import type { Finding } from './engine.js';
 
-/** Longer values or lines are never treated as code; it also bounds the work. */
-const MAX_VALUE = 256;
-const MAX_REST = 600;
+/** How much of the line is read. A longer rest of line is never code. */
+const MAX_REST = 300;
 
-/** A whole value that is one variable reference or placeholder, quoted or not. */
-const VARIABLE = new RegExp(
-  '^(?:'
+const NAME = '[A-Za-z_][A-Za-z0-9_]*';
+const ENV_NAME = '[A-Z][A-Z0-9_]*';
+const SENSITIVE = '(?:(?:[A-Za-z0-9]+_)*(?:password|passwd|pwd|pass|secret|token|api_?key|key|credentials?)|(?:[A-Z0-9]+_)*(?:PASSWORD|PASSWD|PWD|SECRET|TOKEN|API_?KEY|KEY|CREDENTIALS?)|[a-z0-9]+(?:[A-Z][a-z0-9]*)*(?:Password|Passwd|Pwd|Secret|Token|ApiKey|Key|Credentials?))';
+const TYPE = '(?:string|str|String|number|int|integer|float|bool|boolean|any|unknown|bytes|SecretStr|None|null|nil|NULL|undefined|true|false|True|False)';
+/** An empty default: `, ""`, `|| ''`, `?? null`. */
+const EMPTY_ARGUMENT = '(?:\\s*,\\s*(?:""|\'\'|None|null|nil))?';
+const EMPTY_FALLBACK = '(?:\\s*(?:\\|\\||\\?\\?|or)\\s*(?:""|\'\'|None|null|nil|undefined))?';
+/** `"NAME"` or `'NAME'`. */
+const quotedEnv = `(?:"${ENV_NAME}"|'${ENV_NAME}')`;
+
+/** After a form: closing punctuation, then at most a comment. */
+const TAIL = '[\\s;,)}\\]]*(?:(?://|#).*)?$';
+
+/** One variable or template, with or without quotes around it. */
+const VARIABLE = `(["']?)(?:`
   // ${DB_PASSWORD}, ${config.token}: a bare name, no default after `:-`
   + '\\$\\{[A-Za-z_][A-Za-z0-9_.]*\\}'
   // $DB_PASSWORD: upper-case words joined by underscores, so `$TR0NGPASS`,
@@ -34,118 +46,85 @@ const VARIABLE = new RegExp(
   + '|\\$(?:password|passwd|pwd|pass|secret|token|apikey|key)'
   // %DB_PASSWORD%, %(password)s
   + '|%[A-Za-z_][A-Za-z0-9_]*%|%\\([A-Za-z_][A-Za-z0-9_]*\\)[sdr]'
-  // <your-password>, [REDACTED], YOUR_API_KEY, xxxx, ****, ....
-  + '|<[A-Za-z][A-Za-z _-]*>'
+  // {{ secret }}, ${{ secrets.NPM_TOKEN }}, {{ .Values.password | b64enc }}
+  + '|\\$?\\{\\{\\s*\\.?[A-Za-z_][A-Za-z0-9_.]*(?:\\s*\\|\\s*[A-Za-z_][A-Za-z0-9_]*)*\\s*\\}\\}'
+  + ')\\1';
+
+/** A value that stands for one: `<your-password>`, `[REDACTED]`, `YOUR_API_KEY`, `****`. */
+const PLACEHOLDER = `(["']?)(?:`
+  + '<[A-Za-z][A-Za-z _-]*>'
   + '|\\[(?:REDACTED|FILTERED|MASKED|HIDDEN|REMOVED|redacted|filtered|masked|hidden|removed)[A-Za-z _:-]*\\]'
   + '|(?:YOUR|Your|your)[_-][A-Za-z0-9_-]+|[xX]{3,}|\\*{3,}|\\.{3,}'
-  + ')$',
-);
+  + ')\\1';
 
-/** From the value to the end of the line: `$(cat /run/secret)`, `{{ secret }}`, `${{ secrets.X }}`. */
-const TEMPLATE_LINE = /^["']?(?:\$\([^()"'`]*\)|\$?\{\{[^{}"'`]*\}\})/;
+/** Reading the environment, in the languages that have one obvious way to. */
+const ENV_READ = '(?:'
+  + `process\\.env\\.${NAME}|process\\.env\\[${quotedEnv}\\]|import\\.meta\\.env\\.${NAME}|Bun\\.env\\.${NAME}`
+  + `|Deno\\.env\\.get\\(${quotedEnv}\\)`
+  + `|(?:os\\.)?environ\\[${quotedEnv}\\]|(?:os\\.)?environ\\.get\\(${quotedEnv}${EMPTY_ARGUMENT}\\)|(?:os\\.)?getenv\\(${quotedEnv}${EMPTY_ARGUMENT}\\)`
+  + `|ENV\\[${quotedEnv}\\]|ENV\\.fetch\\(${quotedEnv}${EMPTY_ARGUMENT}\\)`
+  + `|System\\.getenv\\(${quotedEnv}\\)|os\\.Getenv\\(${quotedEnv}\\)|env\\(${quotedEnv}${EMPTY_ARGUMENT}\\)`
+  + `)${EMPTY_FALLBACK}`;
 
-/** A bare word that is a type or an empty value. */
-const TYPE_OR_EMPTY = /^(?:string|str|String|number|int|integer|float|bool|boolean|any|unknown|bytes|SecretStr|Optional|None|null|nil|NULL|undefined|true|false|True|False|required|optional)$/;
+/** A field path whose last name is itself a sensitive name: `user.password`, `config.apiKey`. */
+const SENSITIVE_FIELD = `${NAME}(?:\\??\\.${NAME})*\\??\\.${SENSITIVE}`;
+/** A call with no arguments, or one short number: `getToken()`, `secrets.token_hex(32)`. */
+const BARE_CALL = `${NAME}(?:\\??\\.${NAME})*\\(\\s*[0-9]{0,3}\\s*\\)`;
+/** `string`, `string | null`, `string[]`, `Optional[str]`. */
+const TYPES = `(?:${TYPE}(?:\\[\\])?(?:\\s*\\|\\s*${TYPE}(?:\\[\\])?)*|Optional\\[${TYPE}\\])`;
 
-/** `a.b?.c`, `f()`, `x[0]`, optionally cut off at an opening `(` or `[`. */
-const CHAIN = /^[A-Za-z_$][A-Za-z0-9_$]*(?:\??\.[A-Za-z_$][A-Za-z0-9_$]*|\([^()]*\)|\[[^[\]]*\])*[([]?$/;
+/** One anchored expression per form: each has its own quote group. */
+const whole = (form: string, tail = TAIL): RegExp => new RegExp(`^(?:${form})${tail}`);
+/**
+ * After a type more declarations may follow on the line
+ * (`(password: string, remember: boolean) =>`), but never a string or an
+ * initialiser: no quote, and no `=` other than `=>` and the comparisons. Each
+ * alternative starts with a different character, so it cannot backtrack.
+ */
+const TYPE_TAIL = '(?:\\s*[;,)}\\]|&](?:[^"\'`=!<>]|[!<>]=*|=>|==+)*)?$';
 
-/** The object a field is read from holds configuration or input. */
-const KNOWN_ROOT = /^(?:process\.env|import\.meta\.env|os\.environ|Deno\.env|Bun\.env|env|ENV|config|conf|cfg|settings|self|this|req|request|ctx|context|options|opts|args|params|props|secrets|vars|creds|credentials|System|window|globalThis)\??[.[(]/;
-
-/** The last name of a field path is itself a sensitive name: `user.password`, `session.authToken`. */
-const SENSITIVE_LAST = /^(?:[A-Za-z0-9$]+_)*(?:password|passwd|pwd|pass|secret|token|api_?key|key|credentials?)$|^[a-z0-9$]+(?:[A-Z][a-z0-9$]*)*(?:Password|Passwd|Pwd|Secret|Token|ApiKey|Key|Credentials?)$/;
-const SENSITIVE_UPPER = /^(?:[A-Z0-9]+_)*(?:PASSWORD|PASSWD|PWD|SECRET|TOKEN|API_?KEY|KEY|CREDENTIALS?)$/;
-
-/** The function or object a string is looked up in: `os.environ.get(`, `config[`, `headers.get(`. */
-const LOOKUP = /(?:^|[.$_])(?:env|environ|getenv|config|conf|cfg|settings|secrets?|vault|headers?|params?|options|opts|args|get|getString|lookup|getpass|prompt|input)[([]$/i;
-
-/** `"DB_PASSWORD"`: the name of an environment variable. */
-const ENV_NAME = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
-/** `"db.password"`, `"Authorization"`: words, not a random-looking value. */
-const NAME_LIKE = /^[A-Za-z]+(?:[_.:/-](?:[A-Za-z]+|[0-9]+))*$/;
-
-const STRING_LITERAL = /(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
+const VARIABLE_FORMS = [whole(VARIABLE), whole(PLACEHOLDER)];
+const TYPE_FORM = whole(TYPES, TYPE_TAIL);
+const CODE_FORMS = [...VARIABLE_FORMS, whole(ENV_READ), whole(SENSITIVE_FIELD), whole(BARE_CALL), TYPE_FORM];
+const matches = (forms: readonly RegExp[], rest: string): boolean => forms.some((form) => form.test(rest));
+const IDENTIFIER = new RegExp(`^(${NAME})${TAIL}`);
 
 /**
  * `text` is what was scanned, and `start`..`end` the span `generic_assignment`
  * matched: a sensitive name, `:` or `=`, then the value with its optional quotes.
  */
 export function isCodeAssignment(text: string, start: number, end: number): boolean {
-  const match = text.slice(start, end);
+  const match = text.slice(start, Math.min(end, start + 512));
   const operatorAt = match.search(/[:=]/);
   if (operatorAt < 0) return false;
   const operator = match[operatorAt]!;
+  const operatorIndex = start + operatorAt;
 
-  const afterOperator = match.slice(operatorAt + 1);
-  const valueOffset = start + operatorAt + 1 + (afterOperator.length - afterOperator.trimStart().length);
-  const quote = /["']/.test(text[valueOffset] ?? '') ? text[valueOffset]! : '';
-  const valueStart = valueOffset + quote.length;
-  const value = /^[^\s"',;]*/.exec(text.slice(valueStart, valueStart + MAX_VALUE + 1))![0];
-  if (!value || value.length > MAX_VALUE) return false;
-
-  let lineEnd = text.indexOf('\n', valueStart);
-  if (lineEnd < 0) lineEnd = text.length;
-  if (lineEnd - valueOffset > MAX_REST) return false;
-  /** From the value (with its quote) to the end of the line. */
-  const rest = text.slice(valueOffset, lineEnd);
+  // From the first character after the operator to the end of the line.
+  const window = text.slice(operatorIndex + 1, operatorIndex + 1 + MAX_REST + 1);
+  const newline = window.search(/[\r\n]/);
+  if (newline < 0 && window.length > MAX_REST) return false;
+  const rest = (newline < 0 ? window : window.slice(0, newline)).trimStart();
+  if (!rest) return false;
 
   // The whole name on the left: `MYSQL_ROOT_PASSWORD`, not just `PASSWORD`.
-  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
-  const left = /[A-Za-z0-9_$.-]*$/.exec(text.slice(Math.max(lineStart, start - 128), start))![0];
+  const left = /[A-Za-z0-9_$.-]*$/.exec(text.slice(Math.max(0, start - 128), start))![0];
   const key = (left + match.slice(0, operatorAt)).replace(/["'\s]/g, '');
-
-  // One variable or placeholder is code wherever it stands, quoted or not,
-  // as long as the string ends there.
-  const closed = quote ? text[valueStart + value.length] === quote : true;
-  if (closed && VARIABLE.test(value)) return true;
-  if (TEMPLATE_LINE.test(rest)) return true;
-  // Anything else in quotes is a string literal.
-  if (quote) return false;
+  const spaced = /\s/.test(text[operatorIndex - 1] ?? '') && /\s/.test(text[operatorIndex + 1] ?? '');
 
   // `DB_PASSWORD=value` and `DB_PASSWORD: value` are how .env files, shell and
-  // YAML write a literal, so only a variable (handled above) counts there.
-  // A type or an empty value is allowed after `:` (`API_KEY: string`).
-  const spaced = /\s/.test(text[start + operatorAt - 1] ?? '') && /\s/.test(text[start + operatorAt + 1] ?? '');
+  // YAML write a literal, so only a variable or a placeholder counts there
+  // (and a type after `:`, for `API_KEY: string`).
   if (/^[A-Z][A-Z0-9_]*$/.test(key) && (operator === ':' || !spaced)) {
-    return operator === ':' && TYPE_OR_EMPTY.test(value) && !/=(?![=>])/.test(rest.slice(value.length)) && !hasLiteral(rest, value);
+    return matches(VARIABLE_FORMS, rest) || (operator === ':' && TYPE_FORM.test(rest));
   }
-
-  const chain = CHAIN.test(value);
-  const lastName = value.split(/\??\./).pop() ?? '';
-  const type = TYPE_OR_EMPTY.test(value);
-  const code = type
-    || (chain && /[([]/.test(value))
-    || (chain && KNOWN_ROOT.test(value))
-    || (chain && (SENSITIVE_LAST.test(lastName) || SENSITIVE_UPPER.test(lastName)) && value.includes('.'))
-    // `this.token = token`: the variable of the same name, with `=` only,
-    // because `password: password` is how YAML writes a literal.
-    || (operator === '=' && value === (key.split('.').pop() ?? '') && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value));
-  if (!code) return false;
-  // `password: string = …` carries a value after the type.
-  if (type && /=(?![=>])/.test(rest.slice(value.length))) return false;
-  return !hasLiteral(rest, value);
+  if (matches(CODE_FORMS, rest)) return true;
+  // `this.token = token`: the variable of the same name. Only as `name = name`
+  // with spaces, since `password=password` and `password: password` are how
+  // properties files and YAML write a literal.
+  const same = IDENTIFIER.exec(rest);
+  return operator === '=' && spaced && same !== null && same[1] === (key.split('.').pop() ?? '');
 }
-
-/**
- * Does the rest of the line hold a string that could be the secret? The one
- * string that may be ignored is the first argument of a lookup, when it reads
- * as a name: `os.getenv("DB_PASSWORD")`, `config.get("db.password")`.
- */
-function hasLiteral(rest: string, value: string): boolean {
-  STRING_LITERAL.lastIndex = 0;
-  for (let found = STRING_LITERAL.exec(rest); found; found = STRING_LITERAL.exec(rest)) {
-    const content = found[2] ?? '';
-    if (!content) continue;
-    const firstArgument = found.index === value.length && /[([]$/.test(value);
-    if (firstArgument && (ENV_NAME.test(content) || (NAME_LIKE.test(content) && LOOKUP.test(value)))) continue;
-    return true;
-  }
-  // An opening quote with no partner on the line: a string that runs on.
-  return /["'`]/.test(rest.replace(STRING_LITERAL, ''));
-}
-
-const overlaps = (a: Finding, b: Finding): boolean => a.start! < b.end! && b.start! < a.end!;
 
 /**
  * Remove the `generic_assignment` findings in `text` that are code.
@@ -154,13 +133,33 @@ const overlaps = (a: Finding, b: Finding): boolean => a.start! < b.end! && b.sta
  * still be reported.
  */
 export function withoutCodeAssignments(text: string, findings: Finding[], rescan: () => Finding[]): Finding[] {
-  const dropped = findings.filter((f) =>
-    f.detector === 'generic_assignment' && f.start !== undefined && f.end !== undefined && isCodeAssignment(text, f.start, f.end));
+  const dropped: Finding[] = [];
+  const kept: Finding[] = [];
+  for (const finding of findings) {
+    const code = finding.detector === 'generic_assignment'
+      && finding.start !== undefined && finding.end !== undefined
+      && isCodeAssignment(text, finding.start, finding.end);
+    (code ? dropped : kept).push(finding);
+  }
   if (!dropped.length) return findings;
-  const kept = findings.filter((f) => !dropped.includes(f));
-  const uncovered = rescan().filter((f) =>
-    f.start !== undefined && f.end !== undefined
-    && dropped.some((d) => overlaps(f, d))
-    && !kept.some((k) => k.start !== undefined && k.end !== undefined && overlaps(f, k)));
-  return [...kept, ...uncovered].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+
+  // Findings never overlap each other, so both lists are ordered by position
+  // and one pass decides, for each rescanned finding, whether it lies under a
+  // dropped one and clear of every kept one.
+  const byStart = (a: Finding, b: Finding): number => (a.start ?? 0) - (b.start ?? 0);
+  const droppedSpans = [...dropped].sort(byStart);
+  const keptSpans = kept.filter((f) => f.start !== undefined && f.end !== undefined).sort(byStart);
+  let d = 0;
+  let k = 0;
+  const uncovered: Finding[] = [];
+  for (const finding of rescan().filter((f) => f.start !== undefined && f.end !== undefined).sort(byStart)) {
+    const from = finding.start!;
+    const to = finding.end!;
+    while (d < droppedSpans.length && droppedSpans[d]!.end! <= from) d++;
+    while (k < keptSpans.length && keptSpans[k]!.end! <= from) k++;
+    const underDropped = d < droppedSpans.length && droppedSpans[d]!.start! < to;
+    const underKept = k < keptSpans.length && keptSpans[k]!.start! < to;
+    if (underDropped && !underKept) uncovered.push(finding);
+  }
+  return [...kept, ...uncovered].sort(byStart);
 }

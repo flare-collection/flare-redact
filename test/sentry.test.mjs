@@ -191,7 +191,7 @@ test('a kept field is put back only when its value has the right shape', () => {
     assert.equal(out.contexts.trace.trace_id, ids.trace_id);
     assert.equal(out.contexts.trace.links[0].span_id, '00f067aa0ba902b7');
     assert.equal(out.debug_meta.images[0].debug_id, ids.debug_id);
-    assert.ok(out.exception.values[0].stacktrace.frames[0].abs_path.startsWith('https://app.example.com/static/main.js?'), 'the script path is kept, its query redacted');
+    assert.ok(!out.exception.values[0].stacktrace.frames[0].abs_path.includes('token='), 'a file URL with a query is not put back');
   }
 });
 
@@ -234,6 +234,50 @@ test('a frozen event is redacted without being written to', () => {
     assert.doesNotMatch(JSON.stringify(out), /alice@corp\.com|s3cr3t/);
   }
   assert.equal(frozen.message, 'mail alice@corp.com');
+});
+
+test('a file URL with a query string stays redacted, a plain script URL is kept', () => {
+  const page = 'https://shop.test/checkout.html?email=jane.roe%40example.com&session=abc123SESSION';
+  const script = 'https://shop.test/static/js/main.3f2a1b9c.js';
+  for (const preset of ['gdpr', 'strict']) {
+    const out = sentryRedact({ preset }).beforeSend({
+      exception: { values: [{ type: 'Error', stacktrace: { frames: [{ abs_path: page, filename: page }, { abs_path: script, filename: script }] } }] },
+      debug_meta: { images: [{ type: 'sourcemap', code_file: page, debug_id: ids.debug_id, code_id: '5ab380cf7e2f4d9a8c1b2e3f4a5b6c7d81290341' }] },
+    });
+    const text = JSON.stringify(out);
+    assert.ok(!text.includes('jane.roe') && !text.includes('abc123SESSION'), preset);
+    const [, kept] = out.exception.values[0].stacktrace.frames;
+    assert.equal(kept.abs_path, script, preset);
+    assert.equal(kept.filename, script, preset);
+    assert.equal(out.debug_meta.images[0].code_id, '5ab380cf7e2f4d9a8c1b2e3f4a5b6c7d81290341', preset);
+  }
+});
+
+test('cookies are masked wherever they sit, in every hook', () => {
+  for (const options of [{}, { redactKeys: false }, { preset: 'gdpr' }]) {
+    const hooks = sentryRedact(options);
+    const span = hooks.beforeSendSpan({ span_id: 'a1b2c3d4e5f60718', data: { 'http.request.header.cookie': 'sid=abc123SESSION' }, attributes: { 'http.response.header.set-cookie': { value: 'sid=abc123SESSION', type: 'string' } } });
+    const transaction = hooks.beforeSendTransaction({ type: 'transaction', spans: [{ span_id: 'a1b2c3d4e5f60718', data: { 'http.request.header.cookie': 'sid=abc123SESSION' } }] });
+    const pairs = hooks.beforeSend({ request: { headers: [['Cookie', 'sid=abc123SESSION'], ['Accept', 'text/html']] } });
+    const crumb = hooks.beforeBreadcrumb({ category: 'http', data: { cookies: { sid: 'abc123SESSION' }, headers: { Cookie: 'sid=abc123SESSION' } } });
+    const log = hooks.beforeSendLog({ level: 'info', message: 'x', attributes: { cookie: 'sid=abc123SESSION' } });
+    for (const out of [span, transaction, pairs, crumb, log]) assert.doesNotMatch(JSON.stringify(out), /abc123SESSION/, JSON.stringify(options));
+    assert.deepEqual(pairs.request.headers[1], ['Accept', 'text/html']);
+    assert.equal(span.attributes['http.response.header.set-cookie'].type, 'string');
+  }
+});
+
+test('digits alone are not an id or a time', () => {
+  const card = '4111111111111111';
+  const out = sentryRedact().beforeSend({ event_id: card, timestamp: card, contexts: { trace: { trace_id: card, span_id: card } } });
+  assert.ok(!JSON.stringify(out).includes(card));
+  const span = sentryRedact().beforeSendSpan({ span_id: 'a1b2c3d4e5f60718', attributes: { 'sentry.replay_id': card } });
+  assert.ok(!JSON.stringify(span).includes(card));
+  const ip = sentryRedact({ preset: 'gdpr' }).beforeSend({ timestamp: '203.0.113.77', start_timestamp: 1794646809.66 });
+  assert.notEqual(ip.timestamp, '203.0.113.77');
+  assert.equal(ip.start_timestamp, 1794646809.66);
+  const iso = sentryRedact({ preset: 'strict' }).beforeSend({ timestamp: '2026-11-14T08:59:08.192Z', event_id: '12345678901234567890123456789012' });
+  assert.equal(iso.timestamp, '2026-11-14T08:59:08.192Z');
 });
 
 test('the caller event is never mutated', () => {
