@@ -5,12 +5,12 @@
 <h1 align="center">flare-redact</h1>
 
 <p align="center">
-  <b>Hide secrets & PII in logs, prompts, and text — before they leak.</b>
+  <b>Hide secrets & PII in logs, prompts, and text, before they leak.</b>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/flare-redact"><img src="https://img.shields.io/npm/v/flare-redact.svg" alt="npm"></a>
-  <a href="https://github.com/flare-collection/flare-redact/actions/workflows/ci.yml"><img src="https://github.com/flare-collection/flare-redact/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/flare-redact"><img src="https://img.shields.io/npm/v/flare-redact?label=npm" alt="npm version"></a>
+  <a href="https://github.com/flare-collection/flare-redact/actions/workflows/ci.yml"><img src="https://github.com/flare-collection/flare-redact/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/npm/types/flare-redact.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero dependencies">
@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  🌐 <b>International by default — 24 languages</b><br>
+  🌐 <b>International by default: 24 languages</b><br>
   🇬🇧 🇨🇳 🇮🇳 🇪🇸 🇸🇦 🇫🇷 🇵🇹 🇷🇺 🇯🇵 🇩🇪 🇰🇷 🇹🇷 🇮🇹 🇮🇷 🇵🇱 🇺🇦 🇳🇱 🇻🇳 🇮🇩 🇹🇭 🇬🇷 🇮🇱 🇦🇿 🇷🇴
 </p>
 
@@ -33,13 +33,13 @@
 ---
 
 Every leaked secret has the same origin story: someone logged an object, and a
-password, token, or API key was sitting inside it. The code looked innocent —
-`logger.info({ user })` — but `user` carried a session token, and now it's in
+password, token, or API key was sitting inside it. The code looked innocent
+(`logger.info({ user })`), but `user` carried a session token, and now it's in
 your log aggregator, your error tracker, and three vendors' systems forever.
 
 **flare-redact** is one function you wrap around that data. It reads the *content*,
 not just the field names, so it catches the AWS key someone pasted into a free-text
-`note`, the JWT in an `Authorization` header, the card number in a stack trace — and
+`note`, the JWT in an `Authorization` header, the card number in a stack trace, and
 masks them, keeping just enough of a hint to stay debuggable.
 
 ```js
@@ -53,18 +53,18 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 
 > **The same problem now has a new address: your LLM calls.** Wrap your OpenAI or
 > Anthropic client and detected secrets are stripped from prompts and restored in
-> the reply — the model never sees those original values, while references survive.
+> the reply. The model never sees those original values, while references survive.
 > [Jump to it ↓](#redact-prompts-before-they-reach-an-llm)
 
 <p align="center">
-  <img src="assets/demo.svg" alt="Before and after — secrets and PII masked in a log line, across languages" width="820">
+  <img src="assets/demo.svg" alt="Before and after: secrets and PII masked in a log line, across languages" width="820">
 </p>
 
 |   |   |   |
 |---|---|---|
-| 🔍 **Context-aware** — spans carry risk and confidence | 🔐 **Secure vaults** — opaque tokens, optional AES-GCM persistence | 🎭 **Useful test data** — keyed pseudonyms and typed surrogates |
-| 🔥 **FlareFlow agent IFC** — source→sink capabilities, exact paths, cumulative budgets | 🔌 **Universal middleware** — wrap any SDK, handler, queue, or RPC function | 🪶 **Zero runtime dependencies** — Node, browser, and edge |
-| 🐍 **Python, Go, and Rust SDKs** — one spec, four engines, one conformance corpus | 🐳 **Sidecar gateway** — a Docker reverse proxy that needs no code change | 📜 **Detectors as data** — portable FRS-1 packs any engine can load |
+| 🔍 **Context-aware**: spans carry risk and confidence | 🔐 **Secure vaults**: opaque tokens, optional AES-GCM persistence | 🎭 **Useful test data**: keyed pseudonyms and typed surrogates |
+| 🔥 **FlareFlow agent IFC**: source→sink capabilities, exact paths, cumulative budgets | 🔌 **Universal middleware**: wrap any SDK, handler, queue, or RPC function | 🪶 **Zero runtime dependencies**: Node, browser, and edge |
+| 🐍 **Python, Go, and Rust SDKs**: one spec, four engines, one conformance corpus | 🐳 **Sidecar gateway**: a Docker reverse proxy that needs no code change | 📜 **Detectors as data**: portable FRS-1 packs any engine can load |
 
 ## Contents
 
@@ -106,7 +106,7 @@ Nothing to configure. No list of field paths to maintain. No native build step.
 npm install flare-redact
 ```
 
-Node 20+, and it runs in the browser and edge runtimes too — zero dependencies.
+Node 20+, and it runs in the browser and edge runtimes too, with zero dependencies.
 Upgrading from `0.9.x`? Read the [`1.0 migration guide`](MIGRATION.md). Existing
 projects are not forced across the major version; upgrade explicitly with
 `npm install flare-redact@^1.0.0`.
@@ -114,13 +114,30 @@ projects are not forced across the major version; upgrade explicitly with
 ### Set up in one command
 
 ```bash
-npx flare-redact init        # the lines to paste for openai, @anthropic-ai/sdk, pino, winston, express
-npx flare-redact init --ci   # also writes .github/workflows/flare-redact.yml
+npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, Sentry, pino, winston, express
+npx flare-redact init --hook   # also stops any commit that adds a secret
+npx flare-redact init --ci     # also writes .github/workflows/flare-redact.yml
 ```
 
 `init` reads `package.json`, prints one ready-to-paste step per library it
 recognises (console when there is no logger), and never edits source files.
-`--ci` adds a workflow that runs `flare-redact --scan` on every pull request.
+`--hook` writes a git pre-commit hook that scans only the lines a commit adds
+(with husky, it prints the line to add instead). `--ci` adds a workflow that runs
+`flare-redact --scan` on every pull request.
+
+### No code change at all
+
+```bash
+node --import flare-redact/register app.js
+NODE_OPTIONS="--import flare-redact/register" FLARE_REDACT_PRESET=logs npm start
+```
+
+Every `console.log`, `info`, `warn`, `error` and `debug` call is redacted before
+it is written, so you can turn redaction on in a Dockerfile or a deploy setting
+without opening the code. `FLARE_REDACT_PRESET` picks a [preset](#presets); an
+unknown name stops the process at startup rather than leaving the logs
+unredacted. Loggers that write to stdout themselves (pino, winston) have their
+own one-line integrations [below](#one-policy-everywhere).
 
 ### Presets
 
@@ -148,7 +165,8 @@ reach them through the gateway.
 ### React and the browser
 
 The core is plain ESM with no Node built-ins, is tree-shakeable
-(`sideEffects: false`), and uses the standard Web Crypto API — so `redact`,
+(only `flare-redact/register` has side effects), and uses the standard Web
+Crypto API, so `redact`,
 `scan`, vaults, and the LLM helpers work unchanged in React, Vue, and edge
 functions. CI smoke-tests the core on Bun and Deno on every push.
 
@@ -163,7 +181,7 @@ function SupportTicket({ text }) {
 
 Only the Node-specific entry points (`flare-redact` CLI, `/stream`, `/pino`,
 `/winston`) need Node. One honest caveat: client-side redaction protects what
-you *forward* (analytics, logs, LLM calls) — it is not a substitute for
+you *forward* (analytics, logs, LLM calls); it is not a substitute for
 server-side redaction, since the original value already reached the browser.
 
 ### Using with AI coding agents
@@ -199,20 +217,20 @@ Run `npm run build` and install an example's dependencies before its first run.
 ## Python, Go, and Rust
 
 The people who most need to keep data out of a prompt are usually not writing
-JavaScript. There are now four engines, and they are not four ports — they all
+JavaScript. There are now four engines, and they are not four ports: they all
 execute the same [FRS-1 detector specification](spec/SPEC.md) and are held to the
 same [conformance corpus](spec/conformance/), so a policy written once produces
 identical output in every one of them.
 
 Each engine is its own package. Installing `flare-redact` from npm gives you the
-JavaScript engine and nothing else — no Python, no Go, no Rust, and no
+JavaScript engine and nothing else: no Python, no Go, no Rust, and no
 dependencies of any kind.
 
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.8.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.8.0" }` | [`sdk/rust`](sdk/rust) |
+| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.9.0#subdirectory=sdk/python"` | [`sdk/python`](sdk/python) |
+| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.9.0" }` | [`sdk/rust`](sdk/rust) |
 
 The Python and Rust engines are not published to PyPI and crates.io yet, so they
 install from this repository. The commands above are the ones that work today.
@@ -235,8 +253,8 @@ let policy = Policy::compile(Options::new().enable(["pii"]))?;
 let safe = policy.redact_str("contact ada@example.com")?;
 ```
 
-Each SDK is dependency-light on purpose — Python is standard library only, Go is
-standard library only, Rust is `regex` plus `serde` — because a redaction library
+Each SDK is dependency-light on purpose (Python is standard library only, Go is
+standard library only, Rust is `regex` plus `serde`) because a redaction library
 that expands your dependency tree is a security library that widened your attack
 surface. Each also ships the integrations its ecosystem actually uses: a
 `logging` filter and formatter and OpenAI/Anthropic client wrappers in Python, an
@@ -256,15 +274,15 @@ import { loadPack } from 'flare-redact/pack';
 redact(text, { detectors: loadPack(acmePack).detectors });
 ```
 
-A pack that uses a construct an engine cannot execute exactly — a lookahead, a
-`\d` whose meaning differs between languages, a checksum it does not implement —
+A pack that uses a construct an engine cannot execute exactly (a lookahead, a
+`\d` whose meaning differs between languages, a checksum it does not implement)
 fails to load. Failing open is how a redactor leaks.
 
 ## The sidecar gateway
 
 Sometimes the right amount of integration is none. The gateway is a reverse
 proxy: point a vendor SDK's base URL at it, and request bodies are scrubbed on
-the way out and the originals restored on the way in — streaming included.
+the way out and the originals restored on the way in, streaming included.
 
 ```bash
 docker run --rm -p 127.0.0.1:8787:8787 \
@@ -277,7 +295,7 @@ docker run --rm -p 127.0.0.1:8787:8787 \
 + OPENAI_BASE_URL=http://127.0.0.1:8787/v1
 ```
 
-That diff is the whole integration — no middleware, no wrapper, no import. It is
+That diff is the whole integration: no middleware, no wrapper, no import. It is
 what makes this reachable for the estate where a Python service, a PHP monolith
 and a Node worker all call the same vendor and none of them can grow a new
 dependency this quarter.
@@ -378,7 +396,7 @@ clone a native `Request`/`Response` object.
 ## Redact prompts before they reach an LLM
 
 Your app sends user data to OpenAI or Anthropic. Somewhere in that prompt is a
-customer's email, an API key, or a card number — and now it's left your systems.
+customer's email, an API key, or a card number, and now it's left your systems.
 Wrap the client once, and detected secrets are stripped from prompts and put back
 in the reply. The model never sees those original values; your code keeps the
 references it needs.
@@ -417,13 +435,13 @@ redact('bob@corp.com', { mode: 'label' }); // '[REDACTED:email]'
 
 const protectedOptions = { transformSecret: process.env.FLARE_REDACT_SECRET };
 redact('bob@corp.com', { ...protectedOptions, mode: 'hash' });
-// 'email_3baf4d28d7c88317a…' — HMAC-SHA-256 fingerprint
+// 'email_3baf4d28d7c88317a…' (HMAC-SHA-256 fingerprint)
 
 redact('bob@corp.com', { ...protectedOptions, mode: 'pseudonym' });
-// 'kqz@rwmp.dnu' — keyed, deterministic, keeps character classes
+// 'kqz@rwmp.dnu' (keyed, deterministic, keeps character classes)
 
 redact('bob@corp.com', { ...protectedOptions, mode: 'surrogate' });
-// 'user_93a78c61e204@example.invalid' — type-consistent synthetic value
+// 'user_93a78c61e204@example.invalid' (type-consistent synthetic value)
 ```
 
 Protected deterministic modes require `transformSecret`; they never silently
@@ -445,8 +463,8 @@ redact(payload, { mask: ({ detector }) => `<${detector.id}>` });
 
 ## Reversible redaction
 
-When you need the originals back — the LLM case above, or handing data to a
-system you don't trust and getting it back — use a vault. It swaps each secret
+When you need the originals back (the LLM case above, or handing data to a
+system you don't trust and getting it back), use a vault. It swaps each secret
 for a stable placeholder and remembers the mapping.
 
 ```js
@@ -607,7 +625,7 @@ The classifier is logistic regression over cheap character features (entropy,
 character-class mix, structure, and nearby labels like `api_key=` or `commit`).
 It is trained offline by [`scripts/train-confidence-model.mjs`](scripts/train-confidence-model.mjs)
 and shipped as fixed weights, so the runtime stays zero-dependency, synchronous,
-and deterministic — no model download, no native add-on, safe on edge and in the
+and deterministic: no model download, no native add-on, safe on edge and in the
 browser. Only detectors marked `refine` are touched; checksum-validated ones
 (cards, IBANs, national ids) are always left alone.
 
@@ -622,7 +640,7 @@ secretProbability('9fceb02d0ae598e95dc970b74767f19372d61af8', 'commit …'); // 
 
 ## Build a private chat app
 
-If you're building a chat interface — over your own local model or any API — a
+If you're building a chat interface (over your own local model or any API), a
 **session** is the drop-in layer. One session holds one vault, so a value keeps
 the same placeholder across every turn: mask the user's message on the way in,
 restore the model's reply on the way out. It's model-agnostic and synchronous.
@@ -634,11 +652,11 @@ import { createSession } from 'flare-redact';
 
 const session = createSession({ enable: ['pii'] });
 
-// on the way in — the model only ever sees placeholders
+// on the way in, the model only ever sees placeholders
 const prompt = session.redact(userMessage);
 const reply = await myModel.generate(prompt);
 
-// on the way out — the user sees the real values back
+// on the way out, the user sees the real values back
 show(session.restore(reply));
 ```
 
@@ -772,7 +790,7 @@ For safe logging without reversibility, use `redactToolCall()`,
 
 ## Your own words
 
-Detectors can't know your product codenames, project names, or internal jargon —
+Detectors can't know your product codenames, project names, or internal jargon,
 so hand them a list. `terms` catches exactly the words you name (any language,
 longest match first, word-boundary safe), one-way or reversibly.
 
@@ -783,13 +801,13 @@ redact('Launch Project Zeus with Falcon', {
 });
 // → 'Launch [CLASSIFIED] with [CLASSIFIED]'
 
-// reversible — send to a model, get it back
+// reversible: send to a model, get it back
 const vault = createVault({ terms: ['Project Zeus'] });
 const safe = vault.redact('ship Project Zeus');   // 'ship [FR_CUSTOM_TERM_a17c…]'
 vault.restore(safe);                               // 'ship Project Zeus'
 ```
 
-The same works from the CLI, including a full round-trip — mask, send the safe
+The same works from the CLI, including a full round-trip: mask, send the safe
 text anywhere, then restore what comes back:
 
 ```bash
@@ -804,7 +822,7 @@ flare-redact --restore map.json < safe > original
 ## See what leaks, and why
 
 `scan()` finds secrets without changing the input, explains every hit in plain
-English, and reports one-based line/column locations — without returning the raw
+English, and reports one-based line/column locations, without returning the raw
 secret by default.
 
 ```js
@@ -847,6 +865,9 @@ console.log('session', { user: 'bob@x.io', token: 'ghp_…' });
 restore();
 ```
 
+Or with no code change at all: `node --import flare-redact/register app.js`
+(see [No code change at all](#no-code-change-at-all)).
+
 Prefer to be explicit? Bind your options once and reuse it:
 
 ```js
@@ -858,7 +879,7 @@ logger.info(safe.redact({ event: 'checkout', user }));
 
 ## One policy, everywhere
 
-Define what "sensitive" means once, and apply it at every layer — your app, your
+Define what "sensitive" means once, and apply it at every layer: your app, your
 logger, your HTTP boundary, your LLM calls. Every adapter takes the same options
 object, so a secret is masked the same way across the whole system.
 
@@ -867,7 +888,7 @@ import { definePolicy } from 'flare-redact';
 const policy = { enable: ['high_entropy'], allow: ['status@acme.com'] };
 ```
 
-**pino** — reads the values, not a list of field paths you have to maintain:
+**pino**: reads the values, not a list of field paths you have to maintain:
 
 ```js
 import pino from 'pino';
@@ -877,7 +898,7 @@ const log = pino(pinoRedact(policy));
 log.info({ user: 'bob@corp.com' }); // → {"user":"b***@***"}
 ```
 
-**winston** — a format that redacts every field, symbol metadata left intact:
+**winston**: a format that redacts every field, symbol metadata left intact:
 
 ```js
 import winston from 'winston';
@@ -886,7 +907,7 @@ import { winstonRedact } from 'flare-redact/winston';
 winston.format.combine(winston.format(winstonRedact(policy))(), winston.format.json());
 ```
 
-**HTTP** — a safe-to-log snapshot of a request; the live request is untouched.
+**HTTP**: a safe-to-log snapshot of a request; the live request is untouched.
 The URL string, query object, params, headers, and body are all sanitized:
 
 ```js
@@ -896,6 +917,39 @@ app.use(httpRedactor(policy));
 app.use((req, _res, next) => { logger.info(req.redacted()); next(); });
 // Authorization and Cookie headers, and any secret in the body or query, are masked.
 ```
+
+**Sentry**: events, breadcrumbs, transactions, spans and Sentry Logs are
+redacted before they are sent:
+
+```js
+import * as Sentry from '@sentry/node';
+import { sentryRedact } from 'flare-redact/sentry';
+
+Sentry.init({ dsn: process.env.SENTRY_DSN, ...sentryRedact({ preset: 'gdpr' }) });
+```
+
+Messages, exception values, stack-frame variables and source lines, request
+data, user fields, span names and log messages are redacted; cookies are masked
+whole, whatever the options and wherever they sit. Sentry's own fields (event, trace, span and debug
+ids, release, timestamps, the file and function of each stack frame) are kept
+exactly, so events still group, link to their traces and resolve source maps
+even with `preset: 'strict'`. A field is kept only where Sentry puts it and only
+when its value looks like what belongs there, so a field of yours that happens
+to be called `release`, or an email in an exception type, is still redacted.
+Already have a `beforeSend`? Call `hooks.beforeSend(event)` from it.
+
+Sentry 11 streams spans and warns about a `beforeSendTransaction` hook it no
+longer calls. Leave it out there:
+
+```js
+Sentry.init({ dsn, ...sentryRedact({ preset: 'gdpr' }, { traceLifecycle: 'stream' }) });
+```
+
+Two things Sentry sends pass through no hook, so no hook can redact them: the
+release-health session (it carries the user's id and IP address when
+`sendDefaultPii` is on) and the trace header, which carries the name of the root
+span. Keep personal data out of span names, as Sentry itself advises, and leave
+`sendDefaultPii` off unless you need it.
 
 Same `policy` object flows into `flare-redact/llm`, `wrapConsole`, `createVault`,
 and `redactStream` too.
@@ -934,7 +988,7 @@ in code.
 
 ## Guard what leaves your app
 
-Stop PII from reaching an analytics, telemetry, or webhook endpoint — wrap
+Stop PII from reaching an analytics, telemetry, or webhook endpoint: wrap
 `fetch` and name the hosts you don't trust with the real data. Every other
 request goes through untouched, so your real API calls are never altered.
 
@@ -947,9 +1001,33 @@ const fetch = wrapFetch(globalThis.fetch, { hosts: ['api.segment.io', 'telemetry
 
 ## Fail a build when a secret sneaks in
 
-`scan` from code, or `--scan` from the CLI (which exits non-zero on a hit) — drop
-it into CI or a pre-commit hook. File scans report `file:line:column`, while
-machine-readable JSON and SARIF reports never echo the matched secret value:
+Stop it before the commit exists:
+
+```bash
+npx flare-redact init --hook   # writes .git/hooks/pre-commit
+flare-redact --staged          # what the hook runs: only the lines being added
+```
+
+A hook that scanned whole files would block every commit touching a file with an
+old finding, and people would learn to skip it. `--staged` reads the staged diff,
+so a commit is stopped only for what it introduces, and each finding points at
+its line in the staged file. Skip the check once with `git commit --no-verify`.
+
+A scan leaves out assignments whose value is plainly code rather than a
+secret: `token = process.env.TOKEN`, `password = os.getenv("DB_PASSWORD")`,
+`secret = ${SECRET}`, `password: string`, `apiKey = config.apiKey`,
+`token = getToken()`. It does not try to understand code. From the operator to
+the end of the line there must be exactly one of those forms and nothing else
+but closing punctuation or a comment. A default value, a second argument, a
+string, a number, a `.env` style `DB_PASSWORD=value`: the finding stays, so
+`process.env.PASSWORD || "hunter2"` and `config.get("db.password")` are both
+reported. `--no-code-filter` turns it off. It applies to `--scan` and
+`--staged` only: `redact()` keeps masking every such assignment, because
+hiding too much in a log is safe and missing a secret is not.
+
+In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
+hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
+reports never echo the matched secret value:
 
 ```yaml
 - uses: actions/checkout@v5
@@ -957,7 +1035,7 @@ machine-readable JSON and SARIF reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.8.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.9.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -988,6 +1066,7 @@ FLARE_REDACT_SECRET=… flare-redact --csv --mode surrogate < dump.csv
 flare-redact --scan config.env               # list findings + why (exit 1 if any)
 flare-redact --scan .                        # recursively scan a project
 flare-redact --scan . --exclude 'test/**' --max-file-size 2mb
+flare-redact --staged                        # only the lines the next commit adds
 flare-redact --scan --format json .env app.log # safe machine-readable report
 flare-redact --sarif .env > results.sarif    # GitHub code-scanning report
 flare-redact --summary --json < event.json   # counts per detector
@@ -1062,7 +1141,7 @@ Opt in with `enable`:
 | `vehicle` | VINs (checksum-validated) |
 | `network` | IPs, MAC addresses, coordinates, internal URLs |
 | `entities` | people, addresses, phones, personal dates, account numbers, handles, personal URLs and secrets in prose, without a model ([details](#free-text-pii-without-a-model)) |
-| `phone` | E.164 and formatted national numbers (`+90 532 123 45 67`, `(555) 123-4567`, `0532 123 45 67`) — digit-count validated, date-safe |
+| `phone` | E.164 and formatted national numbers (`+90 532 123 45 67`, `(555) 123-4567`, `0532 123 45 67`); digit-count validated, date-safe |
 
 Plus object values whose **key name** is sensitive (`password`, `token`,
 `authorization`, `cookie`, `cvv`, …) are masked regardless of content.
@@ -1070,7 +1149,7 @@ Plus object values whose **key name** is sensitive (`password`, `token`,
 ## Multilingual secret vocabulary and IDs
 
 Secrets like API keys and card numbers don't care what language your app is in.
-Neither does this — but the word-based checks do, so words like *password*,
+Neither does this, but the word-based checks do, so words like *password*,
 *secret*, and *token* are recognized as assignments and as object keys in all
 **24 languages** below:
 
@@ -1153,9 +1232,12 @@ restore(input, vaultOrMap): T                  // put originals back
 sealVault(vaultOrEntries, password): Promise<SealedVaultV1>
 openVault(envelope, password): Promise<Array<[placeholder, original]>>
 
-// adapters — each takes the same options object
+// adapters, each takes the same options object
 pinoRedact(opts?)        // 'flare-redact/pino'    → { formatters: { log } }
 winstonRedact(opts?)     // 'flare-redact/winston' → a format transform
+sentryRedact(opts?)      // 'flare-redact/sentry'  → { beforeSend, beforeSendTransaction, beforeSendSpan, beforeSendLog, beforeBreadcrumb }
+redactSentryEvent(e, opts?) // 'flare-redact/sentry' → one redacted error event or transaction
+// node --import flare-redact/register     → console.* redacted, preset from FLARE_REDACT_PRESET
 redactHttp(req, opts?)   // 'flare-redact/http'    → safe-to-log request snapshot
 redactUrl(url, opts?)    // 'flare-redact/http'    → sanitized absolute/relative URL
 httpRedactor(opts?)      // 'flare-redact/http'    → Express/Connect middleware
@@ -1204,7 +1286,7 @@ createSession(opts?)      // chat/AI apps: redact in, restore out, streaming, re
 ## Why not a field allowlist?
 
 Path-based redactors (like naming fields in a logger config) only hide the fields
-you *remembered* to name. The leak is always the field you forgot — the free-text
+you *remembered* to name. The leak is always the field you forgot: the free-text
 message, the nested third-party payload, the string someone concatenated by hand.
 flare-redact scans the actual values, so it doesn't depend on your memory.
 
@@ -1224,7 +1306,7 @@ npm run benchmark:adversarial
 - Detection is best-effort; a clean scan is not proof that data contains no PII.
 - `scan()` omits raw values by default. `includeValues` intentionally puts those
   secrets back into process memory and must stay out of external reports.
-- `pseudonym` is keyed, deterministic pseudonymization — not NIST FF1 encryption.
+- `pseudonym` is keyed, deterministic pseudonymization, not NIST FF1 encryption.
 - A vault map is sensitive; persist only the authenticated encrypted envelope.
 - Restoring a placeholder intentionally reveals its original locally. Do not
   forward restored model output to another untrusted sink automatically.

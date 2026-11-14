@@ -101,6 +101,25 @@ test('sitemap contains each canonical search page exactly once', async () => {
 
 test('the playground identifies the current release', async () => {
   const html = await readFile(path.join(docsDir, 'index.html'), 'utf8');
-  assert.match(html, /v1\.8\.0 · runs entirely in your browser/);
-  assert.doesNotMatch(html, /v1\.7\.0/);
+  assert.match(html, /v1\.9\.0 · runs entirely in your browser/);
+  assert.doesNotMatch(html, /v1\.8\.0/);
+});
+
+test('the playground bundle is built from the code that ships', async () => {
+  const bundle = await import(new URL('../docs/playground/flare-redact.min.js', import.meta.url).href);
+  const dist = await import(new URL('../dist/index.js', import.meta.url).href);
+  assert.deepEqual(
+    bundle.DETECTORS.map((d) => d.id),
+    dist.DETECTORS.map((d) => d.id),
+    'rebuild the playground with npm run build:playground',
+  );
+  const samples = [
+    ['iban GB82 WEST 1234 5698 7654 32', {}],
+    ['My name is Alice Johnson, call 415-555-0132', { preset: 'llm' }],
+    ['-----BEGIN RSA PRIVATE KEY-----\nMIIBVQIBADANBgkFAKEKEYBODY0000aaaabbbbccccddddeeeeffffgggghhhh', {}],
+  ];
+  for (const [text, options] of samples) {
+    assert.equal(bundle.redact(text, options), dist.redact(text, options), text);
+    assert.notEqual(bundle.redact(text, options), text, text);
+  }
 });

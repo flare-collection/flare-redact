@@ -29,16 +29,39 @@ test('it suggests a step for each library it recognises', () => {
 });
 
 test('every import it prints exists in the package', async () => {
-  const plan = planInit({ dependencies: { openai: '1', '@anthropic-ai/sdk': '1', pino: '1', winston: '1', express: '1' } });
+  const plan = planInit({ dependencies: { openai: '1', '@anthropic-ai/sdk': '1', '@sentry/node': '1', pino: '1', winston: '1', express: '1' } });
   const text = renderInit(plan, 'package.json') + planInit(undefined).steps[0].code;
   const imports = [...text.matchAll(/import \{ (\w+) \} from '(flare-redact(?:\/[a-z]+)?)'/g)];
-  assert.ok(imports.length >= 6);
+  assert.ok(imports.length >= 7);
   for (const [, name, specifier] of imports) {
     const file = specifier === 'flare-redact' ? 'index' : specifier.split('/')[1];
     const mod = await import(`../dist/${file}.js`);
     assert.equal(typeof mod[name], 'function', `${specifier} exports ${name}`);
   }
   for (const preset of text.matchAll(/preset: '(\w+)'/g)) assert.match(preset[1], /^(logs|llm|gdpr|strict)$/);
+});
+
+test('any Sentry SDK gets the Sentry step, importing that SDK', () => {
+  const plan = planInit({ dependencies: { '@sentry/nextjs': '^9', '@sentry/cli': '^2' } });
+  assert.deepEqual(plan.found, ['@sentry/nextjs']);
+  const step = plan.steps.find((s) => s.found === '@sentry/nextjs');
+  assert.match(step.code, /import \* as Sentry from '@sentry\/nextjs';/);
+  assert.match(step.code, /sentryRedact\(\{ preset: 'gdpr' \}\)/);
+  assert.deepEqual(planInit({ dependencies: { '@sentry/cli': '^2' } }).found, [], 'the CLI alone is not an SDK');
+  assert.doesNotMatch(step.code, /traceLifecycle/, 'Sentry 9 still sends transactions');
+  for (const range of ['^11.12.0', '11', '>=11 <13', '~12.1.0']) {
+    const [modern] = planInit({ dependencies: { '@sentry/node': range } }).steps;
+    assert.match(modern.code, /sentryRedact\(\{ preset: 'gdpr' \}, \{ traceLifecycle: 'stream' \}\)/, range);
+  }
+  for (const range of ['latest', '*', 'workspace:*', '^10.48.0']) {
+    assert.doesNotMatch(planInit({ dependencies: { '@sentry/node': range } }).steps[0].code, /traceLifecycle/, range);
+  }
+});
+
+test('the console step offers the no-code start', () => {
+  const [step] = planInit(undefined).steps;
+  assert.match(step.code, /node --import flare-redact\/register app\.js/);
+  assert.match(renderInit(planInit(undefined), undefined), /npx flare-redact init --hook/);
 });
 
 test('the command prints the plan and never touches source files', () => {

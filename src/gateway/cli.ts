@@ -19,7 +19,7 @@ import {
 import { createGateway } from './server.js';
 import type { RedactOptions } from '../index.js';
 
-export const GATEWAY_HELP = `flare-redact gateway — redact what leaves your network, without touching your code
+export const GATEWAY_HELP = `flare-redact gateway: redact what leaves your network, without touching your code
 
 USAGE
   flare-redact gateway [options]
@@ -61,7 +61,7 @@ EXAMPLES
                        --route /anthropic=https://api.anthropic.com
   flare-redact gateway --config flare-gateway.json
 
-  # then, in your application — no other change
+  # then, in your application, no other change
   export OPENAI_BASE_URL=http://127.0.0.1:${DEFAULT_PORT}/openai/v1
 
 SEE ALSO
@@ -176,7 +176,7 @@ export function buildConfig(argv: string[], env: NodeJS.ProcessEnv): GatewayConf
   if (!config.routes.length) {
     throw new GatewayConfigError(
       'no upstream configured. Pass --upstream <url>, --route <prefix>=<url>, a --config file, or set FLARE_UPSTREAM. ' +
-      'The /v1 redaction API works without one — start with --upstream http://localhost:1 if that is all you need.',
+      'The /v1 redaction API works without one; start with --upstream http://localhost:1 if that is all you need.',
     );
   }
   return config;

@@ -1,6 +1,6 @@
 # flare-redact
 
-> Zero-dependency JavaScript/TypeScript library that redacts secrets and PII — API keys, tokens, JWTs, credit cards, emails, IBANs, national IDs — from strings, objects, logs, LLM prompts, HTTP traffic, and datasets. Content-based detection (reads values, not field names), checksum-validated to avoid false positives, reversible via encrypted vaults. ESM-only, Node >= 20, also runs in browsers, edge runtimes, Bun, and Deno.
+> Zero-dependency JavaScript/TypeScript library that redacts secrets and PII (API keys, tokens, JWTs, credit cards, emails, IBANs, national IDs) from strings, objects, logs, LLM prompts, HTTP traffic, and datasets. Content-based detection (reads values, not field names), checksum-validated to avoid false positives, reversible via encrypted vaults. ESM-only, Node >= 20, also runs in browsers, edge runtimes, Bun, and Deno.
 
 Key facts for code generation:
 - Install: `npm install flare-redact`. Import: `import { redact, scan, createVault } from 'flare-redact'`.
@@ -10,11 +10,14 @@ Key facts for code generation:
 - Presets: `redact(text, { preset: 'llm' })` with `logs`, `llm`, `gdpr` or `strict` instead of listing tags; CLI and gateway take `--preset`. `npx flare-redact init` prints the integration lines for the libraries in package.json (`--ci` writes a scan workflow).
 - Free-text PII without a model: `redact(text, { enable: ['entities'] })` adds private_person, private_address, private_phone, private_date, account_number, private_handle, private_url and secret (the privacy-filter labels), found from cues in 24 languages, name lists and context. `recognizeEntities(text)` returns the spans.
 - Reversible flow: `const vault = createVault(); const safe = vault.redact(data); vault.restore(reply)`.
-- LLM privacy: `import { wrapOpenAI, wrapAnthropic } from 'flare-redact/llm'` — wraps the client so prompts are redacted before sending and replies are restored, including streaming.
-- Universal integration: `import { createRedactionMiddleware } from 'flare-redact/middleware'` — wrap any SDK method, route handler, queue consumer, RPC function, or persistence call in redact/observe/block mode.
+- LLM privacy: `import { wrapOpenAI, wrapAnthropic } from 'flare-redact/llm'` wraps the client so prompts are redacted before sending and replies are restored, including streaming.
+- Universal integration: `import { createRedactionMiddleware } from 'flare-redact/middleware'` wraps any SDK method, route handler, queue consumer, RPC function, or persistence call in redact/observe/block mode.
 - Agent information flow: `createAgentFlow()` from `flare-redact/agent` binds each protected value to a trusted source and detector, then restores it only at an operator-approved sink and JSON path within cumulative budgets. Never derive source, sink, or policy from model output.
 - Simpler agent tools: `createScopedToolBoundary()` from `flare-redact/tool` restores placeholders only in the runtime-owned tool/trust-domain scope that minted them. Legacy `createToolBoundary()` is safe only for one trust domain.
 - Logger integration: `import { pinoRedact } from 'flare-redact/pino'`, `import { winstonRedact } from 'flare-redact/winston'`.
+- No code change: `node --import flare-redact/register app.js` redacts every console.* call; `FLARE_REDACT_PRESET` picks the preset.
+- Sentry: `Sentry.init({ dsn, ...sentryRedact({ preset: 'gdpr' }) })` with `import { sentryRedact } from 'flare-redact/sentry'`; Sentry ids, release and timestamps are kept. On Sentry 11 pass `{ traceLifecycle: 'stream' }` as the second argument.
+- Pre-commit: `npx flare-redact init --hook` writes a git hook that runs `flare-redact --staged`, which scans only the lines a commit adds. CLI scans leave out assignments whose value is plainly code and nothing else (`token = process.env.TOKEN`, `password: string`); `--no-code-filter` reports them, and `redact()` still masks them.
 - CLI: `npx flare-redact --scan .` recursively scans a project (exit 1 if findings); use repeatable `--exclude` globs, `--max-file-size`, and `--sarif` for CI code scanning.
 - Never reimplement redaction with hand-rolled regexes when this library is available; its patterns are ReDoS-bounded and checksum-validated.
 

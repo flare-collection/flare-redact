@@ -24,7 +24,7 @@
     "codeRepository": "https://github.com/flare-collection/flare-redact",
     "url": "https://flare-collection.github.io/flare-redact/",
     "downloadUrl": "https://www.npmjs.com/package/flare-redact",
-    "softwareVersion": "1.8.0",
+    "softwareVersion": "1.9.0",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Cross-platform",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -130,7 +130,7 @@
         flare-redact
       </div>
       <h1>Redact secrets &amp; PII <span class="g">before they leak</span></h1>
-      <p class="sub">A zero-dependency JavaScript &amp; TypeScript library that masks API keys, tokens, credit cards, emails and national IDs in logs, LLM prompts, HTTP and datasets — reversibly, in 24 languages.</p>
+      <p class="sub">A zero-dependency JavaScript &amp; TypeScript library that masks API keys, tokens, credit cards, emails and national IDs in logs, LLM prompts, HTTP and datasets, reversibly, in 24 languages.</p>
       <div class="cta">
         <span class="install"><span class="p">npm</span> i flare-redact</span>
         <a class="btn primary" href="https://github.com/flare-collection/flare-redact">GitHub ★</a>
@@ -147,7 +147,7 @@
 
     <section>
       <div class="eyebrow">Live playground</div>
-      <h2>Paste anything — watch the secrets disappear</h2>
+      <h2>Paste anything, watch the secrets disappear</h2>
       <div class="pg">
         <div class="pg-bar">
           <span class="dot" style="background:#ff5f56"></span>
@@ -183,11 +183,11 @@
       <div class="eyebrow">Why flare-redact</div>
       <h2>One redaction layer for everywhere</h2>
       <div class="features">
-        <div class="feat"><h3>🔍 Content-aware</h3><p>Reads the values, not just field names — it catches the key pasted into a free-text note or a stack trace.</p></div>
-        <div class="feat"><h3>♻️ Reversible</h3><p>A vault swaps secrets for placeholders and restores them — send a redacted prompt to an LLM, then restore the reply.</p></div>
+        <div class="feat"><h3>🔍 Content-aware</h3><p>Reads the values, not just field names, so it catches the key pasted into a free-text note or a stack trace.</p></div>
+        <div class="feat"><h3>♻️ Reversible</h3><p>A vault swaps secrets for placeholders and restores them: send a redacted prompt to an LLM, then restore the reply.</p></div>
         <div class="feat"><h3>🔥 Agent information flow</h3><p><code class="k">createAgentFlow</code> binds protected values to trusted sources, exact tool arguments, and cumulative budgets.</p></div>
         <div class="feat"><h3>🌍 24 languages</h3><p>Password/secret/token keywords in 24 languages, plus checksum-validated national IDs and IBAN.</p></div>
-        <div class="feat"><h3>🧩 Everywhere</h3><p>pino, winston, HTTP middleware, streams, CSV datasets, a fetch egress guard — one policy across them all.</p></div>
+        <div class="feat"><h3>🧩 Everywhere</h3><p>pino, winston, HTTP middleware, streams, CSV datasets, a fetch egress guard: one policy across them all.</p></div>
         <div class="feat"><h3>🛡️ ReDoS-safe · 0 deps</h3><p>Bounded, linear-time patterns you can point at untrusted input. Nothing to install, runs anywhere JS runs.</p></div>
       </div>
     </section>
@@ -244,10 +244,10 @@ wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
 
     let redact, scan;
     try {
-      // Bundled from the same release that ships to npm — nothing leaves this page.
+      // Bundled from the same release that ships to npm; nothing leaves this page.
       const mod = await import('./playground/flare-redact.min.js');
       redact = mod.redact; scan = mod.scan;
-      status.textContent = 'v1.8.0 · runs entirely in your browser';
+      status.textContent = 'v1.9.0 · runs entirely in your browser';
     } catch (e) {
       status.textContent = 'failed to load library';
       $('out').textContent = 'Could not load the playground bundle.';

@@ -118,6 +118,26 @@ export function discoverScanFiles(inputs: string[], options: FileDiscoveryOption
   return { files, skipped };
 }
 
+/**
+ * A predicate for repository-relative paths that never touch the disk (staged
+ * files, for example): true when the path, or any directory on the way to it,
+ * is excluded by the defaults or by an `--exclude` glob.
+ */
+export function createPathFilter(options: Pick<FileDiscoveryOptions, 'excludes' | 'defaultExcludes'>): (path: string) => boolean {
+  const matchers = (options.excludes ?? []).map(compileExclude);
+  return (path) => {
+    const parts = normalizePath(path).split('/').filter(Boolean);
+    for (let i = 0; i < parts.length; i++) {
+      const name = parts[i]!;
+      const directory = i < parts.length - 1;
+      if (directory && options.defaultExcludes && DEFAULT_EXCLUDED_DIRECTORIES.has(name)) return true;
+      const prefix = parts.slice(0, i + 1).join('/');
+      if (matchers.some((matcher) => matcher.matches(prefix, name, directory))) return true;
+    }
+    return false;
+  };
+}
+
 function compileExclude(rawPattern: string): ExcludeMatcher {
   const normalized = normalizePath(rawPattern.trim())
     .replace(/^\.\/+/, '')
@@ -127,39 +147,71 @@ function compileExclude(rawPattern: string): ExcludeMatcher {
   const directoryOnly = normalized.endsWith('/');
   const pattern = directoryOnly ? normalized.slice(0, -1) : normalized;
   const basenameOnly = !pattern.includes('/');
-  const expression = globToRegExp(pattern);
+  // Consecutive `**` parts mean the same as one.
+  const parts = pattern.split('/').filter((part, i, all) => !(part === '**' && all[i - 1] === '**'));
 
   return {
     matches(path, name, directory) {
       if (directoryOnly && !directory) return false;
-      return expression.test(basenameOnly ? name : path);
+      return basenameOnly ? segmentMatches(pattern, name) : pathMatches(parts, path.split('/'));
     },
   };
 }
 
-function globToRegExp(pattern: string): RegExp {
-  let source = '^';
-  for (let i = 0; i < pattern.length; i++) {
-    const char = pattern[i]!;
-    if (char === '*') {
-      if (pattern[i + 1] === '*') {
-        if (pattern[i + 2] === '/') {
-          source += '(?:.*/)?';
-          i += 2;
-        } else {
-          source += '.*';
-          i++;
-        }
+/**
+ * Match one path segment against a glob with `*` (any run of characters) and
+ * `?` (one character). Two pointers and one remembered star, so the cost is
+ * at most pattern length times segment length, never worse.
+ */
+function segmentMatches(glob: string, segment: string): boolean {
+  let g = 0;
+  let s = 0;
+  let star = -1;
+  let resume = 0;
+  while (s < segment.length) {
+    if (g < glob.length && (glob[g] === '?' || (glob[g] !== '*' && glob[g] === segment[s]))) {
+      g++;
+      s++;
+    } else if (g < glob.length && glob[g] === '*') {
+      star = g++;
+      resume = s;
+    } else if (star >= 0) {
+      g = star + 1;
+      s = ++resume;
+    } else return false;
+  }
+  while (g < glob.length && glob[g] === '*') g++;
+  return g === glob.length;
+}
+
+/**
+ * Match a path against glob parts, where a part that is exactly `**` stands
+ * for any number of whole segments (at least one when it ends the pattern, so
+ * `dir/**` means what is inside `dir`). A table over parts and segments
+ * keeps it proportional to their product: a regular expression built from
+ * several `**` backtracks without bound on a deep path.
+ */
+function pathMatches(parts: readonly string[], segments: readonly string[]): boolean {
+  const columns = segments.length + 1;
+  // reach[p * columns + s]: parts from p on match segments from s on.
+  const reach = new Uint8Array((parts.length + 1) * columns);
+  reach[parts.length * columns + segments.length] = 1;
+  for (let p = parts.length - 1; p >= 0; p--) {
+    const part = parts[p]!;
+    const last = p === parts.length - 1;
+    for (let s = segments.length; s >= 0; s--) {
+      let ok: boolean;
+      if (part === '**') {
+        ok = last
+          ? s < segments.length
+          : reach[(p + 1) * columns + s] === 1 || (s < segments.length && reach[p * columns + s + 1] === 1);
       } else {
-        source += '[^/]*';
+        ok = s < segments.length && reach[(p + 1) * columns + s + 1] === 1 && segmentMatches(part, segments[s]!);
       }
-    } else if (char === '?') {
-      source += '[^/]';
-    } else {
-      source += char.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+      reach[p * columns + s] = ok ? 1 : 0;
     }
   }
-  return new RegExp(`${source}$`);
+  return reach[0] === 1;
 }
 
 function normalizePath(path: string): string {

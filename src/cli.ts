@@ -1,5 +1,7 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { discoverScanFiles, type SkipSummary } from './file-discovery.js';
+import { readStagedChanges } from './staged.js';
+import { withoutCodeAssignments } from './code-reference.js';
 import {
   redact,
   summary,
@@ -47,6 +49,8 @@ interface ParsedArgs {
   excludes: string[];
   maxFileSize: number;
   defaultExcludes: boolean;
+  staged: boolean;
+  codeFilter: boolean;
 }
 
 function csv(s: string | undefined): string[] {
@@ -72,12 +76,16 @@ function parseArgs(argv: string[]): ParsedArgs {
   const excludes: string[] = [];
   let maxFileSize = 1024 * 1024;
   let defaultExcludes = true;
+  let staged = false;
+  let codeFilter = true;
   const terms: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     switch (a) {
       case '--scan': scanMode = true; break;
+      case '--staged': scanMode = true; staged = true; break;
+      case '--no-code-filter': codeFilter = false; break;
       case '--format': scanFormat = parseScanFormat(argv[++i]); break;
       case '--sarif': scanMode = true; scanFormat = 'sarif'; break;
       case '--summary': summaryMode = true; break;
@@ -124,6 +132,10 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
   if (terms.length) opts.terms = terms;
+  if (staged && files.length) throw new Error('--staged reads the git index; it takes no file arguments');
+  if (staged && (summaryMode || jsonMode || csvMode || vaultFile || restoreFile)) {
+    throw new Error('--staged only scans; it cannot be combined with --summary, --json, --csv, --vault or --restore');
+  }
   return {
     opts,
     files,
@@ -143,6 +155,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     excludes,
     maxFileSize,
     defaultExcludes,
+    staged,
+    codeFilter,
   };
 }
 
@@ -280,23 +294,45 @@ function runScan(
   opts: RedactOptions,
   format: ScanFormat,
   discovery: { excludes: string[]; maxFileSize: number; defaultExcludes: boolean },
+  staged = false,
+  codeFilter = true,
 ): number {
   const findings: LocatedFinding[] = [];
   let scannedFiles: string[] = [];
   let skipped: SkipSummary = { excluded: 0, binary: 0, oversized: 0, symlink: 0 };
   try {
+    // A report is read by a person or stops a commit, so an assignment whose
+    // value is code (`token = process.env.TOKEN`) is left out. Redaction never
+    // uses this: it keeps masking them.
     const policy = compilePolicy(opts);
-    if (files.length) {
+    const unassigned = compilePolicy({ ...opts, disable: [...(opts.disable ?? []), 'generic_assignment'] });
+    const scanText = (text: string): Finding[] => codeFilter
+      ? withoutCodeAssignments(text, policy.scan(text), () => unassigned.scan(text))
+      : policy.scan(text);
+    if (staged) {
+      const changes = readStagedChanges(process.cwd(), discovery);
+      scannedFiles = changes.files;
+      skipped = { ...skipped, ...changes.skipped };
+      for (const block of changes.blocks) {
+        // start/end would be offsets into a fragment of the file, so they are
+        // dropped; file, line and column locate the finding exactly.
+        for (const { start: _start, end: _end, ...finding } of scanText(block.text)) {
+          findings.push({ ...finding, file: block.file, line: block.line + (finding.line ?? 1) - 1 });
+        }
+      }
+    } else if (files.length) {
       const result = discoverScanFiles(files, discovery);
       scannedFiles = result.files;
       skipped = result.skipped;
     }
-    const inputs: Array<string | undefined> = files.length ? scannedFiles : [undefined];
+    const inputs: Array<string | undefined> = staged ? [] : files.length ? scannedFiles : [undefined];
     for (const file of inputs) {
       const raw = file ? readFileSync(file, 'utf8') : readStdin();
       const data = jsonMode ? tryParse(raw, file) : raw;
       if (data === PARSE_ERROR) return 2;
-      for (const finding of policy.scan(data)) findings.push(file ? { ...finding, file } : finding);
+      // Parsed JSON has no lines to read around a finding, so it is not filtered.
+      const found = typeof data === 'string' ? scanText(data) : policy.scan(data);
+      for (const finding of found) findings.push(file ? { ...finding, file } : finding);
     }
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);
@@ -308,7 +344,10 @@ function runScan(
     : format === 'sarif'
       ? formatSarif(findings)
       : formatFindings(findings);
-  process.stdout.write(out + '\n');
+  const footer = staged && format === 'pretty' && findings.length
+    ? '\n\nCommit stopped: these values are in the lines being added. Remove them, or\nskip the check once with: git commit --no-verify'
+    : '';
+  process.stdout.write(out + footer + '\n');
   return findings.length ? 1 : 0;
 }
 
@@ -360,6 +399,8 @@ export async function main(argv: string[]): Promise<number> {
     excludes,
     maxFileSize,
     defaultExcludes,
+    staged,
+    codeFilter,
   } = parsed;
 
   if (!opts.transformSecret && process.env[secretEnv]) opts.transformSecret = process.env[secretEnv];
@@ -371,13 +412,13 @@ export async function main(argv: string[]): Promise<number> {
   if (showVersion) { process.stdout.write(`${VERSION}\n`); return 0; }
   if (listMode) {
     for (const d of DETECTORS) {
-      process.stdout.write(`${d.default ? '●' : '○'} ${d.id.padEnd(20)} ${d.label} — ${d.why}\n`);
+      process.stdout.write(`${d.default ? '●' : '○'} ${d.id.padEnd(20)} ${d.label}: ${d.why}\n`);
     }
     return 0;
   }
 
   if (scanMode && !summaryMode && !vaultFile && !restoreFile) {
-    return runScan(files, jsonMode, opts, scanFormat, { excludes, maxFileSize, defaultExcludes });
+    return runScan(files, jsonMode, opts, scanFormat, { excludes, maxFileSize, defaultExcludes }, staged, codeFilter);
   }
 
   let raw: string;

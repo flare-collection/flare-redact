@@ -1,5 +1,81 @@
 # Changelog
 
+## 1.9.0 (2026-11-14)
+
+### Turn it on without touching the code
+
+- Add `flare-redact/register`. `node --import flare-redact/register app.js` (or
+  `NODE_OPTIONS="--import flare-redact/register"`) redacts every
+  `console.log`, `info`, `warn`, `error` and `debug` call with no code
+  change. `FLARE_REDACT_PRESET` picks the preset; an unknown name stops the
+  process at startup. It is the only module marked as having side effects.
+- Add `flare-redact/sentry`. `Sentry.init({ dsn, ...sentryRedact({ preset:
+  'gdpr' }) })` redacts error events, transactions, spans, Sentry Logs and
+  breadcrumbs before they are sent, masks cookies whole, and keeps Sentry's own
+  fields (event, trace, span and debug ids, release, timestamps, SDK metadata,
+  the file and function of each stack frame) exactly, so grouping, tracing and
+  source maps keep working even with `preset: 'strict'`. A field is put back
+  only where Sentry keeps it and only when its value has the shape that field
+  has and no detector but entropy fires on it, so `extra.release`, a request
+  field called `sid` or an email in an exception type is redacted like any
+  other user data. A stack frame's file is kept only when it names a file and
+  has no query string. Cookies are masked whatever the options and wherever
+  they sit: the request, the response context, span attributes, breadcrumbs.
+  The caller's event is never written to, frozen or not. Checked against
+  `@sentry/node` 11: `sentryRedact(opts, { traceLifecycle: 'stream' })` leaves
+  out `beforeSendTransaction`, which Sentry 11 no longer calls and warns about.
+  Two things Sentry sends pass through no hook and so cannot be redacted here:
+  the release-health session and the trace header carrying the root span name.
+- `flare-redact init` recognises the Sentry SDKs and prints the no-code
+  `--import` line alongside `wrapConsole`.
+
+### Stop a secret before the commit exists
+
+- Add `flare-redact --staged`: scan only the lines the next commit adds, read
+  from the staged diff, and report each finding at its line in the staged file.
+  A commit is stopped for what it introduces, not for old findings elsewhere in
+  the file, and a renamed file is compared with its old path, so moving a file
+  reports nothing. Files that change type and files a `.gitattributes` rule
+  marks `-diff` or `binary` are scanned too, and line numbers do not depend on
+  the repository's diff settings. `--exclude`, `--max-file-size` and the default
+  excluded directories apply.
+- Add `flare-redact init --hook`, which writes a git pre-commit hook that runs
+  it, preferring the project's own copy and falling back to the pinned release.
+  An existing hook is kept unless `--force` is given; with husky, or a hooks
+  folder shared outside the repository, it prints the line to add instead of
+  writing anything, and it never writes through a symlink. If Node is not on the PATH of the git client, the hook lets
+  the commit through and says so rather than block every commit.
+
+### Scans that do not cry wolf
+
+- `--scan` and `--staged` leave out `generic_assignment` findings whose value
+  is plainly code: a variable or template (`${SECRET}`, `$DB_PASSWORD`,
+  `{{ secret }}`), an environment read (`process.env.TOKEN`,
+  `os.getenv("KEY")`, `ENV["KEY"]`), a field named like a secret
+  (`config.apiKey`, `user.password`), a call with no arguments, a type
+  (`password: string`), the variable of the same name, or a placeholder. It
+  does not try to understand code: from the operator to the end of the line
+  there must be exactly one of those forms and nothing else but closing
+  punctuation or a comment. A default value, a second argument, a string, a
+  number, or a `.env` and YAML style `DB_PASSWORD=value` keeps the finding. A
+  more specific finding under a dropped assignment is still reported.
+  `--no-code-filter` turns it off.
+- Redaction is not affected. `redact()`, `scan()` from code, the detector
+  pack and the Python, Go and Rust engines behave exactly as in 1.8.0: an
+  assignment is masked whether its value is code or not.
+- Exclude globs are matched with a table instead of a regular expression, so a
+  pattern with several `**` no longer takes unbounded time on a deep path.
+- `flare-redact init /absolute/path` reads that directory.
+
+### Docs
+
+- The README has no long dashes, its version and CI badges point at fresh URLs
+  so a cached image cannot show an old release, and a test keeps the detector
+  and language counts in the badges equal to what ships.
+- The website playground was still running the August build, without the 1.7.0
+  fixes. It is rebuilt from this release, and a test now fails when the bundle
+  and the shipped detectors differ.
+
 ## 1.8.0 (2026-11-14)
 
 ### Simpler setup
