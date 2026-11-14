@@ -14,10 +14,13 @@
   breadcrumbs before they are sent, masks cookies whole, and keeps Sentry's own
   fields (event, trace, span and debug ids, release, timestamps, SDK metadata,
   the file and function of each stack frame) exactly, so grouping, tracing and
-  source maps keep working even with `preset: 'strict'`. Those fields are
-  recognised by where they sit in the event, never by name alone, so
-  `extra.release` or a request field called `sid` is redacted like any other
-  user data. The caller's event is never mutated. Checked against
+  source maps keep working even with `preset: 'strict'`. A field is put back
+  only where Sentry keeps it and only when its value has the shape that field
+  has and no detector but entropy fires on it, so `extra.release`, a request
+  field called `sid` or an email in an exception type is redacted like any
+  other user data. Cookies are masked whatever the options, in the request and
+  in the response context. The caller's event is never written to, frozen or
+  not. Checked against
   `@sentry/node` 11: `sentryRedact(opts, { traceLifecycle: 'stream' })` leaves
   out `beforeSendTransaction`, which Sentry 11 no longer calls and warns about.
   Two things Sentry sends pass through no hook and so cannot be redacted here:
@@ -31,8 +34,10 @@
   from the staged diff, and report each finding at its line in the staged file.
   A commit is stopped for what it introduces, not for old findings elsewhere in
   the file, and a renamed file is compared with its old path, so moving a file
-  reports nothing. `--exclude`, `--max-file-size` and the default excluded
-  directories apply.
+  reports nothing. Files that change type and files a `.gitattributes` rule
+  marks `-diff` or `binary` are scanned too; real binary content is skipped and
+  counted. `--exclude`, `--max-file-size` and the default excluded directories
+  apply.
 - Add `flare-redact init --hook`, which writes a git pre-commit hook that runs
   it, preferring the project's own copy and falling back to the pinned release.
   An existing hook is kept unless `--force` is given; with husky, or a hooks
@@ -44,16 +49,23 @@
 
 - `--scan` and `--staged` leave out `generic_assignment` findings whose value
   is code rather than a secret: environment and template references
-  (`process.env.TOKEN`, `os.getenv("KEY")`, `${SECRET}`, `{{ secret }}`),
-  calls and indexes, fields of configuration objects or ones ending in a
-  sensitive name (`config.apiKey`, `user.password`), type annotations
-  (`password: string`), empty values, the variable of the same name,
-  placeholders and already-masked values. Anything that could be a literal is
-  still reported: a quoted string, `password=$ecret123`, a password hash.
-  `--no-code-filter` reports everything.
+  (`process.env.TOKEN`, `os.getenv("KEY")`, `${SECRET}`), calls and indexes,
+  fields of configuration objects or ones ending in a sensitive name
+  (`config.apiKey`, `user.password`), type annotations (`password: string`),
+  empty values, the variable of the same name, placeholders and already-masked
+  values. The whole line is read, and the finding stays whenever the line also
+  holds a string that could be the secret (`process.env.X || "hunter2"`,
+  `os.environ.get("KEY", "default")`, `password: string = "hunter2"`), and for
+  a quoted value, a `.env` or YAML style `DB_PASSWORD=value`, a password hash
+  or `password=$ecret123`. A more specific finding under a dropped assignment
+  is still reported. It is a heuristic that reports when unsure;
+  `--no-code-filter` turns it off.
 - Redaction is not affected. `redact()`, `scan()` from code, the detector
   pack and the Python, Go and Rust engines behave exactly as in 1.8.0: an
   assignment is masked whether its value is code or not.
+- Exclude globs are matched with a table instead of a regular expression, so a
+  pattern with several `**` no longer takes unbounded time on a deep path.
+- `flare-redact init /absolute/path` reads that directory.
 
 ### Docs
 

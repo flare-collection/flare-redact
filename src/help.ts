@@ -231,9 +231,11 @@ Exit codes make it a CI gate:
 
 A scan leaves out assignments whose value is code, not a secret:
 'token = process.env.TOKEN', 'password: string', 'api_key = os.getenv("KEY")',
-'secret = \${SECRET}'. A quoted string and anything that could be a literal
-(password=\$ecret123) is still reported. --no-code-filter reports them all.
-Redaction is not affected: it masks every such assignment, code or not.
+'secret = \${SECRET}'. It reads the whole line, and still reports when the line
+holds a string that could be the secret (process.env.X || "hunter2"), a quoted
+value, a .env style KEY=value or password=\$ecret123. It is a heuristic that
+reports when unsure; --no-code-filter turns it off. Redaction is not affected:
+it masks every such assignment, code or not.
 
 Too noisy? Generic detectors like high_entropy match anything that looks random.
 --refine-confidence runs the learned classifier over them and --min-confidence

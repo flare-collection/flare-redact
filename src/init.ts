@@ -246,7 +246,9 @@ function installHook(dir: string, cwd: string, version: string, force: boolean):
   let roots: string[];
   try {
     hooks = git('rev-parse', '--git-path', 'hooks');
-    roots = [git('rev-parse', '--show-toplevel'), resolve(realpathSync(dir), git('rev-parse', '--git-common-dir'))];
+    // resolve() also turns git's forward slashes into the platform's separator.
+    roots = [resolve(git('rev-parse', '--show-toplevel')), resolve(realpathSync(dir), git('rev-parse', '--git-common-dir'))]
+      .map((root) => (existsSync(root) ? realpathSync(root) : root));
   } catch {
     process.stderr.write("--hook needs a git repository; run 'git init' first.\n");
     return 2;
@@ -258,9 +260,9 @@ function installHook(dir: string, cwd: string, version: string, force: boolean):
     return 0;
   }
   // git prints real paths; resolve ours the same way (macOS /var is /private/var).
-  const hooksDir = isAbsolute(hooks)
-    ? (existsSync(hooks) ? realpathSync(hooks) : hooks)
-    : resolve(realpathSync(dir), hooks);
+  // A hooks folder that is a symlink counts as where it points.
+  const lexical = isAbsolute(hooks) ? resolve(hooks) : resolve(realpathSync(dir), hooks);
+  const hooksDir = existsSync(lexical) ? realpathSync(lexical) : lexical;
   // A core.hooksPath outside the repository is shared with other projects;
   // writing there would change them too.
   if (!roots.some((root) => hooksDir === root || hooksDir.startsWith(root + sep))) {
@@ -296,7 +298,7 @@ export function runInit(argv: readonly string[], version: string, cwd: string = 
     } else if (arg.startsWith('-')) {
       process.stderr.write(`unknown option: ${arg}\n\n${INIT_HELP}`);
       return 2;
-    } else dir = join(cwd, arg);
+    } else dir = resolve(cwd, arg);
   }
 
   const manifest = join(dir, 'package.json');

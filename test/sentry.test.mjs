@@ -163,6 +163,79 @@ test('traceLifecycle stream leaves out the hook Sentry 11 ignores', () => {
   assert.equal(Object.keys(sentryRedact({}, { traceLifecycle: 'static' })).length, 5);
 });
 
+test('a kept field is put back only when its value has the right shape', () => {
+  const secret = 'ghp_' + 'f'.repeat(36);
+  for (const preset of ['gdpr', 'strict']) {
+    const out = sentryRedact({ preset }).beforeSend({
+      event_id: 'john.doe@example.com',
+      release: 'john.doe@example.com',
+      environment: `prod ${secret}`,
+      exception: { values: [{
+        type: 'john.doe@example.com',
+        mechanism: { type: 'generic', handled: true, data: { email: 'john.doe@example.com', token: secret, url: `https://x.test/?token=${secret}` } },
+        stacktrace: { frames: [{
+          filename: `https://app.example.com/reset?token=${secret}&email=john.doe@example.com`,
+          abs_path: `https://app.example.com/static/main.js?token=${secret}`,
+          function: 'reset john.doe@example.com',
+        }] },
+      }] },
+      contexts: { trace: { trace_id: ids.trace_id, op: `https://x.test/?token=${secret}`, status: 'failed for john.doe@example.com', links: [{ trace_id: ids.trace_id, span_id: '00f067aa0ba902b7', attributes: { email: 'john.doe@example.com' } }] } },
+      breadcrumbs: [{ category: 'john.doe@example.com', type: `t ${secret}`, message: 'x' }],
+      debug_meta: { images: [{ type: 'sourcemap', debug_id: ids.debug_id, code_file: `https://app.example.com/reset?token=${secret}` }] },
+    });
+    const text = JSON.stringify(out);
+    assert.ok(!text.includes('john.doe@example.com'), `${preset}: an email survived`);
+    assert.ok(!text.includes('f'.repeat(36)), `${preset}: a token survived`);
+    assert.equal(out.exception.values[0].mechanism.type, 'generic');
+    assert.equal(out.exception.values[0].mechanism.handled, true);
+    assert.equal(out.contexts.trace.trace_id, ids.trace_id);
+    assert.equal(out.contexts.trace.links[0].span_id, '00f067aa0ba902b7');
+    assert.equal(out.debug_meta.images[0].debug_id, ids.debug_id);
+    assert.ok(out.exception.values[0].stacktrace.frames[0].abs_path.startsWith('https://app.example.com/static/main.js?'), 'the script path is kept, its query redacted');
+  }
+});
+
+test('cookies are masked whatever the options and whatever their type', () => {
+  const event = () => ({
+    request: {
+      cookies: { session: 's3cr3tSessionValue123', prefs: { sid2: 'abc123sessionvalue' }, n: 42 },
+      headers: { Cookie: 'sid=s3cr3t', 'Set-Cookie': ['a=s3cr3t1; HttpOnly', 'b=s3cr3t2'], Accept: 'text/html' },
+    },
+    contexts: { response: { cookies: { sid: 's3cr3tResponse' }, headers: { 'Set-Cookie': 'sid=s3cr3tResponse; Path=/' }, status_code: 200 } },
+  });
+  for (const options of [{}, { redactKeys: false }, { redactKeys: ['password'] }, { only: ['email'] }, { preset: 'gdpr' }]) {
+    const out = sentryRedact(options).beforeSend(event());
+    const text = JSON.stringify(out);
+    assert.doesNotMatch(text, /s3cr3t|abc123sessionvalue/, JSON.stringify(options));
+    assert.deepEqual(Object.keys(out.request.cookies), ['session', 'prefs', 'n']);
+    assert.equal(out.request.headers.Accept, 'text/html');
+    assert.equal(out.contexts.response.status_code, 200);
+  }
+});
+
+test('strict leaves what the SDK reads after the hook, and profile ids, alone', () => {
+  const dsc = { trace_id: ids.trace_id, public_key: 'abc123def4567890abc123def4567890', replay_id: ids.event_id, release: ids.release };
+  const out = sentryRedact({ preset: 'strict' }).beforeSend({ event_id: ids.event_id, sdkProcessingMetadata: { dynamicSamplingContext: dsc } });
+  assert.deepEqual(out.sdkProcessingMetadata.dynamicSamplingContext, dsc);
+  const span = sentryRedact({ preset: 'strict' }).beforeSendSpan({ span_id: 'a1b2c3d4e5f60718', attributes: { 'sentry.profile_id': ids.event_id } });
+  assert.equal(span.attributes['sentry.profile_id'], ids.event_id);
+});
+
+test('a frozen event is redacted without being written to', () => {
+  const frozen = Object.freeze({
+    event_id: ids.event_id,
+    message: 'mail alice@corp.com',
+    request: Object.freeze({ cookies: Object.freeze({ sid: 's3cr3t' }), headers: Object.freeze({ cookie: 'sid=s3cr3t' }) }),
+    exception: Object.freeze({ values: Object.freeze([Object.freeze({ type: 'Error', value: 'alice@corp.com' })]) }),
+  });
+  for (const preset of ['gdpr', 'strict']) {
+    const out = sentryRedact({ preset }).beforeSend(frozen);
+    assert.equal(out.event_id, ids.event_id);
+    assert.doesNotMatch(JSON.stringify(out), /alice@corp\.com|s3cr3t/);
+  }
+  assert.equal(frozen.message, 'mail alice@corp.com');
+});
+
 test('the caller event is never mutated', () => {
   const input = event();
   const before = JSON.stringify(input);

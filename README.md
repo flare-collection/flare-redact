@@ -930,11 +930,12 @@ Sentry.init({ dsn: process.env.SENTRY_DSN, ...sentryRedact({ preset: 'gdpr' }) }
 
 Messages, exception values, stack-frame variables and source lines, request
 data, user fields, span names and log messages are redacted; cookies are masked
-whole. Sentry's own fields (event, trace, span and debug ids, release,
-timestamps, the file and function of each stack frame) are kept exactly, so
-events still group, link to their traces and resolve source maps even with
-`preset: 'strict'`. They are recognised by where they sit in the event, so a
-field of yours that happens to be called `release` or `sid` is still redacted.
+whole, whatever the options. Sentry's own fields (event, trace, span and debug
+ids, release, timestamps, the file and function of each stack frame) are kept
+exactly, so events still group, link to their traces and resolve source maps
+even with `preset: 'strict'`. A field is kept only where Sentry puts it and only
+when its value looks like what belongs there, so a field of yours that happens
+to be called `release`, or an email in an exception type, is still redacted.
 Already have a `beforeSend`? Call `hooks.beforeSend(event)` from it.
 
 Sentry 11 streams spans and warns about a `beforeSendTransaction` hook it no
@@ -1014,11 +1015,15 @@ its line in the staged file. Skip the check once with `git commit --no-verify`.
 
 A scan leaves out assignments whose value is code rather than a secret:
 `token = process.env.TOKEN`, `password: string`, `api_key = os.getenv("KEY")`,
-`secret = ${SECRET}`. A quoted string, and anything that could be a literal
-(`password=$ecret123`, a password hash), is still reported, and
-`--no-code-filter` reports everything. This applies to `--scan` and `--staged`
-only: `redact()` keeps masking every such assignment, because hiding too much
-in a log is safe and missing a secret is not.
+`secret = ${SECRET}`. It reads the whole line to decide, and reports whenever
+the line also holds a string that could be the secret:
+`process.env.PASSWORD || "hunter2"`, `os.environ.get("KEY", "default-value")`,
+`password: string = "hunter2"`. A quoted value, a `.env` or YAML style
+`DB_PASSWORD=value`, a password hash and `password=$ecret123` are always
+reported. It is a heuristic, tuned to report when unsure; `--no-code-filter`
+turns it off. It applies to `--scan` and `--staged` only: `redact()` keeps
+masking every such assignment, because hiding too much in a log is safe and
+missing a secret is not.
 
 In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
 hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
@@ -1231,7 +1236,7 @@ openVault(envelope, password): Promise<Array<[placeholder, original]>>
 pinoRedact(opts?)        // 'flare-redact/pino'    → { formatters: { log } }
 winstonRedact(opts?)     // 'flare-redact/winston' → a format transform
 sentryRedact(opts?)      // 'flare-redact/sentry'  → { beforeSend, beforeSendTransaction, beforeSendSpan, beforeSendLog, beforeBreadcrumb }
-redactSentryEvent(e, opts?) // 'flare-redact/sentry' → one redacted event, span, log or breadcrumb
+redactSentryEvent(e, opts?) // 'flare-redact/sentry' → one redacted error event or transaction
 // node --import flare-redact/register     → console.* redacted, preset from FLARE_REDACT_PRESET
 redactHttp(req, opts?)   // 'flare-redact/http'    → safe-to-log request snapshot
 redactUrl(url, opts?)    // 'flare-redact/http'    → sanitized absolute/relative URL

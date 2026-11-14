@@ -1,7 +1,7 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { discoverScanFiles, type SkipSummary } from './file-discovery.js';
 import { readStagedChanges } from './staged.js';
-import { codeAwareDetectors } from './code-reference.js';
+import { withoutCodeAssignments } from './code-reference.js';
 import {
   redact,
   summary,
@@ -133,6 +133,9 @@ function parseArgs(argv: string[]): ParsedArgs {
   }
   if (terms.length) opts.terms = terms;
   if (staged && files.length) throw new Error('--staged reads the git index; it takes no file arguments');
+  if (staged && (summaryMode || jsonMode || csvMode || vaultFile || restoreFile)) {
+    throw new Error('--staged only scans; it cannot be combined with --summary, --json, --csv, --vault or --restore');
+  }
   return {
     opts,
     files,
@@ -301,7 +304,11 @@ function runScan(
     // A report is read by a person or stops a commit, so an assignment whose
     // value is code (`token = process.env.TOKEN`) is left out. Redaction never
     // uses this: it keeps masking them.
-    const policy = compilePolicy(codeFilter ? { ...opts, detectors: codeAwareDetectors(opts.detectors ?? DETECTORS) } : opts);
+    const policy = compilePolicy(opts);
+    const unassigned = compilePolicy({ ...opts, disable: [...(opts.disable ?? []), 'generic_assignment'] });
+    const scanText = (text: string): Finding[] => codeFilter
+      ? withoutCodeAssignments(text, policy.scan(text), () => unassigned.scan(text))
+      : policy.scan(text);
     if (staged) {
       const changes = readStagedChanges(process.cwd(), discovery);
       scannedFiles = changes.files;
@@ -309,7 +316,7 @@ function runScan(
       for (const block of changes.blocks) {
         // start/end would be offsets into a fragment of the file, so they are
         // dropped; file, line and column locate the finding exactly.
-        for (const { start: _start, end: _end, ...finding } of policy.scan(block.text)) {
+        for (const { start: _start, end: _end, ...finding } of scanText(block.text)) {
           findings.push({ ...finding, file: block.file, line: block.line + (finding.line ?? 1) - 1 });
         }
       }
@@ -323,7 +330,9 @@ function runScan(
       const raw = file ? readFileSync(file, 'utf8') : readStdin();
       const data = jsonMode ? tryParse(raw, file) : raw;
       if (data === PARSE_ERROR) return 2;
-      for (const finding of policy.scan(data)) findings.push(file ? { ...finding, file } : finding);
+      // Parsed JSON has no lines to read around a finding, so it is not filtered.
+      const found = typeof data === 'string' ? scanText(data) : policy.scan(data);
+      for (const finding of found) findings.push(file ? { ...finding, file } : finding);
     }
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);

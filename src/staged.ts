@@ -22,6 +22,7 @@ export interface AddedBlock {
 export interface StagedSkips {
   excluded: number;
   oversized: number;
+  binary: number;
 }
 
 export interface StagedChanges {
@@ -104,13 +105,13 @@ export function readStagedChanges(
     // Paths come back relative to the top of the work tree, so every later
     // command runs there too, whichever subdirectory the scan started in.
     top = git(cwd, ['rev-parse', '--show-toplevel'], 1024 * 1024).trim();
-    names = git(top, ['diff', '--cached', '--name-status', '-z', '-M', '--diff-filter=ACMR'], 64 * 1024 * 1024);
+    names = git(top, ['diff', '--cached', '--name-status', '-z', '-M', '--diff-filter=ACMRT'], 64 * 1024 * 1024);
   } catch (e) {
     const detail = String((e as { stderr?: unknown }).stderr ?? (e as Error).message).trim();
     throw new Error(`--staged needs a git repository: ${detail}`);
   }
   const excluded = createPathFilter(options);
-  const skipped: StagedSkips = { excluded: 0, oversized: 0 };
+  const skipped: StagedSkips = { excluded: 0, oversized: 0, binary: 0 };
   const files: string[] = [];
   const blocks: AddedBlock[] = [];
   // A diff is roughly the file plus one character per line, so twice the
@@ -126,13 +127,19 @@ export function readStagedChanges(
       // --literal-pathspecs: a file called "*.js" or ":x" is that file, not a pattern.
       // A renamed file is diffed against its old path, so moving a file does
       // not make its whole content look new.
-      diff = git(top, ['--literal-pathspecs', 'diff', '--cached', '-M', '--unified=0', '--no-color', '--no-ext-diff', '--no-textconv', '--', ...(from ? [from] : []), file], maxBuffer);
+      diff = git(top, ['--literal-pathspecs', 'diff', '--cached', '-M', '--unified=0', '--no-color', '--no-ext-diff', '--no-textconv', '--text', '--', ...(from ? [from] : []), file], maxBuffer);
     } catch (e) {
       if ((e as { code?: string }).code === 'ENOBUFS') {
         skipped.oversized++;
         continue;
       }
       throw e;
+    }
+    // --text makes git diff every file, including ones a .gitattributes rule
+    // marks `-diff` or `binary`; real binary content is recognised here instead.
+    if (diff.includes('\0')) {
+      skipped.binary++;
+      continue;
     }
     files.push(file);
     blocks.push(...addedBlocks(file, diff));
