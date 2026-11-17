@@ -374,10 +374,10 @@ else, and it pulls no dependencies of any kind.
   Go      go get github.com/flare-collection/flare-redact/sdk/go
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.9.0#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.9.0" }
+                           tag = "v1.9.1" }
 
 The Python and Rust engines are not on PyPI or crates.io yet, so they install
 from the repository. The commands above are the ones that work today.

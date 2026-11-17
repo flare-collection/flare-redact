@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.9.1 (2026-11-17)
+
+### Documentation
+
+- The README is now a short overview: what it does, a quick start, where it
+  plugs in (logs, LLM prompts, Sentry, commits), how it compares with logger
+  path redaction, Sentry scrubbing, gitleaks and Presidio, and an FAQ.
+- The complete documentation moved, unchanged, to
+  [`docs/guide.md`](docs/guide.md), which also ships in the npm package so
+  coding assistants reading `node_modules` find it.
+- Tests check that every README link lands on a real heading in the guide and
+  that every detector count matches the code.
+
+No code changes.
+
 ## 1.9.0 (2026-11-14)
 
 ### Turn it on without touching the code
