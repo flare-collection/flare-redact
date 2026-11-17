@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { DETECTORS } from '../dist/index.js';
 
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
@@ -30,4 +30,30 @@ test('version and CI badges are live, never typed by hand', () => {
 
 test('the README uses no long dashes', () => {
   assert.doesNotMatch(readme, /[\u2013\u2014]/);
+});
+
+const guide = readFileSync(new URL('../docs/guide.md', import.meta.url), 'utf8');
+/** GitHub's anchor for a heading. */
+const slug = (heading) => heading.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-');
+const anchors = new Set(guide.split('\n').filter((l) => /^#{1,4} /.test(l)).map((l) => slug(l.replace(/^#+ /, ''))));
+
+test('every detector count in the README is the real one', () => {
+  for (const [, n] of readme.matchAll(/(\d+) detectors/g)) assert.equal(Number(n), DETECTORS.length);
+});
+
+test('README links into the guide land on a heading, and its files exist', () => {
+  const links = [...readme.matchAll(/docs\/guide\.md#([a-z0-9-]+)/g)].map((m) => m[1]);
+  assert.ok(links.length > 5);
+  for (const anchor of links) assert.ok(anchors.has(anchor), anchor);
+  for (const [, file] of readme.matchAll(/(?:\]\(|href="|src=")([^)"#:]+?)(?:#[^)"]*)?[)"]/g)) {
+    assert.ok(existsSync(new URL(`../${file}`, import.meta.url)), file);
+  }
+});
+
+test('the guide links resolve and it uses no long dashes', () => {
+  assert.doesNotMatch(guide, /[–—]/);
+  for (const [, file] of guide.matchAll(/(?:\]\(|href="|src=")(\.\.\/[^)"#]+)/g)) {
+    assert.ok(existsSync(new URL(`../docs/${file}`, import.meta.url)), file);
+  }
+  for (const [, anchor] of guide.matchAll(/\]\(#([a-z0-9-]+)\)/g)) assert.ok(anchors.has(anchor), anchor);
 });

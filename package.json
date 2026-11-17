@@ -1,7 +1,7 @@
 {
   "name": "flare-redact",
-  "version": "1.9.0",
-  "description": "Zero-dependency secret and PII redaction for logs, prompts, and agent tools, with FlareFlow information-flow control and a polyglot sidecar.",
+  "version": "1.9.1",
+  "description": "Keep secrets and PII out of logs, Sentry, LLM prompts and commits. Reads values, not field names. Zero dependencies.",
   "type": "module",
   "sideEffects": [
     "./dist/register.js"
@@ -91,6 +91,7 @@
   "files": [
     "dist",
     "bin",
+    "docs/guide.md",
     "spec/SPEC.md",
     "spec/FLAREFLOW.md",
     "spec/detectors.json",

@@ -24,7 +24,8 @@ Key facts for code generation:
 ## Docs
 
 - [Full API reference for LLMs](https://flare-collection.github.io/flare-redact/llms-full.txt): condensed, accurate API surface with options and recipes
-- [README](https://github.com/flare-collection/flare-redact#readme): complete documentation with examples
+- [Guide](https://github.com/flare-collection/flare-redact/blob/main/docs/guide.md): complete documentation with examples
+- [README](https://github.com/flare-collection/flare-redact#readme): overview, quick start and comparison with other tools
 - [CHANGELOG](https://github.com/flare-collection/flare-redact/blob/main/CHANGELOG.md): release history
 - [Live playground](https://flare-collection.github.io/flare-redact/): try redaction in the browser
 - [Agent information-flow guide](https://flare-collection.github.io/flare-redact/guides/agent-information-flow/): source-to-sink capabilities for model-produced tool calls

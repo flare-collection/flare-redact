@@ -101,8 +101,9 @@ test('sitemap contains each canonical search page exactly once', async () => {
 
 test('the playground identifies the current release', async () => {
   const html = await readFile(path.join(docsDir, 'index.html'), 'utf8');
-  assert.match(html, /v1\.9\.0 · runs entirely in your browser/);
-  assert.doesNotMatch(html, /v1\.8\.0/);
+  const { version } = JSON.parse(await readFile(path.join(docsDir, '..', 'package.json'), 'utf8'));
+  assert.ok(html.includes(`v${version} · runs entirely in your browser`), version);
+  assert.equal(html.match(/\bv\d+\.\d+\.\d+ · runs/g)?.length, 1);
 });
 
 test('the playground bundle is built from the code that ships', async () => {
