@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "flare-redact"
-version = "1.9.1"
+version = "1.10.0"
 dependencies = [
  "regex",
  "serde",

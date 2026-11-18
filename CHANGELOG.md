@@ -1,5 +1,103 @@
 # Changelog
 
+## 1.10.0 (2026-11-18)
+
+### Security: restored values keep the structure of JSON (GHSA-4c5j-9f3p-p7mh)
+
+- An original put back into a string that is JSON is now JSON-escaped: tool-call
+  `arguments`, Anthropic `partial_json`, JSON-mode output, and any string that
+  is a JSON object or array passed to `vault.restore()` or `restore()`. Before,
+  a value containing `"` broke the JSON, and a value containing `","key":` could
+  add a field to tool-call arguments or replace an earlier one, since JSON
+  parsers keep the last duplicate key. Text that is not JSON is restored exactly
+  as before.
+- Covered: `wrapOpenAI` and `wrapAnthropic` (buffered and streamed), the tool
+  boundaries, `authorizeForSink`, the CLI's `--restore`, and the gateway. The
+  gateway now restores streamed responses event by event and field by field, so
+  a placeholder split across two events is put back and tool arguments that are
+  JSON inside a JSON event are escaped at both levels. `response.streamEscape:
+  'none'` keeps the old byte-level behaviour.
+- OpenAI `json_object`/`json_schema` and Anthropic `output_config.format`
+  requests have their streamed text restored escaped too.
+- The Python, Go and Rust engines follow the same rule, described in FRS-1
+  section 11 and checked by new conformance cases. Python's `wrap_openai` and
+  `wrap_anthropic` now restore streamed tool arguments (they were left as
+  placeholders) and no longer drop text held back at the end of a field. Go and
+  Rust add a JSON stream restorer (`StreamJSON`, `stream_json`) for callers that
+  restore tool arguments themselves.
+- Known limits: JSON carried as a string inside tool arguments gets one level of
+  escaping, and the deprecated streaming `function_call` is not restored.
+
+### Security: url_credentials in linear time (GHSA-x2x8-c4pf-r947)
+
+- The URL scheme in `url_credentials` is limited to 64 characters. Unbounded, a
+  long run of scheme characters such as `a-b.a-b.…` made matching take time
+  quadratic in its length: about 7 s for 80 kB through the default `redact()`,
+  and the same in the Python engine. 1 MB now takes about 130 ms.
+- The scheme may contain `_`, so passwords in SQLAlchemy URLs such as
+  `oracle+cx_oracle://scott:tiger@db` and `redshift+redshift_connector://…`
+  are masked. They were not masked before.
+- Ships in the FRS-1 pack, which moves to version 1.10.0, with new conformance
+  cases and a new case in `npm run benchmark:adversarial`.
+
+### Vercel AI SDK
+
+- Add `flare-redact/ai-sdk`. `wrapLanguageModel({ model, middleware:
+  flareRedactMiddleware() })` keeps secrets and personal data out of prompts for
+  every provider the AI SDK supports (OpenAI, Anthropic, Google, Bedrock,
+  Mistral, Groq and the rest). System, user and assistant text, reasoning,
+  tool-call inputs and tool results become placeholders before the call; text,
+  reasoning, tool calls and structured output are restored after it, streamed or
+  not, including placeholders split across chunks. Files and images pass through
+  unchanged.
+- It takes the same options as `wrapOpenAI`, plus `session` to keep placeholders
+  stable across calls, and works with AI SDK 5, 6 and 7 without depending on
+  `ai`. `flare-redact init` recognises the `ai` package and prints the line.
+
+### 39 more detectors (90 to 129)
+
+- 25 service tokens, on by default: `aws_bedrock_key`, `langsmith_key`,
+  `pinecone_key`, `tavily_key`, `pypi_token`, `rubygems_key`,
+  `dockerhub_token`, `jfrog_token`, `google_oauth_secret`,
+  `alibaba_access_key`, `heroku_api_key`, `flyio_token`,
+  `terraform_cloud_token`, `pulumi_token`, `planetscale_token`,
+  `onepassword_token`, `age_secret_key`, `sentry_auth_token`, `grafana_token`,
+  `dynatrace_token`, `atlassian_token`, `slack_webhook`, `mailchimp_key`,
+  `brevo_key` and `resend_key`.
+- `gitlab_token` catches GitLab 17's longer personal access tokens and the
+  deploy, runner, trigger, CI job and other GitLab token types.
+  `digitalocean_token` catches OAuth (`doo_v1_`) and refresh (`dor_v1_`) tokens.
+- 14 national IDs, off by default and reached through `enable` or the `llm`,
+  `gdpr` and `strict` presets, each validated by its check digit and, where the
+  number carries one, its birth date: `ro_cnp`, `se_personnummer`, `fi_hetu`,
+  `no_fodselsnummer`, `be_national_number`, `pt_nif`, `za_id`, `mx_curp`,
+  `cl_rut`, `ar_cuit`, `sg_nric`, `il_teudat_zehut`, `gr_amka` and `uk_nino`
+  (prefix and suffix rules; it has no check digit). With `za` or `ro` enabled, a
+  South African ID or Romanian CNP is masked whole instead of as a card number.
+- Every detector ships in all four engines through the FRS-1 pack, with match
+  and near-miss tests and hostile-input cases in the adversarial benchmark.
+
+### Where people already look
+
+- Add `.pre-commit-hooks.yaml`: `id: flare-redact` stops a commit for the lines
+  it adds, and `id: flare-redact-files` scans whole files for
+  `pre-commit run --all-files` and pre-commit.ci. The package now builds in
+  `prepack`, so installing it from a git checkout works.
+- Add a GitHub Action: `uses: flare-collection/flare-redact@v1` scans the
+  checkout, annotates each finding on the pull request, writes a job summary,
+  can upload SARIF to code scanning, and never prints a value. Each release
+  moves the `v1` tag.
+- The Python and Rust engines are published to PyPI and crates.io from this
+  release on, and the Go module gets `sdk/go/vX.Y.Z` tags so `go get` sees real
+  versions. Both packages now include the licence file.
+
+### Platforms
+
+- CI runs the whole suite on Windows and macOS. `--scan` reports file paths with
+  forward slashes on every platform; on Windows they used backslashes, which also
+  made SARIF URIs invalid there.
+- The Python engine requires 3.9 or newer, the oldest version CI tests.
+
 ## 1.9.1 (2026-11-17)
 
 ### Documentation
