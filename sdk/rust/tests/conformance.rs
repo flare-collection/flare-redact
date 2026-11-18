@@ -182,6 +182,10 @@ fn run_case(case: &Value) -> Value {
         vault_result.insert("redacted".into(), redacted);
         vault_result.insert("restored".into(), restored);
         vault_result.insert("entries".into(), Value::Array(entries));
+        // A reply that uses the placeholders, as a model would send it back.
+        if let Some(reply) = case.get("vault").and_then(|settings| settings.get("reply")) {
+            vault_result.insert("reply".into(), vault.restore(reply));
+        }
         result.insert("vault".into(), Value::Object(vault_result));
     }
 

@@ -70,7 +70,9 @@ pub use keywords::secret_keywords;
 pub use pack::{core_pack, load_pack, Detector, Pack, Risk, CORE_PACK_JSON, SPEC_REVISION};
 pub use transforms::{pseudonymize, surrogate};
 pub use value::Summary;
-pub use vault::{PlaceholderStyle, Restorer, Session, StreamRestorer, Vault};
+pub use vault::{
+    escape_entries_for_json, is_json_document, PlaceholderStyle, Restorer, Session, StreamRestorer, Vault,
+};
 
 /// Everything that can go wrong. Each variant names a decision the caller can
 /// act on, rather than collapsing into a single opaque string.

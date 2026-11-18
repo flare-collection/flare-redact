@@ -64,6 +64,9 @@ def run_case(case: Mapping[str, Any]) -> Dict[str, Any]:
             "restored": vault.restore(redacted),
             "entries": [list(pair) for pair in vault.entries()],
         }
+        # A reply that uses the placeholders, as a model would send it back.
+        if "reply" in settings:
+            result["vault"]["reply"] = vault.restore(settings["reply"])
     return result
 
 

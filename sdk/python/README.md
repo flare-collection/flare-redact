@@ -112,6 +112,11 @@ for chunk in model_stream:
 print(restorer.flush(), end="")
 ```
 
+When the streamed text is JSON, such as tool-call arguments, use
+`session.stream(json=True)`: the originals go in JSON-escaped, so the arguments
+stay valid JSON with the same structure. `restore()` does this on its own for any
+string that is a JSON object or array.
+
 ## Wrap the client you already use
 
 ```python
@@ -129,7 +134,9 @@ client.chat.completions.create(
 Prompts are redacted on the way out and replies restored on the way back. The
 wrapper is duck-typed and never imports the vendor SDK, so it keeps working
 across client versions and adds nothing to your dependency tree. Wrapping the
-same client twice is a no-op. `wrap_anthropic` works the same way.
+same client twice is a no-op. `wrap_anthropic` works the same way. Tool-call
+arguments, partial tool input and JSON-mode output are restored JSON-escaped,
+streamed or not, so they still parse.
 
 ## One policy, reused
 

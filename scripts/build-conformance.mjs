@@ -43,6 +43,8 @@ function runCase(testCase) {
     const vault = createVault({ ...options, placeholderStyle: testCase.vault?.placeholderStyle ?? 'opaque' });
     const redacted = vault.redact(testCase.input);
     result.vault = { redacted, restored: vault.restore(redacted), entries: vault.entries() };
+    // A reply that uses the placeholders, as a model would send it back.
+    if (testCase.vault && 'reply' in testCase.vault) result.vault.reply = vault.restore(testCase.vault.reply);
   }
   return result;
 }
