@@ -77,6 +77,15 @@ import { wrapAnthropic } from 'flare-redact/llm';
 const anthropic = wrapAnthropic(new Anthropic(), { preset: '${LLM}' });`,
   },
   {
+    deps: ['ai'],
+    title: 'Vercel AI SDK: prompts to every provider are redacted before they leave, replies are restored',
+    code: () => `import { wrapLanguageModel } from 'ai';
+import { flareRedactMiddleware } from 'flare-redact/ai-sdk';
+
+// baseModel is any AI SDK model: openai('...'), anthropic('...'), google('...'), ...
+const model = wrapLanguageModel({ model: baseModel, middleware: flareRedactMiddleware({ preset: '${LLM}' }) });`,
+  },
+  {
     deps: SENTRY_SDKS,
     title: 'Sentry: events, breadcrumbs, spans and logs are redacted before they are sent',
     // Sentry 11 streams spans and warns about a beforeSendTransaction hook.
@@ -227,9 +236,9 @@ USAGE
   flare-redact init [dir] [--ci] [--hook] [--force]
 
 Reads package.json in dir (default: the current directory) and prints the lines
-to paste for each library it recognises: openai, @anthropic-ai/sdk, Sentry,
-pino, winston and express, with console as the fallback. It never edits source
-files.
+to paste for each library it recognises: openai, @anthropic-ai/sdk, the
+Vercel AI SDK (ai), Sentry, pino, winston and express, with console as the
+fallback. It never edits source files.
 
   --ci      also write ${WORKFLOW_PATH.split('\\').join('/')}, which runs
             'flare-redact --scan' on every pull request

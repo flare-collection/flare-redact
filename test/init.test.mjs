@@ -29,16 +29,26 @@ test('it suggests a step for each library it recognises', () => {
 });
 
 test('every import it prints exists in the package', async () => {
-  const plan = planInit({ dependencies: { openai: '1', '@anthropic-ai/sdk': '1', '@sentry/node': '1', pino: '1', winston: '1', express: '1' } });
+  const plan = planInit({ dependencies: { openai: '1', '@anthropic-ai/sdk': '1', ai: '1', '@sentry/node': '1', pino: '1', winston: '1', express: '1' } });
   const text = renderInit(plan, 'package.json') + planInit(undefined).steps[0].code;
-  const imports = [...text.matchAll(/import \{ (\w+) \} from '(flare-redact(?:\/[a-z]+)?)'/g)];
-  assert.ok(imports.length >= 7);
+  const imports = [...text.matchAll(/import \{ (\w+) \} from '(flare-redact(?:\/[a-z-]+)?)'/g)];
+  assert.ok(imports.length >= 8);
   for (const [, name, specifier] of imports) {
     const file = specifier === 'flare-redact' ? 'index' : specifier.split('/')[1];
     const mod = await import(`../dist/${file}.js`);
     assert.equal(typeof mod[name], 'function', `${specifier} exports ${name}`);
   }
   for (const preset of text.matchAll(/preset: '(\w+)'/g)) assert.match(preset[1], /^(logs|llm|gdpr|strict)$/);
+});
+
+test('the Vercel AI SDK gets the middleware step', () => {
+  const plan = planInit({ dependencies: { ai: '^7.0.0', '@ai-sdk/openai': '^3.0.0' } });
+  assert.deepEqual(plan.found, ['ai']);
+  const [step] = plan.steps;
+  assert.match(step.code, /import \{ wrapLanguageModel \} from 'ai';/);
+  assert.match(step.code, /import \{ flareRedactMiddleware \} from 'flare-redact\/ai-sdk';/);
+  assert.match(step.code, /middleware: flareRedactMiddleware\(\{ preset: 'llm' \}\)/);
+  assert.deepEqual(planInit({ dependencies: { '@ai-sdk/openai': '^3.0.0' } }).found, [], 'a provider package alone is not the SDK');
 });
 
 test('any Sentry SDK gets the Sentry step, importing that SDK', () => {

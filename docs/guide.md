@@ -53,7 +53,7 @@ projects are not forced across the major version; upgrade explicitly with
 ### Set up in one command
 
 ```bash
-npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, Sentry, pino, winston, express
+npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, ai, Sentry, pino, winston, express
 npx flare-redact init --hook   # also stops any commit that adds a secret
 npx flare-redact init --ci     # also writes .github/workflows/flare-redact.yml
 ```
@@ -145,6 +145,7 @@ Clone the repository and run these small applications locally:
 | Example | What it proves | Run |
 |---|---|---|
 | [`openai-privacy`](../examples/openai-privacy) | The model sees an opaque placeholder while the app receives the restored value | `npm --prefix examples/openai-privacy start` |
+| [`ai-sdk`](../examples/ai-sdk) | The Vercel AI SDK middleware redacts prompts and tool results, and restores text, streams and tool calls | `npm --prefix examples/ai-sdk start` |
 | [`express-pino`](../examples/express-pino) | Express keeps the original request while Pino receives a safe snapshot | `npm --prefix examples/express-pino run smoke` |
 | [`universal-boundaries`](../examples/universal-boundaries) | Any SDK method is sanitized and cross-tool placeholder exfiltration is blocked | `npm --prefix examples/universal-boundaries start` |
 | [`flareflow-agent`](../examples/flareflow-agent) | An injected model can carry an opaque secret token but cannot restore it at an unauthorized sink or path | `npm --prefix examples/flareflow-agent start` |
@@ -376,6 +377,61 @@ even when a placeholder is split across chunks. Inside tool arguments, partial
 JSON and JSON-mode output (`response_format`), restored values are JSON-escaped,
 so the JSON still parses and keeps its structure. There's a `redactPrompt(text)`
 too if you'd rather hold the vault yourself.
+
+### Every provider through the Vercel AI SDK
+
+On the [Vercel AI SDK](https://ai-sdk.dev), one middleware covers every
+provider it supports:
+
+```js
+import { generateText, wrapLanguageModel } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { flareRedactMiddleware } from 'flare-redact/ai-sdk';
+
+const model = wrapLanguageModel({
+  model: openai('gpt-4o'),
+  middleware: flareRedactMiddleware({ preset: 'llm' }),
+});
+
+const { text } = await generateText({ model, prompt: 'Email the invoice to alice@corp.com' });
+```
+
+Swap `openai(...)` for `anthropic(...)`, `google(...)`, `bedrock(...)`,
+`mistral(...)` or any other AI SDK provider; the middleware stays the same. It
+works with AI SDK 5, 6 and 7, with `generateText`, `streamText`, structured
+output and multi-step tool loops, and takes the same options as `wrapOpenAI`.
+
+On each model call:
+
+- System, user and assistant text, reasoning, tool-call inputs and tool results
+  are redacted to opaque placeholders before the provider sees them. Roles,
+  tool names and ids, and `providerOptions` (cache control, for example) are
+  left alone.
+- Text, reasoning and tool calls in the result are restored, streamed or not,
+  including placeholders split across chunks. A value restored inside JSON (a
+  tool call's input, structured output) is escaped, so the JSON still parses.
+- File and image parts pass through unchanged. If a document may hold personal
+  data, redact its text before you attach it.
+- Raw provider chunks and the `request` and `response` bodies are left as they
+  were: they record what actually crossed the wire.
+
+Each call gets its own vault, as with `wrapOpenAI`. Pass a session to keep one
+vault for a whole conversation, so a value keeps the same placeholder in every
+step and turn. The redacted history then stays identical from one call to the
+next, which keeps provider prompt caching working:
+
+```js
+import { createSession } from 'flare-redact/session';
+
+const middleware = flareRedactMiddleware({ session: createSession({ preset: 'llm' }) });
+```
+
+Like `wrapOpenAI`, the middleware restores any placeholder from the call into
+any tool call before the AI SDK runs your tools. It does not stop a
+prompt-injected model from moving a value from one tool to another; when tools
+sit in different trust domains, use the scoped boundaries in
+[Protect tool calls and MCP loops](#protect-tool-calls-and-mcp-loops) or
+[FlareFlow](#enforce-information-flow-across-agent-tools).
 
 ## Ways to hide a value
 
@@ -1262,6 +1318,10 @@ extractFeatures(value, context?): number[]      // the raw feature vector
 wrapOpenAI(client, opts?)                       // scrub prompts, restore replies (+streaming)
 wrapAnthropic(client, opts?)                    // same for messages.create + system
 redactPrompt(text, opts?): { text, vault }
+
+// from 'flare-redact/ai-sdk'
+flareRedactMiddleware(opts?)                    // Vercel AI SDK: wrapLanguageModel({ model, middleware })
+                                                // opts.session keeps one vault across calls
 
 // from 'flare-redact/tool'
 createScopedToolBoundary(opts?)                // scope-safe model ↔ tool/MCP boundary

@@ -54,7 +54,8 @@ redact({ user: 'bob@corp.com', password: 'hunter2', note: 'my key is AKIAIOSFODN
   wherever a checksum exists.
 - ⚡ **No code change needed.** `node --import flare-redact/register app.js`
   redacts every `console.*` call.
-- 🤖 **Private LLM calls.** Wrap the OpenAI or Anthropic client: the model sees
+- 🤖 **Private LLM calls.** Wrap the OpenAI or Anthropic client, or add one
+  middleware to the Vercel AI SDK for every provider: the model sees
   placeholders, your app gets the real values back, streaming included.
 - 🔌 **Fits what you already run.** pino, winston, Sentry, Express, `fetch`,
   streams, and any SDK through one middleware.
@@ -83,7 +84,7 @@ Then pick the way that suits you:
 node --import flare-redact/register app.js
 
 # Let it read your package.json and print the lines to paste
-npx flare-redact init          # openai, @anthropic-ai/sdk, Sentry, pino, winston, express
+npx flare-redact init          # openai, @anthropic-ai/sdk, ai, Sentry, pino, winston, express
 npx flare-redact init --hook   # also stop any commit that adds a secret
 npx flare-redact init --ci     # also scan every pull request
 ```
@@ -122,8 +123,11 @@ the model sees  →  Email the invoice to [FR_EMAIL_7f2a…], card [FR_CREDIT_CA
 your app gets   →  Sent to alice@corp.com. Card 4242 4242 4242 4242 wasn't stored.
 ```
 
-`wrapAnthropic` does the same for Claude. Tool calls, MCP messages and agent
-tool boundaries are covered too: see [the guide](docs/guide.md#redact-prompts-before-they-reach-an-llm).
+`wrapAnthropic` does the same for Claude. On the Vercel AI SDK, one middleware
+covers every provider: `wrapLanguageModel({ model, middleware: flareRedactMiddleware() })`
+from `flare-redact/ai-sdk` ([details](docs/guide.md#every-provider-through-the-vercel-ai-sdk)).
+Tool calls, MCP messages and agent tool boundaries are covered too: see
+[the guide](docs/guide.md#redact-prompts-before-they-reach-an-llm).
 
 ### Sentry
 
@@ -178,7 +182,8 @@ Start the app with `node --import flare-redact/register app.js`, or add
 `pinoRedact()` or `winstonRedact()` to your logger. Nothing else to configure.
 
 **How do I keep customer data out of OpenAI or Claude API calls?**
-Wrap the client with `wrapOpenAI` or `wrapAnthropic`. Sensitive values become
+Wrap the client with `wrapOpenAI` or `wrapAnthropic`, or on the Vercel AI SDK
+add `flareRedactMiddleware()` to the model. Sensitive values become
 placeholders before the request is sent and are restored in the reply.
 
 **Will it slow my app down?**

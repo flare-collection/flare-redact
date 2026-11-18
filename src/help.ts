@@ -349,6 +349,7 @@ Adapters live behind subpath imports, so you pay for what you import:
                            redacted with no code change (FLARE_REDACT_PRESET)
   flare-redact/http        flare-redact/fetch        HTTP layers
   flare-redact/llm         flare-redact/session      prompts and conversations
+  flare-redact/ai-sdk      one middleware for every Vercel AI SDK provider
   flare-redact/tool        MCP and multi-tool agent boundaries
   flare-redact/agent       provenance, path and budget enforcement for agents
   flare-redact/stream      flare-redact/csv          streams and tabular data
