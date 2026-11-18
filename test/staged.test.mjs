@@ -187,7 +187,8 @@ test('init --hook installs a hook that stops a commit adding a secret', () => {
     assert.match(install.stdout, /Wrote \.git[\\/]hooks[\\/]pre-commit/);
     const hook = join(dir, '.git', 'hooks', 'pre-commit');
     assert.equal(readFileSync(hook, 'utf8'), preCommitHook(version));
-    assert.ok(statSync(hook).mode & 0o100, 'the hook is executable');
+    // Windows has no executable bit, and Git for Windows runs a hook without one.
+    if (!windows) assert.ok(statSync(hook).mode & 0o100, 'the hook is executable');
 
     writeFileSync(join(dir, 'config.js'), `export const token = '${token('d')}';\n`);
     git(dir, 'add', 'config.js');
