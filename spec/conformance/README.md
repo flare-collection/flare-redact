@@ -53,6 +53,10 @@ gets turned off.
 - **No astral-plane characters.** Offsets are reported in the host language's
   natural string unit: UTF-16 code units in JavaScript, scalar values elsewhere.
   These coincide for everything below U+10000, and the corpus stays there.
+- **No complete credential in the raw file.** A case that holds a whole token
+  writes one character of its prefix as a `\uXXXX` escape (`glpat\u002d…`).
+  Every JSON parser reads the plain character, so the engines see the real
+  token, while secret scanners and push protection do not flag the fixture.
 - **No wall-clock or randomness.** Vault cases use readable placeholders; keyed
   transforms use a fixed `transformSecret`.
 - **Confidence is compared at six decimal places**, which is finer than any

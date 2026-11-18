@@ -1044,7 +1044,7 @@ On by default:
 | `aws_access_key` | AWS access key IDs (`AKIA…`, `ASIA…`) |
 | `aws_secret_key` | AWS secret access keys in assignments (`aws_secret_access_key=…`, `"secretAccessKey": …`) |
 | `github_token` | GitHub PATs and OAuth tokens (`ghp_…`, `github_pat_…`) |
-| `gitlab_token` | GitLab PATs (`glpat-…`) |
+| `gitlab_token` | GitLab access, deploy, runner, pipeline trigger and CI job tokens (`glpat-…`, `gldt-…`, `glrt-…`), including routable tokens |
 | `slack_token` | Slack tokens (`xoxb-…`) |
 | `stripe_key` | Stripe secret / restricted keys (`sk_live_…`, `rk_…`) |
 | `anthropic_key` | Anthropic API keys (`sk-ant-…`) |
@@ -1063,12 +1063,17 @@ On by default:
 | `credit_card` | card numbers (Luhn-validated) |
 | `iban` | IBANs (mod-97 validated) |
 | `openrouter_key` / `huggingface_token` / `groq_key` / `xai_key` / `perplexity_key` / `replicate_token` | more AI provider keys |
-| `discord_bot_token` / `discord_webhook` / `telegram_bot_token` | chat tokens and webhook URLs |
+| `aws_bedrock_key` / `langsmith_key` / `pinecone_key` / `tavily_key` | AI platform keys: Amazon Bedrock (`ABSK…`), LangSmith (`lsv2_…`), Pinecone (`pcsk_…`), Tavily (`tvly-…`) |
+| `discord_bot_token` / `discord_webhook` / `telegram_bot_token` / `slack_webhook` | chat tokens and webhook URLs |
 | `shopify_token` / `square_token` / `stripe_webhook_secret` | commerce secrets |
 | `digitalocean_token` / `azure_storage_key` / `vault_token` / `databricks_token` | cloud & infra secrets |
-| `sentry_dsn` / `new_relic_key` | observability secrets |
-| `airtable_pat` / `postman_key` / `linear_key` / `figma_token` / `notion_token` | SaaS workspace tokens |
+| `alibaba_access_key` / `google_oauth_secret` / `heroku_api_key` / `flyio_token` / `terraform_cloud_token` / `pulumi_token` / `planetscale_token` | more cloud, deploy and database credentials |
+| `pypi_token` / `rubygems_key` / `dockerhub_token` / `jfrog_token` | package and image registry tokens that can publish releases |
+| `onepassword_token` / `age_secret_key` | keys that unlock other secrets: 1Password service accounts (`ops_…`), age identities |
+| `sentry_dsn` / `sentry_auth_token` / `new_relic_key` / `grafana_token` / `dynatrace_token` | observability secrets |
+| `airtable_pat` / `postman_key` / `linear_key` / `figma_token` / `notion_token` / `atlassian_token` | SaaS workspace tokens |
 | `doppler_token` / `supabase_key` / `netlify_token` / `mailgun_key` | platform API keys |
+| `mailchimp_key` / `brevo_key` / `resend_key` | email and marketing API keys |
 
 Opt in with `enable`:
 
