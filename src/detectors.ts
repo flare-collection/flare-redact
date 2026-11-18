@@ -174,9 +174,13 @@ export const DETECTORS: Detector[] = [
   {
     id: 'gitlab_token',
     label: 'GitLab token',
-    why: 'A GitLab personal access token grants API and repo access.',
-    pattern: /\bglpat-[A-Za-z0-9_-]{20}\b/g,
-    mask: keepPrefix(6),
+    why: 'GitLab access, deploy, runner and pipeline tokens grant API, repository and CI access.',
+    // Routable tokens (GitLab 17+) are tried first. The portable engines check the
+    // boundary after matching and keep the first alternative that matched, and the
+    // legacy 20-character form matches the start of every routable token.
+    pattern:
+      /\b(?:gl(?:pat|rt)-[A-Za-z0-9_-]{27,300}\.[0-9a-z]{9}|glpat-[A-Za-z0-9_-]{20}|gl(?:dt|rt|ft|soat|ffct)-[A-Za-z0-9_-]{20}|glimt-[A-Za-z0-9_-]{25}|glagent-[A-Za-z0-9_-]{50}|gloas-[A-Za-z0-9_-]{64}|glptt-[a-f0-9]{40}|glcbt-[A-Za-z0-9]{1,5}_[A-Za-z0-9_-]{20})(?![A-Za-z0-9_-])/g,
+    mask: (v) => v.slice(0, v.indexOf('-') + 1) + '***',
     default: true,
   },
   {
@@ -271,7 +275,7 @@ export const DETECTORS: Detector[] = [
     id: 'url_credentials',
     label: 'Credentials in URL',
     why: 'A username:password baked into a connection string leaks the password.',
-    pattern: /\b[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@\s/]+:[^@\s/]+@/g,
+    pattern: /\b[a-zA-Z][a-zA-Z0-9_+.-]{0,63}:\/\/[^:@\s/]+:[^@\s/]+@/g,
     mask: (m) => m.replace(/:([^:@\s/]+)@$/, ':***@'),
     default: true,
   },

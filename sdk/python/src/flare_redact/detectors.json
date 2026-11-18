@@ -125,15 +125,16 @@
     {
       "id": "gitlab_token",
       "label": "GitLab token",
-      "why": "A GitLab personal access token grants API and repo access.",
-      "pattern": "glpat-[A-Za-z0-9_-]{20}",
+      "why": "GitLab access, deploy, runner and pipeline tokens grant API, repository and CI access.",
+      "pattern": "(?:gl(?:pat|rt)-[A-Za-z0-9_-]{27,300}\\.[0-9a-z]{9}|glpat-[A-Za-z0-9_-]{20}|gl(?:dt|rt|ft|soat|ffct)-[A-Za-z0-9_-]{20}|glimt-[A-Za-z0-9_-]{25}|glagent-[A-Za-z0-9_-]{50}|gloas-[A-Za-z0-9_-]{64}|glptt-[a-f0-9]{40}|glcbt-[A-Za-z0-9]{1,5}_[A-Za-z0-9_-]{20})",
       "boundary": {
         "before": "word",
         "after": "word_dash"
       },
       "mask": {
-        "type": "keepPrefix",
-        "n": 6
+        "type": "keepThroughSeparator",
+        "separator": "-",
+        "count": 1
       },
       "default": true,
       "risk": "critical",
@@ -341,7 +342,7 @@
       "id": "url_credentials",
       "label": "Credentials in URL",
       "why": "A username:password baked into a connection string leaks the password.",
-      "pattern": "[a-zA-Z][a-zA-Z0-9+.-]*://[^:@ \\t\\n\\x0B\\f\\r/]+:[^@ \\t\\n\\x0B\\f\\r/]+@",
+      "pattern": "[a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]+:[^@ \\t\\n\\x0B\\f\\r/]+@",
       "boundary": {
         "before": "word"
       },
@@ -350,7 +351,7 @@
       ],
       "mask": {
         "type": "replace",
-        "pattern": "([a-zA-Z][a-zA-Z0-9+.-]*://[^:@ \\t\\n\\x0B\\f\\r/]+:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
+        "pattern": "([a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]+:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
         "replacement": "$1***$2"
       },
       "default": true,
@@ -1427,7 +1428,7 @@
       "id": "digitalocean_token",
       "label": "DigitalOcean token",
       "why": "Controls DigitalOcean infrastructure and billing.",
-      "pattern": "dop_v1_[a-f0-9]{64}",
+      "pattern": "do[opr]_v1_[a-f0-9]{64}",
       "boundary": {
         "before": "word",
         "after": "word"
@@ -2005,6 +2006,519 @@
       "mask": {
         "type": "keepPrefix",
         "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "slack_webhook",
+      "label": "Slack webhook URL",
+      "why": "Anyone with the URL can post messages to the channel.",
+      "pattern": "https://hooks\\.slack\\.com/(?:services|workflows|triggers)/T[A-Za-z0-9]{8,12}/[A-Za-z0-9/]{20,100}",
+      "boundary": {
+        "before": "word",
+        "after": "base64"
+      },
+      "prefilter": [
+        "hooks.slack.com/"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED SLACK WEBHOOK]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "google_oauth_secret",
+      "label": "Google OAuth client secret",
+      "why": "With the client ID, it lets anyone act as your OAuth app and trade codes for user tokens.",
+      "pattern": "GOCSPX-[A-Za-z0-9_-]{28}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 7
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "aws_bedrock_key",
+      "label": "Amazon Bedrock API key",
+      "why": "Bills model inference to your AWS account through Amazon Bedrock.",
+      "pattern": "ABSK[A-Za-z0-9+/]{109,269}={0,2}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "langsmith_key",
+      "label": "LangSmith API key",
+      "why": "Reads and writes the traces, prompts and datasets in your LangSmith workspace.",
+      "pattern": "lsv2_(?:pt|sk)_[a-f0-9]{32}_[a-f0-9]{10}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 8
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "pinecone_key",
+      "label": "Pinecone API key",
+      "why": "Reads, writes and deletes the vectors in your Pinecone indexes.",
+      "pattern": "pcsk_[A-Za-z0-9]{5,6}_[A-Za-z0-9]{60,70}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "tavily_key",
+      "label": "Tavily API key",
+      "why": "Bills web searches to your Tavily account.",
+      "pattern": "tvly-(?:dev-|prod-)?[A-Za-z0-9]{24,48}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "pypi_token",
+      "label": "PyPI API token",
+      "why": "Uploads new releases of your packages to PyPI.",
+      "pattern": "pypi-AgE(?:IcHlwaS5vcmc|NdGVzdC5weXBpLm9yZw)[A-Za-z0-9_-]{50,1000}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "rubygems_key",
+      "label": "RubyGems API key",
+      "why": "Pushes and yanks versions of your gems.",
+      "pattern": "rubygems_[a-f0-9]{48}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 9
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "dockerhub_token",
+      "label": "Docker Hub access token",
+      "why": "Pushes and pulls images as your Docker Hub account or organization.",
+      "pattern": "dckr_(?:pat_[A-Za-z0-9_-]{27}|oat_[A-Za-z0-9_-]{32})",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 9
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "jfrog_token",
+      "label": "JFrog Artifactory token",
+      "why": "Reads and publishes artifacts in your Artifactory repositories.",
+      "pattern": "(?:AKCp[A-Za-z0-9]{69}|cmVmd[A-Za-z0-9]{59})",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "atlassian_token",
+      "label": "Atlassian API token",
+      "why": "Acts as your account in Jira, Confluence and Bitbucket.",
+      "pattern": "ATATT3[A-Za-z0-9_=-]{186}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "grafana_token",
+      "label": "Grafana token",
+      "why": "Reads and changes dashboards, data sources and alerting in Grafana.",
+      "pattern": "(?:glsa_[A-Za-z0-9]{32}_[A-Fa-f0-9]{8}|glc_[A-Za-z0-9+/]{32,400}={0,3})",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "_",
+        "count": 1
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "sentry_auth_token",
+      "label": "Sentry auth token",
+      "why": "Uploads releases and source maps and reads issues in your Sentry organization.",
+      "pattern": "sntry(?:u_[a-f0-9]{64}|s_eyJ[A-Za-z0-9+/]{20,500}={0,2}_[A-Za-z0-9+/]{43})",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 7
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "dynatrace_token",
+      "label": "Dynatrace API token",
+      "why": "Reads monitoring data and changes settings in your Dynatrace environment.",
+      "pattern": "dt0c01\\.[A-Za-z0-9]{24}\\.[A-Za-z0-9]{64}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 7
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "heroku_api_key",
+      "label": "Heroku API key",
+      "why": "Deploys, scales and reads the config vars of your Heroku apps.",
+      "pattern": "HRKU-[A-Za-z0-9_-]{60}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "flyio_token",
+      "label": "Fly.io token",
+      "why": "Deploys and manages the apps and machines in your Fly.io organization.",
+      "pattern": "f(?:o1_[A-Za-z0-9_-]{43}|m1[ar]_[A-Za-z0-9_+/=-]{100,1000}|m2_[A-Za-z0-9_+/=-]{100,1000})",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "_",
+        "count": 1
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "planetscale_token",
+      "label": "PlanetScale token",
+      "why": "Connects to and manages your PlanetScale databases.",
+      "pattern": "pscale_(?:tkn|pw|oauth)_[A-Za-z0-9_=-]{32,64}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "_",
+        "count": 2
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "pulumi_token",
+      "label": "Pulumi access token",
+      "why": "Reads stack state and runs deployments in your Pulumi Cloud organization.",
+      "pattern": "pul-[a-f0-9]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "terraform_cloud_token",
+      "label": "HCP Terraform token",
+      "why": "Runs plans and applies and reads state in HCP Terraform (Terraform Cloud).",
+      "pattern": "[A-Za-z0-9]{14}\\.atlasv1\\.[A-Za-z0-9_=-]{60,70}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "prefilter": [
+        ".atlasv1."
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED TERRAFORM TOKEN]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "onepassword_token",
+      "label": "1Password service account token",
+      "why": "Reads every vault item the service account has been granted.",
+      "pattern": "ops_eyJ[A-Za-z0-9+/]{250,}={0,3}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "age_secret_key",
+      "label": "age secret key",
+      "why": "Decrypts every file encrypted to the matching age recipient.",
+      "pattern": "AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 15
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "alibaba_access_key",
+      "label": "Alibaba Cloud AccessKey ID",
+      "why": "Pairs with an AccessKey secret to control Alibaba Cloud resources and billing.",
+      "pattern": "LTAI[A-Za-z0-9]{12,20}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "mailchimp_key",
+      "label": "Mailchimp API key",
+      "why": "Reads your audiences and sends campaigns from your Mailchimp account.",
+      "pattern": "[a-f0-9]{32}-us[0-9]{1,2}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "prefilter": [
+        "-us"
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED MAILCHIMP KEY]"
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "brevo_key",
+      "label": "Brevo API key",
+      "why": "Sends email and SMS and reads contacts in your Brevo (Sendinblue) account.",
+      "pattern": "x(?:keysib|smtpsib)-[a-f0-9]{64}-[A-Za-z0-9]{16}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "-",
+        "count": 1
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "resend_key",
+      "label": "Resend API key",
+      "why": "Sends email from your verified Resend domains.",
+      "pattern": "re_[1-9A-HJ-NP-Za-km-z]{8}_[1-9A-HJ-NP-Za-km-z]{24}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
       },
       "default": true,
       "tags": [

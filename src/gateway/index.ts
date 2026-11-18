@@ -49,6 +49,7 @@ export {
   type BodyRedactionOptions,
   type BodyRedactionResult,
 } from './body.js';
+export { sseRestorer, requestsJsonOutput, type SseRestorer, type SseRestoreOptions } from './sse.js';
 
 export {
   SessionStore,
