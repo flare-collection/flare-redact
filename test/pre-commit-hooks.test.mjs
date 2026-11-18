@@ -60,7 +60,8 @@ test('pre-commit can build the CLI from a git checkout', () => {
 });
 
 test('the usage examples pin the current release', () => {
-  const rev = new RegExp(`rev: v${pkg.version.replace(/\./g, '\\.')}\\n`);
+  // A Windows checkout has CRLF line endings.
+  const rev = new RegExp(`rev: v${pkg.version.replace(/\./g, '\\.')}\\r?\\n`);
   assert.match(read('.pre-commit-hooks.yaml'), rev);
   assert.match(read('docs/guide.md'), rev);
 });
