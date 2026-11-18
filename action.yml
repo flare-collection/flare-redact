@@ -1,0 +1,132 @@
+name: flare-redact
+description: Find leaked API keys, tokens, private keys and personal data in your code. Reads values, not names. Never prints them.
+author: flare-collection
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  path:
+    description: Files or directories to scan, separated by spaces or new lines.
+    default: .
+  preset:
+    description: "Detector preset: logs, llm, gdpr or strict. Empty uses the default secret and PII detectors."
+    default: ''
+  exclude:
+    description: Globs to skip, separated by spaces or new lines (for example test/fixtures/** package-lock.json).
+    default: ''
+  args:
+    description: Extra flare-redact scan flags, such as --min-confidence 0.9 or --enable phone.
+    default: ''
+  fail-on-findings:
+    description: Fail the step when anything is found.
+    default: 'true'
+  annotate:
+    description: Add an error annotation at each finding, shown on the pull request.
+    default: 'true'
+  upload-sarif:
+    description: Upload the SARIF report to GitHub code scanning. Needs the security-events write permission.
+    default: 'false'
+  sarif-file:
+    description: Where to write the SARIF report. Defaults to a file in the runner's temp directory.
+    default: ''
+  version:
+    description: flare-redact version to run from npm, or the path to a packed .tgz. Defaults to the release this action ref belongs to.
+    default: ''
+
+outputs:
+  findings:
+    description: Number of findings.
+    value: ${{ steps.scan.outputs.findings }}
+  sarif-file:
+    description: Path of the SARIF report.
+    value: ${{ steps.scan.outputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check Node.js
+      id: node
+      shell: bash
+      run: |
+        major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+        if [ "$major" -ge 20 ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; else echo "ready=false" >> "$GITHUB_OUTPUT"; fi
+
+    - name: Set up Node.js
+      if: steps.node.outputs.ready != 'true'
+      uses: actions/setup-node@v5
+      with:
+        node-version: 24
+
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        FR_PATH: ${{ inputs.path }}
+        FR_PRESET: ${{ inputs.preset }}
+        FR_EXCLUDE: ${{ inputs.exclude }}
+        FR_ARGS: ${{ inputs.args }}
+        FR_ANNOTATE: ${{ inputs.annotate }}
+        FR_SARIF: ${{ inputs.sarif-file }}
+        FR_VERSION: ${{ inputs.version }}
+      run: |
+        # Inputs arrive as environment variables, never pasted into this
+        # script, and globs are not expanded by the shell.
+        set -euf -o pipefail
+
+        version="$FR_VERSION"
+        if [ -z "$version" ]; then
+          version="$(node -p 'require(process.argv[1]).version' "$GITHUB_ACTION_PATH/package.json")"
+        fi
+        case "$version" in
+          *.tgz) package="$version" ;;
+          *) package="flare-redact@$version" ;;
+        esac
+
+        sarif="${FR_SARIF:-$RUNNER_TEMP/flare-redact.sarif}"
+
+        args=(--sarif)
+        if [ -n "$FR_PRESET" ]; then args+=(--preset "$FR_PRESET"); fi
+        for glob in $FR_EXCLUDE; do args+=(--exclude "$glob"); done
+        for arg in $FR_ARGS; do
+          case "$arg" in
+            --include-values|--format|--format=*|--json|--csv|--summary|--staged)
+              echo "::error::args cannot contain $arg: the action needs a SARIF report without values"
+              exit 2 ;;
+          esac
+          args+=("$arg")
+        done
+        paths=()
+        for p in $FR_PATH; do paths+=("$p"); done
+        if [ "${#paths[@]}" -eq 0 ]; then paths=(.); fi
+
+        echo "Scanning ${paths[*]} with $package"
+        status=0
+        npx --yes --package "$package" flare-redact "${args[@]}" "${paths[@]}" > "$sarif" || status=$?
+        # 0: nothing found, 1: findings. Anything else is an error.
+        if [ "$status" -gt 1 ]; then
+          echo "::error::flare-redact could not complete the scan (exit $status)"
+          exit "$status"
+        fi
+
+        echo "sarif-file=$sarif" >> "$GITHUB_OUTPUT"
+        report=("$GITHUB_ACTION_PATH/scripts/github-action-report.mjs" "$sarif")
+        if [ "$FR_ANNOTATE" != "true" ]; then report+=(--no-annotations); fi
+        node "${report[@]}"
+
+    - name: Upload to code scanning
+      if: inputs.upload-sarif == 'true'
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-file }}
+        category: flare-redact
+
+    - name: Fail on findings
+      if: inputs.fail-on-findings == 'true' && steps.scan.outputs.findings != '0'
+      shell: bash
+      env:
+        FR_FINDINGS: ${{ steps.scan.outputs.findings }}
+      run: |
+        echo "::error::flare-redact found $FR_FINDINGS secret or personal data value(s). See the annotations and the job summary; values are never printed."
+        exit 1
