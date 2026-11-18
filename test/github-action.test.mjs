@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { annotations, findingsFromSarif, summary } from '../scripts/github-action-report.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const action = readFileSync(join(root, 'action.yml'), 'utf8');
+// A Windows checkout has CRLF line endings; the checks below read LF.
+const action = readFileSync(join(root, 'action.yml'), 'utf8').replace(/\r\n/g, '\n');
 const cli = join(root, 'bin', 'flare-redact.mjs');
 const report = join(root, 'scripts', 'github-action-report.mjs');
 const secret = 'ghp_' + 'a'.repeat(36);
