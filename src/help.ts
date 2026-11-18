@@ -373,14 +373,19 @@ else, and it pulls no dependencies of any kind.
 
   Go      go get github.com/flare-collection/flare-redact/sdk/go
 
+  Python  pip install flare-redact
+
+  Rust    cargo add flare-redact
+
+The Python and Rust engines are published to PyPI and crates.io starting with
+the first release after 1.9.1. Until it lands, or to pin a tag, install them
+from the repository:
+
   Python  pip install "flare-redact @ \\
             git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
                            tag = "v1.9.1" }
-
-The Python and Rust engines are not on PyPI or crates.io yet, so they install
-from the repository. The commands above are the ones that work today.
 
 They are not ports that drift. All four implement FRS-1, the specification in
 spec/SPEC.md, and all four run the same conformance corpus in spec/conformance/

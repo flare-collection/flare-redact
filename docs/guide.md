@@ -168,11 +168,20 @@ dependencies of any kind.
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](../sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"` | [`sdk/python`](../sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.9.1" }` | [`sdk/rust`](../sdk/rust) |
+| **Python** | `pip install flare-redact` | [`sdk/python`](../sdk/python) |
+| **Rust** | `cargo add flare-redact` | [`sdk/rust`](../sdk/rust) |
 
-The Python and Rust engines are not published to PyPI and crates.io yet, so they
-install from this repository. The commands above are the ones that work today.
+The Python and Rust engines are published to PyPI and crates.io starting with the
+first release after 1.9.1. Until it lands, or to pin a tag, install them from
+this repository:
+
+```bash
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"
+```
+
+```toml
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.9.1" }
+```
 
 ```python
 from flare_redact import create_session
