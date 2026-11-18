@@ -83,6 +83,21 @@ export function buildJsonAwareRestore(entries: Array<[string, string]>): (text: 
   };
 }
 
+const formatType = (value: unknown): unknown => (value && typeof value === 'object' ? (value as { type?: unknown }).type : undefined);
+
+/**
+ * Whether a request body asks for JSON output, so the streamed answer is JSON:
+ * OpenAI `response_format` (Chat Completions) or `text.format` (Responses),
+ * Anthropic `output_config.format` or the beta `output_format`.
+ */
+export function requestsJsonOutput(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  const request = body as Record<string, unknown>;
+  const openai = [formatType(request.response_format), formatType((request.text as { format?: unknown } | undefined)?.format)];
+  const anthropic = [formatType((request.output_config as { format?: unknown } | undefined)?.format), formatType(request.output_format)];
+  return openai.some((type) => type === 'json_object' || type === 'json_schema') || anthropic.includes('json_schema');
+}
+
 export interface IncrementalRestorer {
   push(chunk: string): string;
   flush(): string;

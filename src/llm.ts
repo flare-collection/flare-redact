@@ -1,4 +1,4 @@
-import { createVault, buildStreamRestore, escapeEntriesForJson, type Vault, type VaultOptions } from './vault.js';
+import { createVault, buildStreamRestore, escapeEntriesForJson, requestsJsonOutput, type Vault, type VaultOptions } from './vault.js';
 
 export type { Vault, VaultOptions } from './vault.js';
 export { createVault } from './vault.js';
@@ -14,9 +14,6 @@ const WRAPPED = Symbol.for('flare-redact.wrapped');
 function makeStreamRestorer(vault: Vault, json = false) {
   return buildStreamRestore(json ? escapeEntriesForJson(vault.entries()) : vault.entries());
 }
-
-/** OpenAI's `response_format` types whose message content is JSON. */
-const JSON_RESPONSE_FORMATS = new Set(['json_object', 'json_schema']);
 
 /** Redact a prompt and hand back the vault so you can restore the reply yourself. */
 export function redactPrompt(text: string, opts: VaultOptions = {}): { text: string; vault: Vault } {
@@ -44,10 +41,7 @@ export function wrapOpenAI<T extends OpenAILike>(client: T, opts: VaultOptions =
     const vault = createVault(opts);
     const messages = Array.isArray(params?.messages) ? vault.redact(params.messages) : params?.messages;
     const result = original({ ...params, messages }, ...rest);
-    if (params?.stream) {
-      const format = (params.response_format as { type?: unknown } | undefined)?.type;
-      return wrapOpenAIStream(result, vault, typeof format === 'string' && JSON_RESPONSE_FORMATS.has(format));
-    }
+    if (params?.stream) return wrapOpenAIStream(result, vault, requestsJsonOutput(params));
     // vault.restore escapes originals inside strings that are JSON documents,
     // which covers tool_calls[].function.arguments and JSON-mode content.
     return Promise.resolve(result).then((res) => vault.restore(res));
@@ -144,21 +138,22 @@ export function wrapAnthropic<T extends AnthropicLike>(client: T, opts: VaultOpt
     };
     if (params?.system !== undefined) redacted.system = vault.redact(params.system);
     const result = original(redacted, ...rest);
-    if (params?.stream) return wrapAnthropicStream(result, vault);
+    if (params?.stream) return wrapAnthropicStream(result, vault, requestsJsonOutput(params));
     return Promise.resolve(result).then((res) => vault.restore(res));
   };
   messages[WRAPPED] = true;
   return client;
 }
 
-async function* wrapAnthropicStream(result: unknown, vault: Vault): AsyncGenerator<unknown> {
+async function* wrapAnthropicStream(result: unknown, vault: Vault, jsonText: boolean): AsyncGenerator<unknown> {
   const stream = (await result) as AsyncIterable<AnthropicEvent>;
   const restorers = new Map<string, ReturnType<typeof makeStreamRestorer>>();
-  // partial_json is the tool input as JSON text; text deltas are prose.
+  // partial_json is the tool input as JSON text; text deltas are prose unless
+  // the request asked for structured output (output_config.format).
   const getRestorer = (key: string) => {
     let restorer = restorers.get(key);
     if (!restorer) {
-      restorer = makeStreamRestorer(vault, key.startsWith('json:'));
+      restorer = makeStreamRestorer(vault, jsonText || key.startsWith('json:'));
       restorers.set(key, restorer);
     }
     return restorer;

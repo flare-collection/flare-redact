@@ -250,9 +250,12 @@ flare-redact gateway \
 ```
 
 Redaction uses a per-request vault, so `ada@example.com` leaves as
-`[FR_EMAIL_9f2c…]` and comes back as itself. For a streamed reply the restorer
-holds back the longest suffix that could still be the start of a placeholder, so
-a token split across two SSE frames is restored exactly once.
+`[FR_EMAIL_9f2c…]` and comes back as itself. For a streamed reply the gateway
+reads the JSON of each SSE event and restores every streamed field on its own
+(`delta.content`, a tool call's `arguments`, `partial_json`), so a token split
+across two events is restored exactly once. An original that lands in tool-call
+arguments, or in an answer the request asked to be JSON, is escaped for that
+JSON as well as for the event.
 
 The header that authenticates you *to* the vendor is not the secret being hidden
 *from* it: `Authorization` is forwarded untouched. Bodies and matched values are

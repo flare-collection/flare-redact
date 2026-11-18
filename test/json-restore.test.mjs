@@ -212,6 +212,23 @@ test('wrapAnthropic streaming: a captured value with quotes keeps the tool input
   assert.deepEqual(Object.keys(parsed), ['amount', 'callback']);
 });
 
+test('wrapAnthropic streaming: structured-output text deltas are escaped', async () => {
+  const client = anthropicClient((placeholder) => {
+    const json = JSON.stringify({ note: placeholder });
+    const at = json.indexOf(placeholder) + 7;
+    return (async function* () {
+      for (const piece of split(json, at)) yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } };
+    })();
+  });
+  const schema = { type: 'json_schema', schema: { type: 'object', properties: { note: { type: 'string' } } } };
+  for (const format of [{ output_config: { format: schema } }, { output_format: schema }]) {
+    let text = '';
+    const stream = await client.messages.create({ stream: true, ...format, messages: [{ role: 'user', content: `Save ${AWKWARD}` }] });
+    for await (const event of stream) text += event.delta?.text ?? '';
+    assert.deepEqual(JSON.parse(text), { note: AWKWARD }, Object.keys(format)[0]);
+  }
+});
+
 test('wrapAnthropic: a tool_use input object gets the original value as is', async () => {
   const client = anthropicClient((placeholder) => ({
     content: [
