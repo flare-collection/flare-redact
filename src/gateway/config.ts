@@ -36,9 +36,11 @@ export interface ResponseRestorationConfig {
    */
   enabled: boolean;
   /**
-   * How a placeholder inside a streamed frame is replaced. `json` escapes the
-   * original for a JSON string context, which is what every LLM streaming API
-   * puts on the wire; `none` substitutes verbatim.
+   * How a placeholder inside a streamed response is replaced. `json` reads each
+   * SSE event's JSON, restores every streamed field (split placeholders
+   * included) and escapes for that field's own JSON, such as tool-call
+   * arguments, before the event is written back: what every LLM streaming API
+   * puts on the wire. `none` substitutes verbatim in the raw bytes.
    */
   streamEscape: 'json' | 'none';
 }

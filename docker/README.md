@@ -103,11 +103,14 @@ Redaction uses a per-request vault, so `ada@example.com` becomes
 `[FR_EMAIL_9f2c…]` on the way out and comes back on the way in. The model's reply
 reads correctly to your user, and the vendor never held the address.
 
-For a streamed response the restorer holds back the longest suffix that could
-still be the start of a placeholder, so a token split across two SSE frames is
-still restored exactly once. Substituted values are escaped for the JSON string
-context those frames use, so a name containing a quote cannot break the client's
-parser.
+For a streamed response the gateway reads the JSON of each SSE event and
+restores every streamed field on its own (`delta.content`, a tool call's
+`arguments`, `partial_json`), holding back the longest suffix that could still
+be the start of a placeholder, so a token split across two events is still
+restored exactly once. Substituted values are escaped for the event's JSON and,
+inside tool-call arguments or a requested JSON answer, for that JSON too, so a
+name containing a quote cannot break the client's parser or the arguments.
+Events with nothing to restore are passed on byte for byte.
 
 Turn it off with `--no-restore` when the upstream never echoes the prompt back
 and you would rather save the work.
