@@ -265,7 +265,7 @@ Options: `only`, `enable`, `disable`, `mode`, `mask`, `transform_secret`,
 `redact_keys`, `allow`, `terms`, `terms_case_sensitive`, `min_confidence`,
 `refine_confidence`, `include_values`, `max_input_length`, `max_findings`, `pack`.
 
-Requires Python 3.8+. Ships type hints (`py.typed`).
+Requires Python 3.9+. Ships type hints (`py.typed`).
 
 ## What this does not do
 
