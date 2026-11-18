@@ -5,9 +5,14 @@ Hide secrets and PII before they reach a log, a model, or a vendor.
 Zero dependencies, one file to read, and the same detector spec as the
 JavaScript, Go and Rust engines — so a policy written once behaves identically
 in every service you own. Every claim below is covered by the
-[shared conformance corpus](../../spec/conformance/).
+[shared conformance corpus](https://github.com/flare-collection/flare-redact/tree/main/spec/conformance/).
 
-Not on PyPI yet — it installs from this repository:
+```bash
+pip install flare-redact
+```
+
+PyPI releases start with the first release after 1.9.1. Until it lands, or to
+pin a tag, install from the repository:
 
 ```bash
 pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"
@@ -184,7 +189,7 @@ redact("project Bluebird ships in Q3", terms={"Bluebird": "[PROJECT]"})
 ```
 
 Terms match longest-first on Unicode word boundaries, so `Bluebirds` is left
-alone. For a whole detector set, write an [FRS-1 pack](../../spec/SPEC.md) and
+alone. For a whole detector set, write an [FRS-1 pack](https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md) and
 every language loads the same file:
 
 ```python
@@ -201,7 +206,7 @@ load. Failing open is how a redactor leaks.
 ## Talk to the gateway instead
 
 The local engine implements the portable FRS-1 profile. The
-[gateway](../../docker/README.md) runs the full detector set and holds
+[gateway](https://github.com/flare-collection/flare-redact/blob/main/docker/README.md) runs the full detector set and holds
 server-side sessions; point a client at your sidecar when you want the policy
 configured in one place for every language in the estate.
 
@@ -280,5 +285,5 @@ Requires Python 3.9+. Ships type hints (`py.typed`).
   returning partially redacted text, because a caller cannot tell partially
   redacted output from clean output.
 
-MIT © Umud Hasanli · [Specification](../../spec/SPEC.md) ·
+MIT © Umud Hasanli · [Specification](https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md) ·
 [Source](https://github.com/flare-collection/flare-redact)

@@ -123,8 +123,24 @@ jobs:
       - name: Build the distribution
         if: matrix.python == '3.13'
         run: |
-          python -m pip install --upgrade build
+          python -m pip install --upgrade build twine
           python -m build sdk/python
+          python -m twine check --strict sdk/python/dist/*
+      # Install the wheel the way a user would, outside the source tree, so a
+      # missing detector pack or module fails here rather than on PyPI.
+      - name: The wheel installs and redacts
+        if: matrix.python == '3.13'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m venv wheel-check
+          wheel-check/bin/pip install "$GITHUB_WORKSPACE"/sdk/python/dist/*.whl
+          wheel-check/bin/python -c "
+          import flare_redact
+          out = flare_redact.redact('key AKIAIOSFODNN7EXAMPLE')
+          assert out == 'key AKIA***', out
+          print(flare_redact.__version__, out)
+          "
+          wheel-check/bin/flare-redact --help >/dev/null
 
   go:
     name: Go SDK
@@ -153,6 +169,13 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
         working-directory: sdk/rust
       - run: cargo test
+        working-directory: sdk/rust
+      # Build the crate from the files crates.io would receive, so a file left
+      # out of the package fails the pull request rather than the release.
+      - name: The packaged crate builds
+        run: |
+          cargo package --list --locked
+          cargo package --locked
         working-directory: sdk/rust
 
   gateway-image:
@@ -197,6 +220,8 @@ jobs:
       id-token: write
       # Create the version tag and GitHub Release after a successful publish.
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -245,3 +270,125 @@ jobs:
           fi
           node scripts/release-notes.mjs "$VERSION" > release-notes.md
           gh release create "v$VERSION" --target "$GITHUB_SHA" --title "flare-redact v$VERSION" --notes-file release-notes.md
+
+  # The Go module lives in sdk/go, so Go only sees a release through a tag named
+  # sdk/go/vX.Y.Z. Without one, `go get` and pkg.go.dev fall back to
+  # pseudo-versions. This points sdk/go/vX.Y.Z at the commit vX.Y.Z names, and
+  # runs on every push, so a release made before this job existed gets its tag.
+  go-tag:
+    name: Tag the Go module
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/sdk/go/v$VERSION" >/dev/null 2>&1; then
+            echo "sdk/go/v$VERSION already exists"
+            exit 0
+          fi
+          if ! sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/v$VERSION" --jq .sha 2>/dev/null)"; then
+            echo "v$VERSION is not tagged yet, so there is nothing to point sdk/go/v$VERSION at"
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/sdk/go/v$VERSION" -f sha="$sha" >/dev/null
+          echo "tagged sdk/go/v$VERSION at $sha"
+
+  # The Python and Rust engines ship only from the commit npm released: vX.Y.Z,
+  # created by the publish job, has to point at this commit. A later push that
+  # leaves the version alone publishes nothing, so a registry never receives
+  # unreleased code under an already released version number. Re-running a
+  # release run retries whichever registry failed.
+  sdk-release:
+    name: SDK release check
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      pypi: ${{ steps.check.outputs.pypi }}
+      crates: ${{ steps.check.outputs.crates }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          released="$(gh api "repos/$GITHUB_REPOSITORY/commits/v$VERSION" --jq .sha 2>/dev/null || true)"
+          if [ "$released" != "$GITHUB_SHA" ]; then
+            echo "v$VERSION is not this commit, so this push is not a release"
+            echo "pypi=false" >> "$GITHUB_OUTPUT"
+            echo "crates=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 200: this version is already there. 404: it is not. Anything else is
+          # an outage, and publishing on a guess is worse than failing.
+          check() {
+            registry="$1" url="$2" key="$3"
+            status="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -A "flare-redact release check (https://github.com/$GITHUB_REPOSITORY)" "$url")"
+            case "$status" in
+              200) echo "$key=false" >> "$GITHUB_OUTPUT"; echo "flare-redact $VERSION is already on $registry" ;;
+              404) echo "$key=true" >> "$GITHUB_OUTPUT"; echo "flare-redact $VERSION will be published to $registry" ;;
+              *) echo "$registry answered HTTP $status for $url" >&2; return 1 ;;
+            esac
+          }
+          check PyPI "https://pypi.org/pypi/flare-redact/$VERSION/json" pypi
+          check crates.io "https://crates.io/api/v1/crates/flare-redact/$VERSION" crates
+
+  publish-python:
+    name: Publish PyPI
+    needs: [sdk-release]
+    if: needs.sdk-release.outputs.pypi == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/flare-redact/
+    permissions:
+      # PyPI Trusted Publishing: the job proves it is this workflow with an OIDC
+      # token, so no PyPI token is stored in the repository.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: |
+          python -m pip install --upgrade build
+          python -m build sdk/python
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/python/dist/
+
+  publish-rust:
+    name: Publish crates.io
+    needs: [sdk-release]
+    if: needs.sdk-release.outputs.crates == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/flare-redact
+    permissions:
+      # crates.io Trusted Publishing, through rust-lang/crates-io-auth-action.
+      id-token: write
+      contents: read
+    env:
+      # crates.io accepts Trusted Publishing only for a crate that already
+      # exists, so the first release needs an API token: store it as the
+      # CARGO_REGISTRY_TOKEN secret of the crates-io environment, add the
+      # trusted publisher once the crate exists, then delete the secret.
+      HAS_CRATES_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - if: env.HAS_CRATES_TOKEN != 'true'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - run: cargo publish --locked
+        working-directory: sdk/rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
