@@ -33,6 +33,10 @@ jobs:
       - if: matrix.node == 24
         run: npm --prefix examples/openai-privacy start
       - if: matrix.node == 24
+        run: npm --prefix examples/ai-sdk install
+      - if: matrix.node == 24
+        run: npm --prefix examples/ai-sdk start
+      - if: matrix.node == 24
         run: npm --prefix examples/express-pino install
       - if: matrix.node == 24
         run: npm --prefix examples/express-pino run smoke

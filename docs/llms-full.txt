@@ -95,6 +95,16 @@ const openai = wrapOpenAI(new OpenAI());        // prompts redacted, replies res
 const anthropic = wrapAnthropic(new Anthropic()); // includes system prompt + streaming
 ```
 
+```js
+// Vercel AI SDK, any provider (from 'flare-redact/ai-sdk'), AI SDK 5, 6 and 7:
+import { wrapLanguageModel } from 'ai';
+import { flareRedactMiddleware } from 'flare-redact/ai-sdk';
+const model = wrapLanguageModel({ model: baseModel, middleware: flareRedactMiddleware({ preset: 'llm' }) });
+// redacts system/user/assistant text, reasoning, tool inputs, tool results; files and images pass through
+// restores text, reasoning, tool calls (JSON-escaped), structured output, streams split mid-placeholder
+// flareRedactMiddleware({ session: createSession() }) keeps one vault, so placeholders stay stable across calls
+```
+
 Chat sessions: `import { createSession } from 'flare-redact/session'`: redact in, restore out, streaming-safe, `session.reset()`.
 
 Tool / MCP boundaries: `import { createScopedToolBoundary, createToolBoundary, redactToolCall, redactToolResult, redactMcpMessage } from 'flare-redact/tool'`. Prefer `createScopedToolBoundary()`: call `redactForModel(runtimeOwnedScope, value)` and `restoreForTool(runtimeOwnedScope, call)`. A placeholder minted in another scope stays opaque. `restoreForApp()` restores all scopes only at the trusted final boundary. Legacy `createToolBoundary()` restores every known placeholder and is appropriate only for a single tool/trust domain.

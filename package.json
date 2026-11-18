@@ -21,6 +21,10 @@
       "types": "./dist/llm.d.ts",
       "default": "./dist/llm.js"
     },
+    "./ai-sdk": {
+      "types": "./dist/ai-sdk.d.ts",
+      "default": "./dist/ai-sdk.js"
+    },
     "./ml": {
       "types": "./dist/ml.d.ts",
       "default": "./dist/ml.js"
@@ -176,6 +180,8 @@
     "ai",
     "openai",
     "anthropic",
+    "vercel-ai-sdk",
+    "ai-sdk",
     "chatgpt",
     "claude",
     "prompt",
