@@ -48,6 +48,7 @@ import {
   streamRestorer,
   type ParsedPath,
 } from './body.js';
+import { requestsJsonOutput, sseRestorer } from './sse.js';
 import { AgentFlowStore, createLogger, Metrics, SessionStore, type Logger } from './runtime.js';
 
 const PACKAGE_VERSION: string = (() => {
@@ -480,6 +481,16 @@ export function createGateway(config: GatewayConfig): Gateway {
   // The reverse proxy
   // ---------------------------------------------------------------------- //
 
+  /** Whether the caller asked for JSON output, so the streamed answer is JSON. */
+  const asksForJson = (raw: Buffer, contentType: string): boolean => {
+    if (!raw.length || !/json/i.test(contentType)) return false;
+    try {
+      return requestsJsonOutput(JSON.parse(raw.toString('utf8')));
+    } catch {
+      return false;
+    }
+  };
+
   const handleProxy = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -586,7 +597,11 @@ export function createGateway(config: GatewayConfig): Gateway {
         res.writeHead(upstream.status, responseHeaders).end();
       } else if (vault && streaming) {
         res.writeHead(upstream.status, responseHeaders);
-        const restorer = streamRestorer(vault, route.response.streamEscape);
+        // `json` restores per SSE event and per streamed field, escaping for
+        // the field's own JSON (tool arguments) as well as for the frame.
+        const restorer = route.response.streamEscape === 'json'
+          ? sseRestorer(vault, { jsonOutput: asksForJson(raw, contentType) })
+          : streamRestorer(vault, route.response.streamEscape);
         const decoder = new TextDecoder();
         const reader = stream.getReader();
         for (;;) {

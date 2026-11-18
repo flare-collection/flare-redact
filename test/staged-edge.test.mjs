@@ -215,7 +215,10 @@ test('directory scans still honour the same globs', () => {
     const all = JSON.parse(flare(dir, '--scan', '.', '--format', 'json').stdout);
     assert.equal(all.summary.total, 2);
     const some = JSON.parse(flare(dir, '--scan', '.', '--format', 'json', '--exclude', '**/fixtures/**').stdout);
+    // Forward slashes on every platform, Windows included.
     assert.deepEqual(some.findings.map((f) => f.file), ['src/b.txt']);
+    const sarif = JSON.parse(flare(dir, '--scan', '.', '--sarif', '--exclude', '**/fixtures/**').stdout);
+    assert.deepEqual(sarif.runs[0].results.map((r) => r.locations[0].physicalLocation.artifactLocation.uri), ['src/b.txt']);
   } finally {
     cleanup(dir);
   }

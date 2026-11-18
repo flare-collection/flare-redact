@@ -66,6 +66,24 @@ jobs:
           deno-version: v2.x
       - run: deno run --allow-read scripts/runtime-smoke.mjs
 
+  # The CLI reads people's own paths and repositories: --scan walks the file
+  # tree, --staged reads git, and init --hook writes into .git. Run the whole
+  # suite where those differ most from Linux.
+  platforms:
+    name: Node 24 on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test
+
   spec:
     name: Detector pack is in sync
     runs-on: ubuntu-latest
@@ -194,7 +212,7 @@ jobs:
   publish:
     name: Publish npm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, runtimes, spec, python, go, rust]
+    needs: [test, platforms, runtimes, spec, python, go, rust]
     runs-on: ubuntu-latest
     permissions:
       # npm Trusted Publishing: the job proves it is this workflow with an OIDC

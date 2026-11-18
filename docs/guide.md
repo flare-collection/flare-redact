@@ -259,9 +259,12 @@ flare-redact gateway \
 ```
 
 Redaction uses a per-request vault, so `ada@example.com` leaves as
-`[FR_EMAIL_9f2c…]` and comes back as itself. For a streamed reply the restorer
-holds back the longest suffix that could still be the start of a placeholder, so
-a token split across two SSE frames is restored exactly once.
+`[FR_EMAIL_9f2c…]` and comes back as itself. For a streamed reply the gateway
+reads the JSON of each SSE event and restores every streamed field on its own
+(`delta.content`, a tool call's `arguments`, `partial_json`), so a token split
+across two events is restored exactly once. An original that lands in tool-call
+arguments, or in an answer the request asked to be JSON, is escaped for that
+JSON as well as for the event.
 
 The header that authenticates you *to* the vendor is not the secret being hidden
 *from* it: `Authorization` is forwarded untouched. Bodies and matched values are
@@ -369,7 +372,9 @@ your app gets   →  Sent to alice@corp.com. Card 4242 4242 4242 4242 wasn't sto
 `wrapAnthropic` does the same for `messages.create`, including the system prompt.
 Both wrappers redact complete message structures, including tool-call arguments.
 Streaming text, OpenAI tool arguments, and Anthropic partial JSON are restored
-even when a placeholder is split across chunks. There's a `redactPrompt(text)`
+even when a placeholder is split across chunks. Inside tool arguments, partial
+JSON and JSON-mode output (`response_format`), restored values are JSON-escaped,
+so the JSON still parses and keeps its structure. There's a `redactPrompt(text)`
 too if you'd rather hold the vault yourself.
 
 ## Ways to hide a value
@@ -430,6 +435,12 @@ The same value gets the same placeholder inside one vault, so references survive
 the round trip. Default placeholders include 96 random bits instead of a global
 sequence number. Human-readable `[EMAIL_1]` counters remain available through
 `createVault({ placeholderStyle: 'readable' })` for trusted local workflows.
+
+When a string being restored is a JSON object or array, such as tool-call
+arguments or JSON-mode output, each original goes back JSON-escaped. The text
+stays valid JSON with the same structure, whatever quotes, backslashes or
+control characters the original holds. Any other string gets the original back
+exactly as it was.
 
 The mapping is as sensitive as the original data. Encrypt it before persistence:
 

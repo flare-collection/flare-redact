@@ -9,13 +9,15 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const cli = fileURLToPath(new URL('../bin/flare-redact.mjs', import.meta.url));
 const root = fileURLToPath(new URL('..', import.meta.url));
 const githubToken = 'ghp_' + 'a'.repeat(36);
+// Reports name files with forward slashes on every platform.
+const shown = (path) => path.split(sep).join('/');
 
 function run(args, options = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
@@ -33,7 +35,7 @@ test('scan pretty output includes file, line and column', () => {
     writeFileSync(file, `SAFE=true\nfound ${githubToken}\n`);
     const result = run(['--scan', file]);
     assert.equal(result.status, 1);
-    assert.ok(result.stdout.includes(`${file}:2:7`));
+    assert.ok(result.stdout.includes(`${shown(file)}:2:7`));
     assert.equal(result.stdout.includes(githubToken), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -52,7 +54,7 @@ test('scan JSON is structured and never echoes the secret value', () => {
     assert.equal(report.summary.total, 1);
     assert.equal(report.summary.filesScanned, 1);
     assert.equal(report.summary.pathsSkipped, 0);
-    assert.equal(report.findings[0].file, file);
+    assert.equal(report.findings[0].file, shown(file));
     assert.equal(report.findings[0].line, 2);
     assert.equal(report.findings[0].column, 1);
     assert.equal('value' in report.findings[0], false);
@@ -200,7 +202,7 @@ test('SARIF output contains a GitHub-compatible source location', () => {
     const sarif = JSON.parse(result.stdout);
     assert.equal(sarif.version, '2.1.0');
     assert.equal(sarif.runs[0].results[0].ruleId, 'github_token');
-    assert.equal(sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri, file);
+    assert.equal(sarif.runs[0].results[0].locations[0].physicalLocation.artifactLocation.uri, shown(file));
     assert.equal(sarif.runs[0].results[0].locations[0].physicalLocation.region.startLine, 1);
     assert.equal(result.stdout.includes(githubToken), false);
   } finally {
