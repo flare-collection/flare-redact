@@ -24,7 +24,7 @@ they're me making sure it's right.
 
 ## Running it locally
 
-You'll need Node 18 or newer.
+You'll need Node 20 or newer.
 
 ```sh
 git clone https://github.com/flare-collection/flare-redact
