@@ -182,6 +182,8 @@ sdk.send = boundary.wrap(sdk.send, { name: 'sdk.send' });
 // process/processAsync handle individual values; wrapAsync supports async semantic providers.
 ```
 
+GitHub Action: `- uses: flare-collection/flare-redact@v1` after `actions/checkout` scans the checkout, annotates each finding on the pull request, writes a job summary and fails the step; values are never printed. Inputs: `path`, `preset`, `exclude`, `args`, `fail-on-findings` (default true), `annotate`, `upload-sarif` (needs `security-events: write`), `sarif-file`, `version`. Outputs: `findings`, `sarif-file`.
+
 ## Learned confidence classifier (from 'flare-redact/ml')
 
 ```js
