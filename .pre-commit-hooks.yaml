@@ -1,0 +1,34 @@
+# Hooks for the pre-commit framework (https://pre-commit.com).
+#
+# In your .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/flare-collection/flare-redact
+#       rev: v1.9.1
+#       hooks:
+#         - id: flare-redact
+#
+# pre-commit installs the tagged release once (`npm pack` builds dist/ through
+# the prepack script) and caches it. Node 20 or newer must be on the PATH, or
+# set `language_version` and pre-commit downloads one.
+
+# Blocks a commit for what it adds, not for old findings elsewhere in the file.
+# --staged reads the git index itself and rejects file arguments, so pre-commit
+# must not pass filenames.
+- id: flare-redact
+  name: flare-redact
+  description: Stop a commit that adds a secret or personal data. Scans only the lines being added and never prints the secret.
+  entry: flare-redact --staged
+  language: node
+  pass_filenames: false
+  stages: [pre-commit]
+  minimum_pre_commit_version: '3.2.0'
+
+# Scans the whole of each file pre-commit passes. Use this one for
+# `pre-commit run --all-files` and pre-commit.ci, where nothing is staged.
+- id: flare-redact-files
+  name: flare-redact (whole files)
+  description: Scan the full content of each file for secrets and personal data, for pre-commit run --all-files and CI.
+  entry: flare-redact --scan
+  language: node
+  types: [text]

@@ -214,7 +214,11 @@ function pathMatches(parts: readonly string[], segments: readonly string[]): boo
   return reach[0] === 1;
 }
 
-function normalizePath(path: string): string {
+/**
+ * A path with forward slashes, the form git, globs and SARIF URIs use. Only the
+ * platform separator is rewritten: on POSIX a backslash is part of a file name.
+ */
+export function normalizePath(path: string): string {
   return sep === '/' ? path : path.split(sep).join('/');
 }
 

@@ -147,6 +147,8 @@ npx flare-redact init --hook         # pre-commit: scans only the lines being ad
 npx flare-redact --scan . --sarif    # CI: exits 1 on a finding, never prints the secret
 ```
 
+Using [pre-commit](https://pre-commit.com)? Add `repo: https://github.com/flare-collection/flare-redact` with `id: flare-redact` ([setup](docs/guide.md#fail-a-build-when-a-secret-sneaks-in)).
+
 ### No Node in the stack?
 
 Point any service at the [sidecar gateway](docs/guide.md#the-sidecar-gateway)
