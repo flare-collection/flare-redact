@@ -952,6 +952,23 @@ old finding, and people would learn to skip it. `--staged` reads the staged diff
 so a commit is stopped only for what it introduces, and each finding points at
 its line in the staged file. Skip the check once with `git commit --no-verify`.
 
+Already using [pre-commit](https://pre-commit.com)? Add the hook to
+`.pre-commit-config.yaml` instead. It works in any repository, Node project or
+not, as long as Node 20 or newer is on the PATH:
+
+```yaml
+repos:
+  - repo: https://github.com/flare-collection/flare-redact
+    rev: v1.9.1
+    hooks:
+      - id: flare-redact        # only the lines being added, like --staged
+```
+
+pre-commit builds the tagged release once and caches it. `flare-redact` reads
+the staged diff, so `pre-commit run --all-files` finds nothing for it to check.
+For that, and for pre-commit.ci, add `id: flare-redact-files`, which scans the
+whole of each file pre-commit passes.
+
 A scan leaves out assignments whose value is plainly code rather than a
 secret: `token = process.env.TOKEN`, `password = os.getenv("DB_PASSWORD")`,
 `secret = ${SECRET}`, `password: string`, `apiKey = config.apiKey`,
