@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/npm/types/flare-redact.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero dependencies">
-  <img src="https://img.shields.io/badge/detectors-115-4f46e5" alt="115 detectors">
+  <img src="https://img.shields.io/badge/detectors-129-4f46e5" alt="129 detectors">
   <img src="https://img.shields.io/badge/languages-24-4f46e5" alt="24 languages">
 </p>
 
@@ -49,7 +49,7 @@ redact({ user: 'bob@corp.com', password: 'hunter2', note: 'my key is AKIAIOSFODN
 
 ## Highlights
 
-- 🔍 **Reads content, not field names.** 115 detectors for API keys, tokens, JWTs,
+- 🔍 **Reads content, not field names.** 129 detectors for API keys, tokens, JWTs,
   private keys, cards, IBANs, emails and national IDs, checksum-validated
   wherever a checksum exists.
 - ⚡ **No code change needed.** `node --import flare-redact/register app.js`

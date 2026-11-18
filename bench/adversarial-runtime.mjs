@@ -19,15 +19,25 @@ const cases = {
   },
   hexRuns: (n) => ('0123456789abcdef'.repeat(4) + '-us ').repeat(Math.ceil(n / 68)).slice(0, n),
   atlasRuns: (n) => ('A'.repeat(14) + '.atlasv1.' + 'A'.repeat(90) + ' ').repeat(Math.ceil(n / 114)).slice(0, n),
+  // Shapes the opt-in national IDs look for: printed digit groups, dotted
+  // groups, letter-digit runs and ID prefixes that never complete.
+  spacedDigits: (n) => '12 '.repeat(Math.floor(n / 3)),
+  dottedDigits: (n) => '12.'.repeat(Math.floor(n / 3)),
+  letterDigitRun: (n) => 'AB1'.repeat(Math.floor(n / 3)),
+  idPrefixes: (n) => 'ABCD850101H S1234567 010185-123 '.repeat(Math.floor(n / 32)),
 };
+// The default policy, and every opt-in identifier through the pii tag.
+const policies = { default: {}, pii: { enable: ['pii'] } };
 
 const results = [];
-for (const [name, build] of Object.entries(cases)) {
-  for (const length of lengths) {
-    const input = build(length);
-    const start = performance.now();
-    const findings = scan(input);
-    results.push({ name, length: input.length, durationMs: performance.now() - start, findings: findings.length });
+for (const [policy, options] of Object.entries(policies)) {
+  for (const [name, build] of Object.entries(cases)) {
+    for (const length of lengths) {
+      const input = build(length);
+      const start = performance.now();
+      const findings = scan(input, options);
+      results.push({ name, policy, length: input.length, durationMs: performance.now() - start, findings: findings.length });
+    }
   }
 }
 

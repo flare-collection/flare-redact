@@ -287,3 +287,174 @@ export function codiceFiscaleValid(value: string): boolean {
   }
   return String.fromCharCode(65 + (sum % 26)) === cf[15];
 }
+
+/** Day 01-31 and month 01-12, the plausibility check shared by date-based IDs. */
+function plausibleDate(day: number, month: number): boolean {
+  return day >= 1 && day <= 31 && month >= 1 && month <= 12;
+}
+
+const CNP_WEIGHTS = [2, 7, 9, 1, 4, 6, 3, 5, 8, 2, 7, 9];
+/** Romania CNP: 13 digits, birth date, weighted mod-11 check digit (10 is written as 1). */
+export function cnpValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 13 || d[0] === '0') return false;
+  if (!plausibleDate(Number(d.slice(5, 7)), Number(d.slice(3, 5)))) return false;
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += Number(d[i]) * CNP_WEIGHTS[i]!;
+  const r = sum % 11;
+  return (r === 10 ? 1 : r) === Number(d[12]);
+}
+
+/**
+ * Sweden personnummer: YYMMDD-NNNC (or `+` from age 100), or YYYYMMDDNNNC.
+ * Luhn over the ten-digit form; a samordningsnummer adds 60 to the day.
+ */
+export function personnummerValid(value: string): boolean {
+  let d = value.replace(/[-+]/g, '');
+  if (!/^\d+$/.test(d)) return false;
+  if (d.length === 12) {
+    if (!/^(?:18|19|20)/.test(d)) return false;
+    d = d.slice(2);
+  }
+  if (d.length !== 10) return false;
+  const day = Number(d.slice(4, 6));
+  if (!plausibleDate(day > 60 ? day - 60 : day, Number(d.slice(2, 4)))) return false;
+  return luhnCheck(d);
+}
+
+const HETU_CHECK = '0123456789ABCDEFHJKLMNPRSTUVWXY';
+/** Finland henkilötunnus: DDMMYY, century sign, individual number, mod-31 check character. */
+export function hetuValid(value: string): boolean {
+  const m = value.match(/^(\d{2})(\d{2})(\d{2})[-+A-FU-Y](\d{3})([0-9A-FHJ-NPR-Y])$/);
+  if (!m) return false;
+  if (!plausibleDate(Number(m[1]), Number(m[2])) || Number(m[4]) < 2) return false;
+  return HETU_CHECK[Number(m[1]! + m[2]! + m[3]! + m[4]!) % 31] === m[5];
+}
+
+const FNR_W1 = [3, 7, 6, 1, 8, 9, 4, 5, 2];
+const FNR_W2 = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+/** Norway fødselsnummer (and D- and H-numbers): 11 digits, two mod-11 check digits. */
+export function fodselsnummerValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 11) return false;
+  const day = Number(d.slice(0, 2));
+  const month = Number(d.slice(2, 4));
+  if (!plausibleDate(day > 40 ? day - 40 : day, month > 40 ? month - 40 : month)) return false;
+  const check = (weights: number[]): number => {
+    let sum = 0;
+    for (let i = 0; i < weights.length; i++) sum += Number(d[i]) * weights[i]!;
+    return (11 - (sum % 11)) % 11;
+  };
+  return check(FNR_W1) === Number(d[9]) && check(FNR_W2) === Number(d[10]);
+}
+
+/**
+ * Belgium national register number: YYMMDD, counter, check = 97 − (n mod 97),
+ * with a 2 prefixed for people born from 2000. BIS numbers add 20 or 40 to the
+ * month. The day is not checked: it is 00 when unknown and runs past 31 once a
+ * date's counter is used up.
+ */
+export function beNationalNumberValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 11) return false;
+  const month = Number(d.slice(2, 4));
+  if (month > 52 || month % 20 > 12) return false;
+  const base = Number(d.slice(0, 9));
+  const check = Number(d.slice(9));
+  return 97 - (base % 97) === check || 97 - ((2_000_000_000 + base) % 97) === check;
+}
+
+/** Portugal NIF of a person (first digit 1-3, or 45 for non-residents): weighted mod-11. */
+export function ptNifValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 9 || !(/^[123]/.test(d) || d.startsWith('45'))) return false;
+  let sum = 0;
+  for (let i = 0; i < 8; i++) sum += Number(d[i]) * (9 - i);
+  return ((11 - (sum % 11)) % 11) % 10 === Number(d[8]);
+}
+
+/** South Africa ID number: YYMMDD, citizenship digit 0-2, Luhn over all 13 digits. */
+export function zaIdValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 13 || d[10]! > '2') return false;
+  if (!plausibleDate(Number(d.slice(4, 6)), Number(d.slice(2, 4)))) return false;
+  return luhnCheck(d);
+}
+
+const CURP_STATES = new Set([
+  'AS', 'BC', 'BS', 'CC', 'CH', 'CL', 'CM', 'CS', 'DF', 'DG', 'GR', 'GT', 'HG', 'JC', 'MC', 'MN', 'MS',
+  'NE', 'NL', 'NT', 'OC', 'PL', 'QR', 'QT', 'SL', 'SP', 'SR', 'TC', 'TL', 'TS', 'VZ', 'YN', 'ZS',
+]);
+/**
+ * Mexico CURP: 18 characters, birth date, sex, state, check digit. The check
+ * alphabet is 0-9, A-N, Ñ, O-Z, so O-Z count one higher than their place in A-Z.
+ */
+export function curpValid(value: string): boolean {
+  const m = value.match(/^[A-Z]{4}(\d{2})(\d{2})(\d{2})[HM]([A-Z]{2})[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\d$/);
+  if (!m || !plausibleDate(Number(m[3]), Number(m[2])) || !CURP_STATES.has(m[4]!)) return false;
+  let sum = 0;
+  for (let i = 0; i < 17; i++) {
+    const c = value.charCodeAt(i);
+    const v = c <= 57 ? c - 48 : c <= 78 ? c - 55 : c - 54;
+    sum += v * (18 - i);
+  }
+  return (10 - (sum % 10)) % 10 === Number(value[17]);
+}
+
+/** Chile RUT / RUN: 7-8 digits and a mod-11 check character (10 is K, 11 is 0). */
+export function rutValid(value: string): boolean {
+  const m = value.replace(/[ \t\n\x0B\f\r.-]/g, '').toUpperCase().match(/^(\d{7,8})([0-9K])$/);
+  if (!m) return false;
+  let sum = 0;
+  let weight = 2;
+  for (let i = m[1]!.length - 1; i >= 0; i--) {
+    sum += Number(m[1]![i]) * weight;
+    weight = weight === 7 ? 2 : weight + 1;
+  }
+  const r = 11 - (sum % 11);
+  return (r === 11 ? '0' : r === 10 ? 'K' : String(r)) === m[2];
+}
+
+const CUIT_WEIGHTS = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+/**
+ * Argentina CUIL / CUIT of a person (prefix 20, 23, 24 or 27): weighted mod-11.
+ * A check value of 10 is accepted as 9, the digit used for it in practice.
+ */
+export function cuitValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 11 || !/^2[0347]/.test(d)) return false;
+  let sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(d[i]) * CUIT_WEIGHTS[i]!;
+  const r = sum % 11;
+  return (r === 0 ? 0 : r === 1 ? 9 : 11 - r) === Number(d[10]);
+}
+
+const NRIC_WEIGHTS = [2, 7, 6, 5, 4, 3, 2];
+/** Singapore NRIC / FIN (S, T, F, G series): weighted mod-11 check letter. */
+export function nricValid(value: string): boolean {
+  const m = value.match(/^([STFG])(\d{7})([A-Z])$/);
+  if (!m) return false;
+  let sum = m[1] === 'T' || m[1] === 'G' ? 4 : 0;
+  for (let i = 0; i < 7; i++) sum += Number(m[2]![i]) * NRIC_WEIGHTS[i]!;
+  const letters = m[1] === 'S' || m[1] === 'T' ? 'JZIHGFEDCBA' : 'XWUTRQPNMLK';
+  return letters[sum % 11] === m[3];
+}
+
+/** Greece AMKA: DDMMYY birth date, serial, Luhn over all 11 digits. */
+export function amkaValid(value: string): boolean {
+  const d = onlyDigits(value);
+  if (d.length !== 11) return false;
+  if (!plausibleDate(Number(d.slice(0, 2)), Number(d.slice(2, 4)))) return false;
+  return luhnCheck(d);
+}
+
+const NINO_UNUSED_PREFIXES = new Set(['BG', 'GB', 'KN', 'NK', 'NT', 'TN', 'ZZ']);
+/**
+ * UK National Insurance number. No checksum exists; HMRC's allocation rules
+ * (letters never used in the prefix, prefixes never issued, suffix A-D) are checked.
+ */
+export function ninoValid(value: string): boolean {
+  const n = value.replace(/ /g, '');
+  if (!/^[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]$/.test(n)) return false;
+  return !NINO_UNUSED_PREFIXES.has(n.slice(0, 2));
+}

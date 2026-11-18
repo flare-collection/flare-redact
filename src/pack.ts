@@ -45,6 +45,19 @@ import {
   tcknValid,
   tfnValid,
   vinValid,
+  cnpValid,
+  personnummerValid,
+  hetuValid,
+  fodselsnummerValid,
+  beNationalNumberValid,
+  ptNifValid,
+  zaIdValid,
+  curpValid,
+  rutValid,
+  cuitValid,
+  nricValid,
+  amkaValid,
+  ninoValid,
 } from './checksums.js';
 import { FlareRedactError, type Risk } from './engine.js';
 
@@ -290,6 +303,19 @@ const NAMED_VALIDATORS: Readonly<Record<string, (value: string) => boolean>> = {
   aba: abaValid,
   nhs: nhsValid,
   vin: vinValid,
+  cnp: cnpValid,
+  personnummer: personnummerValid,
+  hetu: hetuValid,
+  fodselsnummer: fodselsnummerValid,
+  be_national_number: beNationalNumberValid,
+  pt_nif: ptNifValid,
+  za_id: zaIdValid,
+  curp: curpValid,
+  rut: rutValid,
+  cuit: cuitValid,
+  nric: nricValid,
+  amka: amkaValid,
+  uk_nino: ninoValid,
 };
 
 const DIGITS_ONLY = /[^0-9]/g;

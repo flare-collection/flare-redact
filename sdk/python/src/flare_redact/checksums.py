@@ -318,6 +318,183 @@ def vin(value: str) -> bool:
     return v[8] == ("X" if check == 10 else str(check))
 
 
+def _plausible_date(day: int, month: int) -> bool:
+    """Day 01-31 and month 01-12, the check shared by date-based identifiers."""
+    return 1 <= day <= 31 and 1 <= month <= 12
+
+
+_CNP_WEIGHTS = (2, 7, 9, 1, 4, 6, 3, 5, 8, 2, 7, 9)
+
+
+def cnp(value: str) -> bool:
+    """Romania CNP — 13 digits, birth date, weighted mod-11 (10 is written as 1)."""
+    d = _digits(value)
+    if len(d) != 13 or d[0] == "0":
+        return False
+    if not _plausible_date(int(d[5:7]), int(d[3:5])):
+        return False
+    r = sum(int(d[i]) * _CNP_WEIGHTS[i] for i in range(12)) % 11
+    return (1 if r == 10 else r) == int(d[12])
+
+
+def personnummer(value: str) -> bool:
+    """Sweden personnummer — Luhn over YYMMDDNNNC; samordningsnummer add 60 to the day."""
+    d = value.replace("-", "").replace("+", "")
+    if not re.fullmatch(r"[0-9]+", d):
+        return False
+    if len(d) == 12:
+        if d[:2] not in ("18", "19", "20"):
+            return False
+        d = d[2:]
+    if len(d) != 10:
+        return False
+    day = int(d[4:6])
+    if not _plausible_date(day - 60 if day > 60 else day, int(d[2:4])):
+        return False
+    return luhn(d)
+
+
+_HETU_CHECK = "0123456789ABCDEFHJKLMNPRSTUVWXY"
+
+
+def hetu(value: str) -> bool:
+    """Finland henkilötunnus — DDMMYY, century sign, individual number, mod-31 check."""
+    m = re.fullmatch(r"([0-9]{2})([0-9]{2})([0-9]{2})[-+A-FU-Y]([0-9]{3})([0-9A-FHJ-NPR-Y])", value)
+    if not m:
+        return False
+    if not _plausible_date(int(m.group(1)), int(m.group(2))) or int(m.group(4)) < 2:
+        return False
+    return _HETU_CHECK[int(m.group(1) + m.group(2) + m.group(3) + m.group(4)) % 31] == m.group(5)
+
+
+_FNR_W1 = (3, 7, 6, 1, 8, 9, 4, 5, 2)
+_FNR_W2 = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+
+
+def fodselsnummer(value: str) -> bool:
+    """Norway fødselsnummer (and D-/H-numbers) — two mod-11 check digits."""
+    d = _digits(value)
+    if len(d) != 11:
+        return False
+    day, month = int(d[0:2]), int(d[2:4])
+    if not _plausible_date(day - 40 if day > 40 else day, month - 40 if month > 40 else month):
+        return False
+
+    def check(weights: tuple) -> int:
+        return (11 - sum(int(d[i]) * w for i, w in enumerate(weights)) % 11) % 11
+
+    return check(_FNR_W1) == int(d[9]) and check(_FNR_W2) == int(d[10])
+
+
+def be_national_number(value: str) -> bool:
+    """Belgium national register number — 97 − (n mod 97), 2-prefixed from 2000."""
+    d = _digits(value)
+    if len(d) != 11:
+        return False
+    month = int(d[2:4])
+    if month > 52 or month % 20 > 12:
+        return False
+    base, check = int(d[:9]), int(d[9:])
+    return 97 - base % 97 == check or 97 - (2_000_000_000 + base) % 97 == check
+
+
+def pt_nif(value: str) -> bool:
+    """Portugal NIF of a person (1-3, or 45) — weighted mod-11 check digit."""
+    d = _digits(value)
+    if len(d) != 9 or not (d[0] in "123" or d.startswith("45")):
+        return False
+    total = sum(int(d[i]) * (9 - i) for i in range(8))
+    return (11 - total % 11) % 11 % 10 == int(d[8])
+
+
+def za_id(value: str) -> bool:
+    """South Africa ID number — YYMMDD, citizenship 0-2, Luhn over 13 digits."""
+    d = _digits(value)
+    if len(d) != 13 or d[10] > "2":
+        return False
+    if not _plausible_date(int(d[4:6]), int(d[2:4])):
+        return False
+    return luhn(d)
+
+
+_CURP_STATES = frozenset(
+    "AS BC BS CC CH CL CM CS DF DG GR GT HG JC MC MN MS NE NL NT OC PL QR QT SL SP SR TC TL TS VZ YN ZS".split()
+)
+
+
+def curp(value: str) -> bool:
+    """Mexico CURP — 18 characters; check alphabet 0-9, A-N, Ñ, O-Z."""
+    m = re.fullmatch(
+        r"[A-Z]{4}([0-9]{2})([0-9]{2})([0-9]{2})[HM]([A-Z]{2})[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]", value
+    )
+    if not m or not _plausible_date(int(m.group(3)), int(m.group(2))) or m.group(4) not in _CURP_STATES:
+        return False
+    total = 0
+    for i in range(17):
+        c = ord(value[i])
+        v = c - 48 if c <= 57 else c - 55 if c <= 78 else c - 54
+        total += v * (18 - i)
+    return (10 - total % 10) % 10 == int(value[17])
+
+
+def rut(value: str) -> bool:
+    """Chile RUT / RUN — mod-11 check character, 10 is K and 11 is 0."""
+    m = re.fullmatch(r"([0-9]{7,8})([0-9K])", re.sub(r"[ \t\n\x0b\f\r.-]", "", value).upper())
+    if not m:
+        return False
+    total, weight = 0, 2
+    for ch in reversed(m.group(1)):
+        total += int(ch) * weight
+        weight = 2 if weight == 7 else weight + 1
+    r = 11 - total % 11
+    return ("0" if r == 11 else "K" if r == 10 else str(r)) == m.group(2)
+
+
+_CUIT_WEIGHTS = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+
+
+def cuit(value: str) -> bool:
+    """Argentina CUIL / CUIT of a person (20, 23, 24, 27) — weighted mod-11."""
+    d = _digits(value)
+    if len(d) != 11 or d[:2] not in ("20", "23", "24", "27"):
+        return False
+    r = sum(int(d[i]) * _CUIT_WEIGHTS[i] for i in range(10)) % 11
+    return (0 if r == 0 else 9 if r == 1 else 11 - r) == int(d[10])
+
+
+_NRIC_WEIGHTS = (2, 7, 6, 5, 4, 3, 2)
+
+
+def nric(value: str) -> bool:
+    """Singapore NRIC / FIN (S, T, F, G) — weighted mod-11 check letter."""
+    m = re.fullmatch(r"([STFG])([0-9]{7})([A-Z])", value)
+    if not m:
+        return False
+    prefix, body = m.group(1), m.group(2)
+    total = (4 if prefix in "TG" else 0) + sum(int(body[i]) * _NRIC_WEIGHTS[i] for i in range(7))
+    letters = "JZIHGFEDCBA" if prefix in "ST" else "XWUTRQPNMLK"
+    return letters[total % 11] == m.group(3)
+
+
+def amka(value: str) -> bool:
+    """Greece AMKA — DDMMYY birth date, Luhn over 11 digits."""
+    d = _digits(value)
+    if len(d) != 11 or not _plausible_date(int(d[0:2]), int(d[2:4])):
+        return False
+    return luhn(d)
+
+
+_NINO_UNUSED_PREFIXES = frozenset(("BG", "GB", "KN", "NK", "NT", "TN", "ZZ"))
+
+
+def uk_nino(value: str) -> bool:
+    """UK National Insurance number — no checksum; HMRC allocation rules."""
+    n = value.replace(" ", "")
+    if not re.fullmatch(r"[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]", n):
+        return False
+    return n[:2] not in _NINO_UNUSED_PREFIXES
+
+
 #: Validators addressable by name from a detector pack. An unknown name is a
 #: load-time error, never a silently skipped check.
 VALIDATORS: Dict[str, Callable[[str], bool]] = {
@@ -339,4 +516,17 @@ VALIDATORS: Dict[str, Callable[[str], bool]] = {
     "aba": aba,
     "nhs": nhs,
     "vin": vin,
+    "cnp": cnp,
+    "personnummer": personnummer,
+    "hetu": hetu,
+    "fodselsnummer": fodselsnummer,
+    "be_national_number": be_national_number,
+    "pt_nif": pt_nif,
+    "za_id": za_id,
+    "curp": curp,
+    "rut": rut,
+    "cuit": cuit,
+    "nric": nric,
+    "amka": amka,
+    "uk_nino": uk_nino,
 }

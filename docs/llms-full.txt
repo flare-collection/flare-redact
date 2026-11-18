@@ -71,7 +71,7 @@ Free-text PII without a model (opt-in: `enable: ['entities']`): private_person, 
 
 Opt-in via `enable`: phone (E.164 + national formats), ipv4, ipv6, mac_address, high_entropy, person_name, street_address, date_of_birth, eth_address, btc_address, seed_phrase (BIP39), aba_routing, swift_bic, vin, coordinates, internal_url.
 
-National IDs (opt-in, all checksum-validated; enable by country tag or 'pii'): tr_tckn (tr), br_cpf (br), es_dni (es), nl_bsn (nl), pl_pesel (pl), de_tax_id (de), it_codice_fiscale (it), ca_sin (ca), us_ssn (us), uk_nhs (gb), fr_nir (fr), in_aadhaar (in), au_tfn (au), cn_resident_id (cn), jp_my_number (jp).
+National IDs (opt-in, all checksum-validated; enable by country tag or 'pii'): tr_tckn (tr), br_cpf (br), es_dni (es), nl_bsn (nl), pl_pesel (pl), de_tax_id (de), it_codice_fiscale (it), ca_sin (ca), us_ssn (us), uk_nhs (gb), fr_nir (fr), in_aadhaar (in), au_tfn (au), cn_resident_id (cn), jp_my_number (jp), ro_cnp (ro), se_personnummer (se), fi_hetu (fi), no_fodselsnummer (no), be_national_number (be), pt_nif (pt), za_id (za), mx_curp (mx), cl_rut (cl), ar_cuit (ar), sg_nric (sg), il_teudat_zehut (il), gr_amka (gr), uk_nino (gb).
 
 ```js
 redact(text, { enable: ['pii'] });        // all national IDs
