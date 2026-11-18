@@ -8,6 +8,7 @@ const cases = {
   tokenLike: (n) => 'A'.repeat(n) + '=',
   separators: (n) => '1-'.repeat(Math.floor(n / 2)),
   unicode: (n) => '密'.repeat(n),
+  schemeRun: (n) => 'a-b.'.repeat(Math.floor(n / 4)) + '://',
   // Token prefixes followed by long runs of their body characters that never
   // complete a token: each pattern must give up in time linear in the run.
   tokenPrefixes: (n) => {

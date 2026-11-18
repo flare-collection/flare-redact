@@ -342,7 +342,7 @@
       "id": "url_credentials",
       "label": "Credentials in URL",
       "why": "A username:password baked into a connection string leaks the password.",
-      "pattern": "[a-zA-Z][a-zA-Z0-9+.-]*://[^:@ \\t\\n\\x0B\\f\\r/]+:[^@ \\t\\n\\x0B\\f\\r/]+@",
+      "pattern": "[a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]+:[^@ \\t\\n\\x0B\\f\\r/]+@",
       "boundary": {
         "before": "word"
       },
@@ -351,7 +351,7 @@
       ],
       "mask": {
         "type": "replace",
-        "pattern": "([a-zA-Z][a-zA-Z0-9+.-]*://[^:@ \\t\\n\\x0B\\f\\r/]+:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
+        "pattern": "([a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]+:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
         "replacement": "$1***$2"
       },
       "default": true,

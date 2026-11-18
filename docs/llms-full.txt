@@ -95,6 +95,8 @@ const openai = wrapOpenAI(new OpenAI());        // prompts redacted, replies res
 const anthropic = wrapAnthropic(new Anthropic()); // includes system prompt + streaming
 ```
 
+Restoring into JSON text (tool-call arguments, partial JSON, JSON-mode output, any string that is a JSON object or array) JSON-escapes each original, so the result stays valid JSON with the same structure.
+
 Chat sessions: `import { createSession } from 'flare-redact/session'`: redact in, restore out, streaming-safe, `session.reset()`.
 
 Tool / MCP boundaries: `import { createScopedToolBoundary, createToolBoundary, redactToolCall, redactToolResult, redactMcpMessage } from 'flare-redact/tool'`. Prefer `createScopedToolBoundary()`: call `redactForModel(runtimeOwnedScope, value)` and `restoreForTool(runtimeOwnedScope, call)`. A placeholder minted in another scope stays opaque. `restoreForApp()` restores all scopes only at the trusted final boundary. Legacy `createToolBoundary()` restores every known placeholder and is appropriate only for a single tool/trust domain.
@@ -207,6 +209,8 @@ npx flare-redact --min-confidence 0.9 --scan app.log
 FLARE_REDACT_SECRET=k npx flare-redact --json --mode hash < event.json
 FLARE_REDACT_VAULT_PASSWORD=p npx flare-redact --vault v.json < in.log   # encrypted reversible
 ```
+
+pre-commit framework: in `.pre-commit-config.yaml`, `repo: https://github.com/flare-collection/flare-redact` with hook `id: flare-redact` (staged lines, like `--staged`) or `id: flare-redact-files` (whole files, for `pre-commit run --all-files`).
 
 ## Rules of thumb for generated code
 

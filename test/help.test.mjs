@@ -112,12 +112,14 @@ test('the summary tells you the help exists', () => {
   assert.match(HELP, /help topics/);
 });
 
-test('the sdks topic does not promise an install that does not work', () => {
+test('the sdks topic names the registries and keeps an install that works today', () => {
   const { text } = renderHelp('sdks');
-  // The Python and Rust engines are not on PyPI or crates.io; documenting the
-  // registry commands would send people to a 404.
-  assert.doesNotMatch(text, /pip install flare-redact\s*$/m);
-  assert.doesNotMatch(text, /cargo add flare-redact/);
-  assert.match(text, /git\+https:\/\/github\.com\/flare-collection\/flare-redact/);
+  assert.match(text, /pip install flare-redact\s*$/m);
+  assert.match(text, /cargo add flare-redact/);
   assert.match(text, /go get github\.com\/flare-collection\/flare-redact\/sdk\/go/);
+  // Releases up to 1.9.1 exist only in the repository, so the registry commands
+  // must come with the repository install rather than replace it.
+  assert.match(text, /starting with\s+the first release after 1\.9\.1/);
+  assert.match(text, /git\+https:\/\/github\.com\/flare-collection\/flare-redact@v\d+\.\d+\.\d+#subdirectory=sdk\/python/);
+  assert.match(text, /tag = "v\d+\.\d+\.\d+"/);
 });

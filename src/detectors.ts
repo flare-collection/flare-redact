@@ -275,7 +275,7 @@ export const DETECTORS: Detector[] = [
     id: 'url_credentials',
     label: 'Credentials in URL',
     why: 'A username:password baked into a connection string leaks the password.',
-    pattern: /\b[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@\s/]+:[^@\s/]+@/g,
+    pattern: /\b[a-zA-Z][a-zA-Z0-9_+.-]{0,63}:\/\/[^:@\s/]+:[^@\s/]+@/g,
     mask: (m) => m.replace(/:([^:@\s/]+)@$/, ':***@'),
     default: true,
   },
