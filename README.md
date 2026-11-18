@@ -140,6 +140,8 @@ and source maps keep working. [Details and limits](docs/guide.md#one-policy-ever
 
 ### Commits and CI
 
+On GitHub, `uses: flare-collection/flare-redact@v1` annotates each finding on the pull request ([inputs](docs/guide.md#fail-a-build-when-a-secret-sneaks-in)).
+
 ```bash
 npx flare-redact init --hook         # pre-commit: scans only the lines being added
 npx flare-redact --scan . --sarif    # CI: exits 1 on a finding, never prints the secret

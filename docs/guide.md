@@ -964,8 +964,41 @@ reported. `--no-code-filter` turns it off. It applies to `--scan` and
 `--staged` only: `redact()` keeps masking every such assignment, because
 hiding too much in a log is safe and missing a secret is not.
 
-In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
-hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
+On GitHub, the action does the setup and reports each finding on the pull
+request:
+
+```yaml
+- uses: actions/checkout@v5
+- uses: flare-collection/flare-redact@v1
+  with:
+    exclude: package-lock.json
+```
+
+Each finding becomes an annotation at its line, the job summary gets a table of
+detectors and locations, and the step fails. Values are never printed. The
+action runs the npm release that matches the tag you pin (`@v1` follows the
+latest 1.x), on the runner, with Node 20 or newer (it installs Node 24 when the
+runner has none).
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `path` | `.` | Files or directories to scan, separated by spaces or new lines |
+| `preset` | | `logs`, `llm`, `gdpr` or `strict` |
+| `exclude` | | Globs to skip, separated by spaces or new lines |
+| `args` | | More scan flags, such as `--min-confidence 0.9` or `--enable phone` |
+| `fail-on-findings` | `true` | Fail the step when anything is found |
+| `annotate` | `true` | Annotate each finding on the pull request |
+| `upload-sarif` | `false` | Send the SARIF report to GitHub code scanning |
+| `sarif-file` | runner temp | Where to write the SARIF report |
+| `version` | the pinned release | Another npm version, or a packed `.tgz` |
+
+Outputs are `findings` (the count) and `sarif-file`. To see findings in the
+repository's Security tab, give the job `permissions: { contents: read,
+security-events: write }` and set `upload-sarif: true`; you may then want
+`annotate: false` to avoid seeing each finding twice.
+
+Anywhere else, use `scan` from code, or `--scan` from the CLI (which exits
+non-zero on a hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
 reports never echo the matched secret value:
 
 ```yaml
