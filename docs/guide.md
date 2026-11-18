@@ -360,7 +360,9 @@ your app gets   →  Sent to alice@corp.com. Card 4242 4242 4242 4242 wasn't sto
 `wrapAnthropic` does the same for `messages.create`, including the system prompt.
 Both wrappers redact complete message structures, including tool-call arguments.
 Streaming text, OpenAI tool arguments, and Anthropic partial JSON are restored
-even when a placeholder is split across chunks. There's a `redactPrompt(text)`
+even when a placeholder is split across chunks. Inside tool arguments, partial
+JSON and JSON-mode output (`response_format`), restored values are JSON-escaped,
+so the JSON still parses and keeps its structure. There's a `redactPrompt(text)`
 too if you'd rather hold the vault yourself.
 
 ## Ways to hide a value
@@ -421,6 +423,12 @@ The same value gets the same placeholder inside one vault, so references survive
 the round trip. Default placeholders include 96 random bits instead of a global
 sequence number. Human-readable `[EMAIL_1]` counters remain available through
 `createVault({ placeholderStyle: 'readable' })` for trusted local workflows.
+
+When a string being restored is a JSON object or array, such as tool-call
+arguments or JSON-mode output, each original goes back JSON-escaped. The text
+stays valid JSON with the same structure, whatever quotes, backslashes or
+control characters the original holds. Any other string gets the original back
+exactly as it was.
 
 The mapping is as sensitive as the original data. Encrypt it before persistence:
 

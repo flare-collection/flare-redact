@@ -43,6 +43,46 @@ export function buildRestore(entries: Array<[string, string]>): (text: string) =
   return (text) => text.replace(re, (m) => lookup.get(m) ?? m);
 }
 
+/**
+ * Each original escaped for the inside of a JSON string literal:
+ * `JSON.stringify(value).slice(1, -1)`. A placeholder can only sit inside a
+ * string in valid JSON, so an original spliced in this form keeps the JSON
+ * valid, and quotes, backslashes or control characters in it cannot end the
+ * string and add or replace fields.
+ */
+export function escapeEntriesForJson(entries: Array<[string, string]>): Array<[string, string]> {
+  return entries.map(([placeholder, original]) => [placeholder, JSON.stringify(original).slice(1, -1)]);
+}
+
+/** True when `text` is a complete JSON object or array. */
+export function isJsonDocument(text: string): boolean {
+  const first = text.trimStart()[0];
+  if (first !== '{' && first !== '[') return false;
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `buildRestore`, except that a string which is a JSON object or array (tool
+ * call arguments, JSON-mode output) gets its originals JSON-escaped, so it is
+ * still valid JSON with the same structure after the restore.
+ */
+export function buildJsonAwareRestore(entries: Array<[string, string]>): (text: string) => string {
+  if (!entries.length) return (t) => t;
+  const plain = buildRestore(entries);
+  let escaped: ((text: string) => string) | undefined;
+  return (text) => {
+    const restored = plain(text);
+    if (restored === text || !isJsonDocument(text)) return restored;
+    escaped ??= buildRestore(escapeEntriesForJson(entries));
+    return escaped(text);
+  };
+}
+
 export interface IncrementalRestorer {
   push(chunk: string): string;
   flush(): string;
@@ -157,7 +197,7 @@ export function createVault(opts: VaultOptions = {}): Vault {
 
   return {
     redact: <T>(input: T) => redactGraph(input, redactStr, matchKey, allow, mint) as T,
-    restore: <T>(input: T) => walkStrings(input, buildRestore([...phToOrig])) as T,
+    restore: <T>(input: T) => walkStrings(input, buildJsonAwareRestore([...phToOrig])) as T,
     entries: () => [...phToOrig],
     get size() {
       return phToOrig.size;
@@ -165,7 +205,10 @@ export function createVault(opts: VaultOptions = {}): Vault {
   };
 }
 
-/** Put originals back into any text/object using a vault or a placeholder→value map. */
+/**
+ * Put originals back into any text/object using a vault or a placeholder→value
+ * map. A string that is a JSON object or array gets the originals JSON-escaped.
+ */
 export function restore<T>(input: T, source: Vault | Map<string, string> | Record<string, string>): T {
   const entries: Array<[string, string]> =
     source instanceof Map
@@ -174,5 +217,5 @@ export function restore<T>(input: T, source: Vault | Map<string, string> | Recor
         ? (source as Vault).entries()
         : Object.entries(source as Record<string, string>);
   if (!entries.length) return input;
-  return walkStrings(input, buildRestore(entries)) as T;
+  return walkStrings(input, buildJsonAwareRestore(entries)) as T;
 }

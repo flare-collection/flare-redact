@@ -177,6 +177,32 @@ test('the upstream credential is forwarded untouched', async () => {
   }
 });
 
+test('tool-call arguments in a buffered JSON response stay valid JSON', async () => {
+  const value = 'Q"uo\\te\nline';
+  const upstream = await startUpstream(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const placeholder = Buffer.concat(chunks).toString('utf8').match(/\[FR_[A-Z_]+_[0-9a-f]{24}\]/)[0];
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{ message: { tool_calls: [{ function: { name: 'save', arguments: JSON.stringify({ note: placeholder, n: 1 }) } }] } }],
+    }));
+  });
+  try {
+    await withGateway({ listen: { port: 0 }, upstream: upstream.origin, policy: { terms: [value] } }, async (base) => {
+      const response = await fetch(`${base}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: `save ${value}` }] }),
+      });
+      const body = await response.json();
+      assert.deepEqual(JSON.parse(body.choices[0].message.tool_calls[0].function.arguments), { note: value, n: 1 });
+    });
+  } finally {
+    await upstream.close();
+  }
+});
+
 test('restores placeholders split across streamed chunks', async () => {
   const upstream = await startUpstream(async (req, res) => {
     const chunks = [];
