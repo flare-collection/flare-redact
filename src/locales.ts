@@ -16,6 +16,19 @@ import {
   cnResidentIdValid,
   jpMyNumberValid,
   ibanPrintedPattern,
+  cnpValid,
+  personnummerValid,
+  hetuValid,
+  fodselsnummerValid,
+  beNationalNumberValid,
+  ptNifValid,
+  zaIdValid,
+  curpValid,
+  rutValid,
+  cuitValid,
+  nricValid,
+  amkaValid,
+  ninoValid,
 } from './checksums.js';
 
 const mask = (): string => '[REDACTED ID]';
@@ -24,8 +37,9 @@ const mask = (): string => '[REDACTED ID]';
 const GROUP_SEPARATOR = '[ \\u00A0\\u2009\\u202F]';
 
 /**
- * National identifiers and IBANs. Every one is checksum-validated, so a random
- * run of digits can't be mistaken for a real ID. All are opt-in by country tag
+ * National identifiers and IBANs. Every one is checksum-validated (US SSN and
+ * UK National Insurance numbers, which have no checksum, by their allocation
+ * rules), so a random run of digits can't be mistaken for a real ID. All are opt-in by country tag
  * except IBAN, whose mod-97 check is strong enough to run by default.
  *
  *   redact(text, { enable: ['tr'] })   // Turkish IDs
@@ -184,5 +198,153 @@ export const LOCALE_DETECTORS: Detector[] = [
     mask,
     default: false,
     tags: ['pii', 'id', 'us'],
+  },  {
+    id: 'ro_cnp',
+    label: 'Romanian CNP',
+    why: 'Romania personal numeric code, assigned at birth.',
+    pattern: /\b[1-9]\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{6}\b/g,
+    validate: cnpValid,
+    mask,
+    default: false,
+    // One CNP in ten also passes Luhn as a 13-digit card; the ID should win.
+    priority: 1,
+    tags: ['pii', 'id', 'ro'],
+  },
+  {
+    id: 'se_personnummer',
+    label: 'Swedish personnummer',
+    why: 'Sweden personal identity number.',
+    // YYMMDD-NNNC (a + from age 100), or the 12-digit YYYYMMDDNNNC form.
+    pattern: /\b(?:(?:19|20)\d{6}-?|\d{6}[-+])\d{4}\b/g,
+    validate: personnummerValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'se'],
+  },
+  {
+    id: 'fi_hetu',
+    label: 'Finnish personal identity code (HETU)',
+    why: 'Finland henkilötunnus, the personal identity code.',
+    pattern: /\b(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2}[-+A-FU-Y]\d{3}[0-9A-FHJ-NPR-Y]\b/g,
+    validate: hetuValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'fi'],
+  },
+  {
+    id: 'no_fodselsnummer',
+    label: 'Norwegian fødselsnummer',
+    why: 'Norway national identity number, including D- and H-numbers.',
+    pattern: /\b\d{6} ?\d{5}\b/g,
+    validate: fodselsnummerValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'no'],
+  },
+  {
+    id: 'be_national_number',
+    label: 'Belgian national number',
+    why: 'Belgium national register number, also used for social security.',
+    // Compact, or printed as 85.07.30-033.28.
+    pattern: /\b\d{2}[. ]?\d{2}[. ]?\d{2}[-. ]?\d{3}[. ]?\d{2}\b/g,
+    validate: beNationalNumberValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'be'],
+  },
+  {
+    id: 'pt_nif',
+    label: 'Portuguese NIF',
+    why: 'Portugal tax identification number of a person.',
+    pattern: /\b[1-4]\d{2} ?\d{3} ?\d{3}\b/g,
+    validate: ptNifValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'pt'],
+  },
+  {
+    id: 'za_id',
+    label: 'South African ID number',
+    why: 'South Africa identity number, encodes birth date and citizenship.',
+    pattern: /\b\d{6} ?\d{4} ?\d{2} ?\d\b/g,
+    validate: zaIdValid,
+    mask,
+    default: false,
+    // Every ID passes Luhn, so it is also a 13-digit card candidate. Once 'za'
+    // is enabled the ID wins and is masked whole, not as a card with 4 digits shown.
+    priority: 1,
+    tags: ['pii', 'id', 'za'],
+  },
+  {
+    id: 'mx_curp',
+    label: 'Mexican CURP',
+    why: 'Mexico population registry code, encodes name, birth date and sex.',
+    pattern: /\b[A-Z]{4}\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])[HM](?:AS|BC|BS|CC|CH|CL|CM|CS|DF|DG|GR|GT|HG|JC|MC|MN|MS|NE|NL|NT|OC|PL|QR|QT|SL|SP|SR|TC|TL|TS|VZ|YN|ZS)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\d\b/g,
+    validate: curpValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'mx'],
+  },
+  {
+    id: 'cl_rut',
+    label: 'Chilean RUT / RUN',
+    why: 'Chile national identity and tax number.',
+    // 12.345.678-5 or 12345678-5; the dash before the check character is required.
+    pattern: /\b[1-9]\d?\.?\d{3}\.?\d{3}-[0-9Kk]\b/g,
+    validate: rutValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'cl'],
+  },
+  {
+    id: 'ar_cuit',
+    label: 'Argentine CUIL / CUIT',
+    why: 'Argentina tax and labour identification number of a person.',
+    pattern: /\b2[0347]-?\d{8}-?\d\b/g,
+    validate: cuitValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'ar'],
+  },
+  {
+    id: 'sg_nric',
+    label: 'Singapore NRIC / FIN',
+    why: 'Singapore identity card or foreign identification number.',
+    pattern: /\b[STFG]\d{7}[A-Z]\b/g,
+    validate: nricValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'sg'],
+  },
+  {
+    id: 'il_teudat_zehut',
+    label: 'Israeli ID number (Teudat Zehut)',
+    why: 'Israel identity number.',
+    pattern: /\b\d{8}-?\d\b/g,
+    validate: luhnCheck,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'il'],
+  },
+  {
+    id: 'gr_amka',
+    label: 'Greek AMKA',
+    why: 'Greece social security number, starts with the birth date.',
+    pattern: /\b(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{7}\b/g,
+    validate: amkaValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'gr'],
+  },
+  {
+    id: 'uk_nino',
+    label: 'UK National Insurance number',
+    why: 'A UK National Insurance number, used for tax and benefits.',
+    // No checksum exists: HMRC's prefix and suffix allocation rules are checked instead.
+    pattern: /\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z] ?\d{2} ?\d{2} ?\d{2} ?[A-D]\b/g,
+    validate: ninoValid,
+    mask,
+    default: false,
+    tags: ['pii', 'id', 'gb'],
   },
 ];

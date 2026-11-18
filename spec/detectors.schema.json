@@ -133,7 +133,9 @@
               "enum": [
                 "phone", "iban", "tckn", "cpf", "dni", "bsn", "pesel", "de_tax_id",
                 "codice_fiscale", "fr_nir", "aadhaar", "tfn", "cn_resident_id",
-                "jp_my_number", "us_ssn", "aba", "nhs", "vin"
+                "jp_my_number", "us_ssn", "aba", "nhs", "vin", "cnp", "personnummer",
+                "hetu", "fodselsnummer", "be_national_number", "pt_nif", "za_id", "curp",
+                "rut", "cuit", "nric", "amka", "uk_nino"
               ]
             }
           },

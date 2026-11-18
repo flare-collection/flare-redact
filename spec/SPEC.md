@@ -179,6 +179,19 @@ survives only if **all** validators return true.
 | `aba` | US routing 3-7-1 mod-10 |
 | `nhs` | UK weighted mod-11, rejects repeated digits |
 | `vin` | transliterated weighted mod-11, check character at position 9 |
+| `cnp` | Romania, 13 digits, first digit 1–9; month 01–12, day 01–31; weights 2-7-9-1-4-6-3-5-8-2-7-9, mod 11, a remainder of 10 is written as 1 |
+| `personnummer` | Sweden, separators `-` and `+` removed; a 12-digit value must start with 18, 19 or 20 and loses those two digits; 10 digits, month 01–12, day 01–31 or 61–91 (samordningsnummer), Luhn |
+| `hetu` | Finland `DDMMYY`, century sign `-` `+` `A`–`F` `U`–`Y`, individual number ≥ 002, check character `0123456789ABCDEFHJKLMNPRSTUVWXY`[`DDMMYYNNN` mod 31]; upper case only |
+| `fodselsnummer` | Norway, 11 digits; day 01–31 or 41–71 (D-number), month 01–12 or 41–52 (H-number); two mod-11 check digits, weights 3-7-6-1-8-9-4-5-2 and 5-4-3-2-7-6-5-4-3-2, a check of 10 is invalid |
+| `be_national_number` | Belgium, 11 digits; month mod 20 ≤ 12 and month ≤ 52 (BIS numbers add 20 or 40), day unchecked; check = 97 − (first nine digits mod 97), or the same with a `2` prefixed (born from 2000) |
+| `pt_nif` | Portugal, 9 digits starting 1, 2, 3 or 45 (a person); weights 9…2, check = ((11 − sum mod 11) mod 11) mod 10 |
+| `za_id` | South Africa, 13 digits; month 01–12, day 01–31; citizenship digit (11th) 0–2; Luhn |
+| `curp` | Mexico, 18 characters, upper case: 4 letters, `YYMMDD` (month 01–12, day 01–31), `H` or `M`, a state code, 3 consonants, a homoclave, a check digit; values 0–9, A–N = 10–23, O–Z = 25–36, weights 18…2, check = (10 − sum mod 10) mod 10 |
+| `rut` | Chile, `.`, `-` and ASCII whitespace removed, upper-cased; 7–8 digits and a check character; weights 2…7 repeating from the right, 11 − (sum mod 11), with 11 → `0` and 10 → `K` |
+| `cuit` | Argentina, 11 digits starting 20, 23, 24 or 27 (a person); weights 5-4-3-2-7-6-5-4-3-2; remainder 0 → 0, remainder 1 → 9, otherwise 11 − remainder |
+| `nric` | Singapore `[STFG]` + 7 digits + letter, upper case; weights 2-7-6-5-4-3-2, plus 4 for T and G; letter from `JZIHGFEDCBA` (S, T) or `XWUTRQPNMLK` (F, G) at sum mod 11 |
+| `amka` | Greece, 11 digits; `DDMMYY` with day 01–31 and month 01–12; Luhn |
+| `uk_nino` | UK National Insurance number, spaces removed: prefix letters per HMRC (first not D F I Q U V, second not D F I O Q U V; never BG GB KN NK NT TN ZZ), 6 digits, suffix A–D; no checksum exists |
 
 Adding a validator name is a spec revision, not a pack change: an engine that
 does not know a name **must fail loudly** when loading the pack rather than

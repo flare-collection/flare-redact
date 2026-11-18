@@ -668,6 +668,20 @@
     ],
     "redact": "routing [REDACTED ROUTING]"
   },
+  "id/ar-cuit": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "ar_cuit",
+        "end": 18,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "CUIL [REDACTED ID]"
+  },
   "id/au-tfn": {
     "findings": [
       {
@@ -681,6 +695,34 @@
       }
     ],
     "redact": "TFN [REDACTED ID]"
+  },
+  "id/be-bis": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "be_national_number",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "BIS [REDACTED ID]"
+  },
+  "id/be-national-number": {
+    "findings": [
+      {
+        "column": 4,
+        "confidence": 0.99,
+        "detector": "be_national_number",
+        "end": 18,
+        "line": 1,
+        "risk": "high",
+        "start": 3
+      }
+    ],
+    "redact": "NN [REDACTED ID]"
   },
   "id/br-cpf": {
     "findings": [
@@ -723,6 +765,34 @@
       }
     ],
     "redact": "SIN [REDACTED ID]"
+  },
+  "id/cl-rut": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "cl_rut",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "RUT [REDACTED ID]"
+  },
+  "id/cl-rut-k": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "cl_rut",
+        "end": 14,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "RUN [REDACTED ID]"
   },
   "id/cn-resident": {
     "findings": [
@@ -780,6 +850,34 @@
     ],
     "redact": "DNI [REDACTED ID]"
   },
+  "id/fi-hetu": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "fi_hetu",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "HETU [REDACTED ID]"
+  },
+  "id/fi-hetu-2000s": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "fi_hetu",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "HETU [REDACTED ID]"
+  },
   "id/fr-nir": {
     "findings": [
       {
@@ -793,6 +891,34 @@
       }
     ],
     "redact": "NIR [REDACTED ID]"
+  },
+  "id/gr-amka": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "gr_amka",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "AMKA [REDACTED ID]"
+  },
+  "id/il-teudat-zehut": {
+    "findings": [
+      {
+        "column": 4,
+        "confidence": 0.99,
+        "detector": "il_teudat_zehut",
+        "end": 13,
+        "line": 1,
+        "risk": "high",
+        "start": 3
+      }
+    ],
+    "redact": "TZ [REDACTED ID]"
   },
   "id/in-aadhaar": {
     "findings": [
@@ -836,6 +962,24 @@
     ],
     "redact": "My Number [REDACTED ID]"
   },
+  "id/mx-curp": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "mx_curp",
+        "end": 23,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "CURP [REDACTED ID]"
+  },
+  "id/negative-checksum-valid-near-misses": {
+    "findings": [],
+    "redact": "CNP 1851301401236 HETU 320185-123B AMKA 32018512346 CURP ABCD851301HDFBCD06 NRIC S1234567A NINO QQ 12 34 56 C"
+  },
   "id/negative-random-digits": {
     "findings": [],
     "redact": "sequence 123456789012 means nothing"
@@ -854,6 +998,34 @@
     ],
     "redact": "BSN [REDACTED ID]"
   },
+  "id/no-d-number": {
+    "findings": [
+      {
+        "column": 10,
+        "confidence": 0.99,
+        "detector": "no_fodselsnummer",
+        "end": 20,
+        "line": 1,
+        "risk": "high",
+        "start": 9
+      }
+    ],
+    "redact": "D-nummer [REDACTED ID]"
+  },
+  "id/no-fodselsnummer": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "no_fodselsnummer",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "fnr [REDACTED ID]"
+  },
   "id/pl-pesel": {
     "findings": [
       {
@@ -867,6 +1039,99 @@
       }
     ],
     "redact": "PESEL [REDACTED ID]"
+  },
+  "id/pt-nif": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "pt_nif",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "NIF [REDACTED ID]"
+  },
+  "id/ro-cnp": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "ro_cnp",
+        "end": 17,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "CNP [REDACTED ID]"
+  },
+  "id/se-personnummer": {
+    "findings": [
+      {
+        "column": 14,
+        "confidence": 0.99,
+        "detector": "se_personnummer",
+        "end": 24,
+        "line": 1,
+        "risk": "high",
+        "start": 13
+      }
+    ],
+    "redact": "personnummer [REDACTED ID]"
+  },
+  "id/se-personnummer-12-digit": {
+    "findings": [
+      {
+        "column": 5,
+        "confidence": 0.99,
+        "detector": "se_personnummer",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 4
+      }
+    ],
+    "redact": "pnr [REDACTED ID]"
+  },
+  "id/se-samordningsnummer": {
+    "findings": [
+      {
+        "column": 19,
+        "confidence": 0.99,
+        "detector": "se_personnummer",
+        "end": 29,
+        "line": 1,
+        "risk": "high",
+        "start": 18
+      }
+    ],
+    "redact": "samordningsnummer [REDACTED ID]"
+  },
+  "id/sg-nric": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "sg_nric",
+        "end": 14,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      },
+      {
+        "column": 21,
+        "confidence": 0.99,
+        "detector": "sg_nric",
+        "end": 29,
+        "line": 1,
+        "risk": "high",
+        "start": 20
+      }
+    ],
+    "redact": "NRIC [REDACTED ID], FIN [REDACTED ID]"
   },
   "id/tr-tckn": {
     "findings": [
@@ -895,6 +1160,20 @@
       }
     ],
     "redact": "NHS [REDACTED ID]"
+  },
+  "id/uk-nino": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.99,
+        "detector": "uk_nino",
+        "end": 18,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "NINO [REDACTED ID]"
   },
   "id/us-ssn": {
     "findings": [
@@ -937,6 +1216,20 @@
       }
     ],
     "redact": "VIN [REDACTED VIN]"
+  },
+  "id/za-id-outranks-card": {
+    "findings": [
+      {
+        "column": 4,
+        "confidence": 0.99,
+        "detector": "za_id",
+        "end": 19,
+        "line": 1,
+        "risk": "high",
+        "start": 3
+      }
+    ],
+    "redact": "ID [REDACTED ID]"
   },
   "include-values/scan": {
     "findings": [

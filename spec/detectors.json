@@ -1042,6 +1042,388 @@
       "confidence": 0.99
     },
     {
+      "id": "ro_cnp",
+      "label": "Romanian CNP",
+      "why": "Romania personal numeric code, assigned at birth.",
+      "pattern": "[1-9][0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{6}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "cnp"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "ro"
+      ],
+      "risk": "high",
+      "confidence": 0.99,
+      "priority": 1
+    },
+    {
+      "id": "se_personnummer",
+      "label": "Swedish personnummer",
+      "why": "Sweden personal identity number.",
+      "pattern": "(?:(?:19|20)[0-9]{6}-?|[0-9]{6}[-+])[0-9]{4}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "personnummer"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "se"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "fi_hetu",
+      "label": "Finnish personal identity code (HETU)",
+      "why": "Finland henkilötunnus, the personal identity code.",
+      "pattern": "(?:0[1-9]|[12][0-9]|3[01])(?:0[1-9]|1[0-2])[0-9]{2}[-+A-FU-Y][0-9]{3}[0-9A-FHJ-NPR-Y]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "hetu"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "fi"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "no_fodselsnummer",
+      "label": "Norwegian fødselsnummer",
+      "why": "Norway national identity number, including D- and H-numbers.",
+      "pattern": "[0-9]{6} ?[0-9]{5}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "fodselsnummer"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "no"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "be_national_number",
+      "label": "Belgian national number",
+      "why": "Belgium national register number, also used for social security.",
+      "pattern": "[0-9]{2}[. ]?[0-9]{2}[. ]?[0-9]{2}[-. ]?[0-9]{3}[. ]?[0-9]{2}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "be_national_number"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "be"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "pt_nif",
+      "label": "Portuguese NIF",
+      "why": "Portugal tax identification number of a person.",
+      "pattern": "[1-4][0-9]{2} ?[0-9]{3} ?[0-9]{3}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "pt_nif"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "pt"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "za_id",
+      "label": "South African ID number",
+      "why": "South Africa identity number, encodes birth date and citizenship.",
+      "pattern": "[0-9]{6} ?[0-9]{4} ?[0-9]{2} ?[0-9]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "za_id"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "za"
+      ],
+      "risk": "high",
+      "confidence": 0.99,
+      "priority": 1
+    },
+    {
+      "id": "mx_curp",
+      "label": "Mexican CURP",
+      "why": "Mexico population registry code, encodes name, birth date and sex.",
+      "pattern": "[A-Z]{4}[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[HM](?:AS|BC|BS|CC|CH|CL|CM|CS|DF|DG|GR|GT|HG|JC|MC|MN|MS|NE|NL|NT|OC|PL|QR|QT|SL|SP|SR|TC|TL|TS|VZ|YN|ZS)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "curp"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "mx"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "cl_rut",
+      "label": "Chilean RUT / RUN",
+      "why": "Chile national identity and tax number.",
+      "pattern": "[1-9][0-9]?\\.?[0-9]{3}\\.?[0-9]{3}-[0-9Kk]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "rut"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "cl"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "ar_cuit",
+      "label": "Argentine CUIL / CUIT",
+      "why": "Argentina tax and labour identification number of a person.",
+      "pattern": "2[0347]-?[0-9]{8}-?[0-9]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "cuit"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "ar"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "sg_nric",
+      "label": "Singapore NRIC / FIN",
+      "why": "Singapore identity card or foreign identification number.",
+      "pattern": "[STFG][0-9]{7}[A-Z]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "nric"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "sg"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "il_teudat_zehut",
+      "label": "Israeli ID number (Teudat Zehut)",
+      "why": "Israel identity number.",
+      "pattern": "[0-9]{8}-?[0-9]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "luhn",
+          "minDigits": 9,
+          "maxDigits": 9
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "il"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "gr_amka",
+      "label": "Greek AMKA",
+      "why": "Greece social security number, starts with the birth date.",
+      "pattern": "(?:0[1-9]|[12][0-9]|3[01])(?:0[1-9]|1[0-2])[0-9]{7}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "amka"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "gr"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
+      "id": "uk_nino",
+      "label": "UK National Insurance number",
+      "why": "A UK National Insurance number, used for tax and benefits.",
+      "pattern": "[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z] ?[0-9]{2} ?[0-9]{2} ?[0-9]{2} ?[A-D]",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "validators": [
+        {
+          "name": "uk_nino"
+        }
+      ],
+      "mask": {
+        "type": "fixed",
+        "text": "[REDACTED ID]"
+      },
+      "default": false,
+      "tags": [
+        "pii",
+        "id",
+        "gb"
+      ],
+      "risk": "high",
+      "confidence": 0.99
+    },
+    {
       "id": "digitalocean_token",
       "label": "DigitalOcean token",
       "why": "Controls DigitalOcean infrastructure and billing.",

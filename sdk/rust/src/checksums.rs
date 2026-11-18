@@ -506,6 +506,283 @@ pub fn vin(value: &str) -> bool {
     bytes[8] == expected
 }
 
+/// Day 01-31 and month 01-12, the check shared by date-based identifiers.
+fn plausible_date(day: u32, month: u32) -> bool {
+    (1..=31).contains(&day) && (1..=12).contains(&month)
+}
+
+/// The two-digit number at `index` of an all-digit string.
+fn two_digits(digits: &str, index: usize) -> u32 {
+    digit_at(digits, index) * 10 + digit_at(digits, index + 1)
+}
+
+fn all_ascii_digits(bytes: &[u8]) -> bool {
+    bytes.iter().all(|b| b.is_ascii_digit())
+}
+
+const CNP_WEIGHTS: [u32; 12] = [2, 7, 9, 1, 4, 6, 3, 5, 8, 2, 7, 9];
+
+/// Romania CNP — 13 digits, birth date, weighted mod-11 (10 is written as 1).
+pub fn cnp(value: &str) -> bool {
+    let d = digits_of(value);
+    if d.len() != 13 || d.starts_with('0') {
+        return false;
+    }
+    if !plausible_date(two_digits(&d, 5), two_digits(&d, 3)) {
+        return false;
+    }
+    let mut sum = 0u32;
+    for (i, weight) in CNP_WEIGHTS.iter().enumerate() {
+        sum += digit_at(&d, i) * weight;
+    }
+    let r = sum % 11;
+    (if r == 10 { 1 } else { r }) == digit_at(&d, 12)
+}
+
+/// Sweden personnummer — Luhn over YYMMDDNNNC; a samordningsnummer adds 60 to the day.
+pub fn personnummer(value: &str) -> bool {
+    let mut d: String = value.chars().filter(|c| *c != '-' && *c != '+').collect();
+    if d.is_empty() || !all_ascii_digits(d.as_bytes()) {
+        return false;
+    }
+    if d.len() == 12 {
+        if !(d.starts_with("18") || d.starts_with("19") || d.starts_with("20")) {
+            return false;
+        }
+        d = d[2..].to_string();
+    }
+    if d.len() != 10 {
+        return false;
+    }
+    let mut day = two_digits(&d, 4);
+    if day > 60 {
+        day -= 60;
+    }
+    plausible_date(day, two_digits(&d, 2)) && luhn(&d, 2, 0)
+}
+
+const HETU_CHECK: &[u8] = b"0123456789ABCDEFHJKLMNPRSTUVWXY";
+
+/// Finland henkilötunnus — DDMMYY, century sign, individual number, mod-31 check.
+pub fn hetu(value: &str) -> bool {
+    let b = value.as_bytes();
+    if b.len() != 11
+        || !all_ascii_digits(&b[..6])
+        || !b"-+ABCDEFUVWXY".contains(&b[6])
+        || !all_ascii_digits(&b[7..10])
+        || !HETU_CHECK.contains(&b[10])
+    {
+        return false;
+    }
+    let digits = format!("{}{}", &value[..6], &value[7..10]);
+    if !plausible_date(two_digits(&digits, 0), two_digits(&digits, 2)) {
+        return false;
+    }
+    let individual: u32 = digits[6..].parse().unwrap_or(0);
+    let number: u32 = digits.parse().unwrap_or(0);
+    individual >= 2 && HETU_CHECK[(number % 31) as usize] == b[10]
+}
+
+const FNR_W1: [u32; 9] = [3, 7, 6, 1, 8, 9, 4, 5, 2];
+const FNR_W2: [u32; 10] = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+
+/// Norway fødselsnummer (and D- and H-numbers) — two mod-11 check digits.
+pub fn fodselsnummer(value: &str) -> bool {
+    let d = digits_of(value);
+    if d.len() != 11 {
+        return false;
+    }
+    let (mut day, mut month) = (two_digits(&d, 0), two_digits(&d, 2));
+    if day > 40 {
+        day -= 40;
+    }
+    if month > 40 {
+        month -= 40;
+    }
+    if !plausible_date(day, month) {
+        return false;
+    }
+    let check = |weights: &[u32]| -> u32 {
+        let sum: u32 = weights.iter().enumerate().map(|(i, w)| digit_at(&d, i) * w).sum();
+        (11 - sum % 11) % 11
+    };
+    check(&FNR_W1) == digit_at(&d, 9) && check(&FNR_W2) == digit_at(&d, 10)
+}
+
+/// Belgium national register number — 97 − (n mod 97), with a 2 prefixed from 2000.
+/// BIS numbers add 20 or 40 to the month; the day is not checked.
+pub fn be_national_number(value: &str) -> bool {
+    let d = digits_of(value);
+    if d.len() != 11 {
+        return false;
+    }
+    let month = two_digits(&d, 2);
+    if month > 52 || month % 20 > 12 {
+        return false;
+    }
+    let base: u64 = d[..9].parse().unwrap_or(0);
+    let check: u64 = d[9..].parse().unwrap_or(0);
+    97 - base % 97 == check || 97 - (2_000_000_000 + base) % 97 == check
+}
+
+/// Portugal NIF of a person (first digit 1-3, or 45) — weighted mod-11 check digit.
+pub fn pt_nif(value: &str) -> bool {
+    let d = digits_of(value);
+    if d.len() != 9 || !(matches!(d.as_bytes()[0], b'1' | b'2' | b'3') || d.starts_with("45")) {
+        return false;
+    }
+    let mut sum = 0u32;
+    for i in 0..8 {
+        sum += digit_at(&d, i) * (9 - i as u32);
+    }
+    (11 - sum % 11) % 11 % 10 == digit_at(&d, 8)
+}
+
+/// South Africa ID number — YYMMDD, citizenship digit 0-2, Luhn over 13 digits.
+pub fn za_id(value: &str) -> bool {
+    let d = digits_of(value);
+    if d.len() != 13 || d.as_bytes()[10] > b'2' {
+        return false;
+    }
+    plausible_date(two_digits(&d, 4), two_digits(&d, 2)) && luhn(&d, 2, 0)
+}
+
+const CURP_STATES: [&str; 33] = [
+    "AS", "BC", "BS", "CC", "CH", "CL", "CM", "CS", "DF", "DG", "GR", "GT", "HG", "JC", "MC", "MN",
+    "MS", "NE", "NL", "NT", "OC", "PL", "QR", "QT", "SL", "SP", "SR", "TC", "TL", "TS", "VZ", "YN",
+    "ZS",
+];
+
+fn is_consonant(b: u8) -> bool {
+    b.is_ascii_uppercase() && !matches!(b, b'A' | b'E' | b'I' | b'O' | b'U')
+}
+
+/// Mexico CURP — 18 characters. The check alphabet is 0-9, A-N, Ñ, O-Z, so
+/// O-Z count one higher than their place in A-Z.
+pub fn curp(value: &str) -> bool {
+    let b = value.as_bytes();
+    if b.len() != 18
+        || !b[..4].iter().all(|c| c.is_ascii_uppercase())
+        || !all_ascii_digits(&b[4..10])
+        || !matches!(b[10], b'H' | b'M')
+        || !b[11..13].iter().all(|c| c.is_ascii_uppercase())
+        || !b[13..16].iter().all(|c| is_consonant(*c))
+        || !(b[16].is_ascii_digit() || b[16].is_ascii_uppercase())
+        || !b[17].is_ascii_digit()
+    {
+        return false;
+    }
+    if !plausible_date(two_digits(&value[4..10], 4), two_digits(&value[4..10], 2))
+        || !CURP_STATES.contains(&&value[11..13])
+    {
+        return false;
+    }
+    let mut sum = 0u32;
+    for (i, c) in b[..17].iter().enumerate() {
+        let v = match *c {
+            b'0'..=b'9' => (c - b'0') as u32,
+            b'A'..=b'N' => (c - 55) as u32,
+            _ => (c - 54) as u32,
+        };
+        sum += v * (18 - i as u32);
+    }
+    (10 - sum % 10) % 10 == (b[17] - b'0') as u32
+}
+
+const RUT_SEPARATORS: [char; 8] = [' ', '\t', '\n', '\r', '\u{0B}', '\u{0C}', '.', '-'];
+
+/// Chile RUT / RUN — 7-8 digits and a mod-11 check character (10 is K, 11 is 0).
+pub fn rut(value: &str) -> bool {
+    let text = strip(value, &RUT_SEPARATORS).to_uppercase();
+    let b = text.as_bytes();
+    if !text.is_ascii() || b.len() < 8 || b.len() > 9 {
+        return false;
+    }
+    let (body, check) = (&b[..b.len() - 1], b[b.len() - 1]);
+    if !all_ascii_digits(body) || !(check.is_ascii_digit() || check == b'K') {
+        return false;
+    }
+    let mut sum = 0u32;
+    let mut weight = 2u32;
+    for c in body.iter().rev() {
+        sum += (c - b'0') as u32 * weight;
+        weight = if weight == 7 { 2 } else { weight + 1 };
+    }
+    let expected = match 11 - sum % 11 {
+        11 => b'0',
+        10 => b'K',
+        r => b'0' + r as u8,
+    };
+    expected == check
+}
+
+const CUIT_WEIGHTS: [u32; 10] = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+
+/// Argentina CUIL / CUIT of a person (20, 23, 24, 27) — weighted mod-11.
+/// A check value of 10 is accepted as 9, the digit used for it in practice.
+pub fn cuit(value: &str) -> bool {
+    let d = digits_of(value);
+    if d.len() != 11 || !matches!(&d[..2], "20" | "23" | "24" | "27") {
+        return false;
+    }
+    let mut sum = 0u32;
+    for (i, weight) in CUIT_WEIGHTS.iter().enumerate() {
+        sum += digit_at(&d, i) * weight;
+    }
+    let check = match sum % 11 {
+        0 => 0,
+        1 => 9,
+        r => 11 - r,
+    };
+    check == digit_at(&d, 10)
+}
+
+const NRIC_WEIGHTS: [u32; 7] = [2, 7, 6, 5, 4, 3, 2];
+
+/// Singapore NRIC / FIN (S, T, F, G series) — weighted mod-11 check letter.
+pub fn nric(value: &str) -> bool {
+    let b = value.as_bytes();
+    if b.len() != 9
+        || !matches!(b[0], b'S' | b'T' | b'F' | b'G')
+        || !all_ascii_digits(&b[1..8])
+        || !b[8].is_ascii_uppercase()
+    {
+        return false;
+    }
+    let mut sum = if matches!(b[0], b'T' | b'G') { 4 } else { 0 };
+    for (i, weight) in NRIC_WEIGHTS.iter().enumerate() {
+        sum += (b[i + 1] - b'0') as u32 * weight;
+    }
+    let letters: &[u8] = if matches!(b[0], b'S' | b'T') {
+        b"JZIHGFEDCBA"
+    } else {
+        b"XWUTRQPNMLK"
+    };
+    letters[(sum % 11) as usize] == b[8]
+}
+
+/// Greece AMKA — DDMMYY birth date, Luhn over 11 digits.
+pub fn amka(value: &str) -> bool {
+    let d = digits_of(value);
+    d.len() == 11 && plausible_date(two_digits(&d, 0), two_digits(&d, 2)) && luhn(&d, 2, 0)
+}
+
+const NINO_FIRST: &[u8] = b"ABCEGHJKLMNOPRSTWXYZ";
+const NINO_SECOND: &[u8] = b"ABCEGHJKLMNPRSTWXYZ";
+const NINO_UNUSED_PREFIXES: [&str; 7] = ["BG", "GB", "KN", "NK", "NT", "TN", "ZZ"];
+
+/// UK National Insurance number — no checksum exists; HMRC's allocation rules.
+pub fn uk_nino(value: &str) -> bool {
+    let n = strip(value, &[' ']);
+    let b = n.as_bytes();
+    b.len() == 9
+        && NINO_FIRST.contains(&b[0])
+        && NINO_SECOND.contains(&b[1])
+        && all_ascii_digits(&b[2..8])
+        && matches!(b[8], b'A'..=b'D')
+        && !NINO_UNUSED_PREFIXES.contains(&&n[..2])
+}
+
 /// Look up a validator by the name a pack uses. `None` means this engine cannot
 /// perform the check, which is a load error rather than a skipped validation.
 pub fn named(name: &str) -> Option<fn(&str) -> bool> {
@@ -528,6 +805,19 @@ pub fn named(name: &str) -> Option<fn(&str) -> bool> {
         "aba" => aba,
         "nhs" => nhs,
         "vin" => vin,
+        "cnp" => cnp,
+        "personnummer" => personnummer,
+        "hetu" => hetu,
+        "fodselsnummer" => fodselsnummer,
+        "be_national_number" => be_national_number,
+        "pt_nif" => pt_nif,
+        "za_id" => za_id,
+        "curp" => curp,
+        "rut" => rut,
+        "cuit" => cuit,
+        "nric" => nric,
+        "amka" => amka,
+        "uk_nino" => uk_nino,
         _ => return None,
     })
 }

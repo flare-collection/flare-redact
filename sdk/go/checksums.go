@@ -463,25 +463,322 @@ func validVIN(value string) bool {
 	return string(v[8]) == expected
 }
 
+// plausibleDate is the day 01-31, month 01-12 check shared by date-based IDs.
+func plausibleDate(day, month int) bool {
+	return day >= 1 && day <= 31 && month >= 1 && month <= 12
+}
+
+// twoDigits reads the two ASCII digits of d starting at i.
+func twoDigits(d string, i int) int { return atoiByte(d[i])*10 + atoiByte(d[i+1]) }
+
+var cnpWeights = [12]int{2, 7, 9, 1, 4, 6, 3, 5, 8, 2, 7, 9}
+
+// validCNP applies Romania's weighted mod-11 check (10 is written as 1).
+func validCNP(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 13 || d[0] == '0' || !plausibleDate(twoDigits(d, 5), twoDigits(d, 3)) {
+		return false
+	}
+	sum := 0
+	for i := 0; i < 12; i++ {
+		sum += atoiByte(d[i]) * cnpWeights[i]
+	}
+	r := sum % 11
+	if r == 10 {
+		r = 1
+	}
+	return r == atoiByte(d[12])
+}
+
+var allDigits = regexp.MustCompile(`^[0-9]+$`)
+
+// validPersonnummer applies Sweden's Luhn check over YYMMDDNNNC; a
+// samordningsnummer adds 60 to the day.
+func validPersonnummer(value string) bool {
+	d := strings.NewReplacer("-", "", "+", "").Replace(value)
+	if !allDigits.MatchString(d) {
+		return false
+	}
+	if len(d) == 12 {
+		if c := d[:2]; c != "18" && c != "19" && c != "20" {
+			return false
+		}
+		d = d[2:]
+	}
+	if len(d) != 10 {
+		return false
+	}
+	day := twoDigits(d, 4)
+	if day > 60 {
+		day -= 60
+	}
+	if !plausibleDate(day, twoDigits(d, 2)) {
+		return false
+	}
+	return Luhn(d, 2, 0)
+}
+
+var hetuShape = regexp.MustCompile(`^([0-9]{2})([0-9]{2})([0-9]{2})[-+A-FU-Y]([0-9]{3})([0-9A-FHJ-NPR-Y])$`)
+
+const hetuCheck = "0123456789ABCDEFHJKLMNPRSTUVWXY"
+
+// validHETU applies Finland's mod-31 check character.
+func validHETU(value string) bool {
+	m := hetuShape.FindStringSubmatch(value)
+	if m == nil {
+		return false
+	}
+	day, _ := strconv.Atoi(m[1])
+	month, _ := strconv.Atoi(m[2])
+	individual, _ := strconv.Atoi(m[4])
+	if !plausibleDate(day, month) || individual < 2 {
+		return false
+	}
+	n, _ := strconv.Atoi(m[1] + m[2] + m[3] + m[4])
+	return hetuCheck[n%31] == m[5][0]
+}
+
+var (
+	fnrW1 = []int{3, 7, 6, 1, 8, 9, 4, 5, 2}
+	fnrW2 = []int{5, 4, 3, 2, 7, 6, 5, 4, 3, 2}
+)
+
+// validFodselsnummer applies Norway's two mod-11 check digits; D-numbers add
+// 40 to the day and H-numbers 40 to the month.
+func validFodselsnummer(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 11 {
+		return false
+	}
+	day, month := twoDigits(d, 0), twoDigits(d, 2)
+	if day > 40 {
+		day -= 40
+	}
+	if month > 40 {
+		month -= 40
+	}
+	if !plausibleDate(day, month) {
+		return false
+	}
+	check := func(weights []int) int {
+		sum := 0
+		for i, w := range weights {
+			sum += atoiByte(d[i]) * w
+		}
+		return (11 - sum%11) % 11
+	}
+	return check(fnrW1) == atoiByte(d[9]) && check(fnrW2) == atoiByte(d[10])
+}
+
+// validBENationalNumber applies Belgium's 97 − (n mod 97) check, with a 2
+// prefixed for people born from 2000. BIS numbers add 20 or 40 to the month.
+func validBENationalNumber(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 11 {
+		return false
+	}
+	month := twoDigits(d, 2)
+	if month > 52 || month%20 > 12 {
+		return false
+	}
+	base, _ := strconv.ParseInt(d[:9], 10, 64)
+	check, _ := strconv.ParseInt(d[9:], 10, 64)
+	return 97-base%97 == check || 97-(2_000_000_000+base)%97 == check
+}
+
+// validPTNIF applies Portugal's weighted mod-11 check to a person's NIF.
+func validPTNIF(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 9 || !(d[0] == '1' || d[0] == '2' || d[0] == '3' || strings.HasPrefix(d, "45")) {
+		return false
+	}
+	sum := 0
+	for i := 0; i < 8; i++ {
+		sum += atoiByte(d[i]) * (9 - i)
+	}
+	return (11-sum%11)%11%10 == atoiByte(d[8])
+}
+
+// validZAID applies South Africa's Luhn check, birth date and citizenship digit.
+func validZAID(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 13 || d[10] > '2' || !plausibleDate(twoDigits(d, 4), twoDigits(d, 2)) {
+		return false
+	}
+	return Luhn(d, 2, 0)
+}
+
+var (
+	curpShape  = regexp.MustCompile(`^[A-Z]{4}([0-9]{2})([0-9]{2})([0-9]{2})[HM]([A-Z]{2})[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]$`)
+	curpStates = map[string]bool{
+		"AS": true, "BC": true, "BS": true, "CC": true, "CH": true, "CL": true, "CM": true, "CS": true,
+		"DF": true, "DG": true, "GR": true, "GT": true, "HG": true, "JC": true, "MC": true, "MN": true,
+		"MS": true, "NE": true, "NL": true, "NT": true, "OC": true, "PL": true, "QR": true, "QT": true,
+		"SL": true, "SP": true, "SR": true, "TC": true, "TL": true, "TS": true, "VZ": true, "YN": true,
+		"ZS": true,
+	}
+)
+
+// validCURP applies Mexico's CURP check digit. The check alphabet is 0-9, A-N,
+// Ñ, O-Z, so O-Z count one higher than their place in A-Z.
+func validCURP(value string) bool {
+	m := curpShape.FindStringSubmatch(value)
+	if m == nil {
+		return false
+	}
+	day, _ := strconv.Atoi(m[3])
+	month, _ := strconv.Atoi(m[2])
+	if !plausibleDate(day, month) || !curpStates[m[4]] {
+		return false
+	}
+	sum := 0
+	for i := 0; i < 17; i++ {
+		c := int(value[i])
+		v := c - 54
+		if c <= '9' {
+			v = c - '0'
+		} else if c <= 'N' {
+			v = c - 55
+		}
+		sum += v * (18 - i)
+	}
+	return (10-sum%10)%10 == atoiByte(value[17])
+}
+
+var (
+	rutStrip = regexp.MustCompile(`[ \t\n\x0B\f\r.-]`)
+	rutShape = regexp.MustCompile(`^([0-9]{7,8})([0-9K])$`)
+)
+
+// validRUT applies Chile's mod-11 check character (10 is K, 11 is 0).
+func validRUT(value string) bool {
+	m := rutShape.FindStringSubmatch(strings.ToUpper(rutStrip.ReplaceAllString(value, "")))
+	if m == nil {
+		return false
+	}
+	sum, weight := 0, 2
+	for i := len(m[1]) - 1; i >= 0; i-- {
+		sum += atoiByte(m[1][i]) * weight
+		if weight == 7 {
+			weight = 2
+		} else {
+			weight++
+		}
+	}
+	expected := strconv.Itoa(11 - sum%11)
+	switch 11 - sum%11 {
+	case 11:
+		expected = "0"
+	case 10:
+		expected = "K"
+	}
+	return expected == m[2]
+}
+
+var cuitWeights = [10]int{5, 4, 3, 2, 7, 6, 5, 4, 3, 2}
+
+// validCUIT applies Argentina's weighted mod-11 check to a person's CUIL/CUIT.
+// A check value of 10 is accepted as 9, the digit used for it in practice.
+func validCUIT(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 11 {
+		return false
+	}
+	if p := d[:2]; p != "20" && p != "23" && p != "24" && p != "27" {
+		return false
+	}
+	sum := 0
+	for i := 0; i < 10; i++ {
+		sum += atoiByte(d[i]) * cuitWeights[i]
+	}
+	check := 11 - sum%11
+	switch sum % 11 {
+	case 0:
+		check = 0
+	case 1:
+		check = 9
+	}
+	return check == atoiByte(d[10])
+}
+
+var (
+	nricShape   = regexp.MustCompile(`^([STFG])([0-9]{7})([A-Z])$`)
+	nricWeights = [7]int{2, 7, 6, 5, 4, 3, 2}
+)
+
+// validNRIC applies Singapore's weighted mod-11 check letter (S, T, F, G series).
+func validNRIC(value string) bool {
+	m := nricShape.FindStringSubmatch(value)
+	if m == nil {
+		return false
+	}
+	sum := 0
+	if m[1] == "T" || m[1] == "G" {
+		sum = 4
+	}
+	for i := 0; i < 7; i++ {
+		sum += atoiByte(m[2][i]) * nricWeights[i]
+	}
+	letters := "XWUTRQPNMLK"
+	if m[1] == "S" || m[1] == "T" {
+		letters = "JZIHGFEDCBA"
+	}
+	return letters[sum%11] == m[3][0]
+}
+
+// validAMKA applies Greece's DDMMYY birth date and Luhn check.
+func validAMKA(value string) bool {
+	d := digitsOf(value)
+	if len(d) != 11 || !plausibleDate(twoDigits(d, 0), twoDigits(d, 2)) {
+		return false
+	}
+	return Luhn(d, 2, 0)
+}
+
+var (
+	ninoShape          = regexp.MustCompile(`^[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z][0-9]{6}[A-D]$`)
+	ninoUnusedPrefixes = map[string]bool{"BG": true, "GB": true, "KN": true, "NK": true, "NT": true, "TN": true, "ZZ": true}
+)
+
+// validNINO checks a UK National Insurance number against HMRC's allocation
+// rules. No checksum exists.
+func validNINO(value string) bool {
+	n := strings.ReplaceAll(value, " ", "")
+	return ninoShape.MatchString(n) && !ninoUnusedPrefixes[n[:2]]
+}
+
 // namedValidators is the vocabulary a pack may reference by name. An unknown
 // name is a load error, never a skipped check.
 var namedValidators = map[string]func(string) bool{
-	"phone":           validPhone,
-	"iban":            validIBAN,
-	"tckn":            validTCKN,
-	"cpf":             validCPF,
-	"dni":             validDNI,
-	"bsn":             validBSN,
-	"pesel":           validPESEL,
-	"de_tax_id":       validDETaxID,
-	"codice_fiscale":  validCodiceFiscale,
-	"fr_nir":          validFRNIR,
-	"aadhaar":         validAadhaar,
-	"tfn":             validTFN,
-	"cn_resident_id":  validCNResidentID,
-	"jp_my_number":    validJPMyNumber,
-	"us_ssn":          validSSN,
-	"aba":             validABA,
-	"nhs":             validNHS,
-	"vin":             validVIN,
+	"phone":              validPhone,
+	"iban":               validIBAN,
+	"tckn":               validTCKN,
+	"cpf":                validCPF,
+	"dni":                validDNI,
+	"bsn":                validBSN,
+	"pesel":              validPESEL,
+	"de_tax_id":          validDETaxID,
+	"codice_fiscale":     validCodiceFiscale,
+	"fr_nir":             validFRNIR,
+	"aadhaar":            validAadhaar,
+	"tfn":                validTFN,
+	"cn_resident_id":     validCNResidentID,
+	"jp_my_number":       validJPMyNumber,
+	"us_ssn":             validSSN,
+	"aba":                validABA,
+	"nhs":                validNHS,
+	"vin":                validVIN,
+	"cnp":                validCNP,
+	"personnummer":       validPersonnummer,
+	"hetu":               validHETU,
+	"fodselsnummer":      validFodselsnummer,
+	"be_national_number": validBENationalNumber,
+	"pt_nif":             validPTNIF,
+	"za_id":              validZAID,
+	"curp":               validCURP,
+	"rut":                validRUT,
+	"cuit":               validCUIT,
+	"nric":               validNRIC,
+	"amka":               validAMKA,
+	"uk_nino":            validNINO,
 }

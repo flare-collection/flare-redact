@@ -1129,6 +1129,20 @@ redact(text, { enable: ['tr', 'de'] });   // just Turkish and German
 | `au_tfn` | 🇦🇺 Australia (TFN) | weighted mod-11 |
 | `cn_resident_id` | 🇨🇳 China | ISO 7064 mod-11,2 |
 | `jp_my_number` | 🇯🇵 Japan (My Number) | weighted mod-11 |
+| `ro_cnp` | 🇷🇴 Romania (CNP) | weighted mod-11 and birth date |
+| `se_personnummer` | 🇸🇪 Sweden (personnummer, samordningsnummer) | Luhn and birth date |
+| `fi_hetu` | 🇫🇮 Finland (HETU) | mod-31 check character |
+| `no_fodselsnummer` | 🇳🇴 Norway (fødselsnummer, D- and H-numbers) | two mod-11 digits |
+| `be_national_number` | 🇧🇪 Belgium (national number, BIS) | 97 minus mod-97 |
+| `pt_nif` | 🇵🇹 Portugal (NIF of a person) | weighted mod-11 |
+| `za_id` | 🇿🇦 South Africa | Luhn and birth date |
+| `mx_curp` | 🇲🇽 Mexico (CURP) | weighted mod-10, state code |
+| `cl_rut` | 🇨🇱 Chile (RUT / RUN) | mod-11, K for 10 |
+| `ar_cuit` | 🇦🇷 Argentina (CUIL / CUIT of a person) | weighted mod-11 |
+| `sg_nric` | 🇸🇬 Singapore (NRIC / FIN) | weighted mod-11 check letter |
+| `il_teudat_zehut` | 🇮🇱 Israel (Teudat Zehut) | Luhn |
+| `gr_amka` | 🇬🇷 Greece (AMKA) | Luhn and birth date |
+| `uk_nino` | 🇬🇧 United Kingdom (National Insurance) | HMRC prefix and suffix rules (no checksum exists) |
 
 Every algorithm has its own tests against known-valid and known-invalid numbers,
 so enabling them won't turn your logs into a wall of `[REDACTED]`.
