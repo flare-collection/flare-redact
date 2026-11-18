@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>How to Redact PII and Secrets from LLM Prompts | Flare Redact</title>
-  <meta name="description" content="Redact PII and secrets before OpenAI or Anthropic requests, preserve references with local placeholders, restore replies safely, and handle streaming output.">
+  <meta name="description" content="Redact PII and secrets before OpenAI, Anthropic or Vercel AI SDK requests, preserve references with local placeholders, restore replies safely, and handle streaming output.">
   <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/llm-prompt-redaction/">
   <meta property="og:type" content="article">
   <meta property="og:title" content="How to Redact PII and Secrets from LLM Prompts">
@@ -19,7 +19,7 @@
     "headline": "How to redact PII and secrets from LLM prompts",
     "description": "A practical guide to local redaction and reversible placeholders around LLM calls.",
     "datePublished": "2026-08-04",
-    "dateModified": "2026-08-04",
+    "dateModified": "2026-11-18",
     "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
     "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
     "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/llm-prompt-redaction/",
@@ -80,6 +80,23 @@ const response = await anthropic.messages.create({
   }]
 });</code></pre>
     <p>The integration is local and model-independent: detection and substitution happen inside your process, before the provider request.</p>
+
+    <h2>Use the Vercel AI SDK with any provider</h2>
+    <p>On the Vercel AI SDK, one middleware covers OpenAI, Anthropic, Google, Bedrock, Mistral and every other provider it supports.</p>
+    <pre><code>import { generateText, wrapLanguageModel } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { flareRedactMiddleware } from 'flare-redact/ai-sdk';
+
+const model = wrapLanguageModel({
+  model: anthropic('your-model'),
+  middleware: flareRedactMiddleware({ preset: 'llm' })
+});
+
+const { text } = await generateText({
+  model,
+  prompt: 'Summarize the account for alice@example.com'
+});</code></pre>
+    <p>Text, reasoning, tool-call inputs and tool results are redacted before each model call. Text, tool calls, structured output and streamed deltas are restored, even when a placeholder is split across chunks. Files and images pass through unchanged. Pass <code>{ session: createSession() }</code> to keep the same placeholders across the steps and turns of one conversation.</p>
 
     <h2>Use a session with any model API</h2>
     <p>A session is useful for an OpenAI-compatible provider, a local model, or your own transport. One session keeps a stable mapping for one conversation.</p>

@@ -64,7 +64,8 @@ A pattern **may** use:
 - character classes `[…]`, `[^…]`, ranges, and the escapes `\t \n \r \f \x0B \xHH \\ \. \* \+ \? \( \) \[ \] \{ \} \| \^ \$ \/ \-`
 - groups `(…)` (capturing) and `(?:…)` (non-capturing)
 - alternation `|`
-- quantifiers `* + ? {n} {n,} {n,m}` and their lazy forms `*? +? ?? {n,m}?`
+- quantifiers `* + ? {n} {n,} {n,m}` and their lazy forms `*? +? ?? {n,m}?`; no count may exceed 1000,
+  which is the largest repetition Go's RE2 accepts
 - the two substitution tokens below
 
 A pattern **must not** use:
@@ -471,7 +472,7 @@ purpose and listed here.
    2048-word English wordlist, which is a 14 KB payload every SDK would embed for
    one opt-in detector. Node keeps it; a future revision may add a `wordlists`
    section.
-2. **Trailing boundaries on dash-terminated tokens are stricter.** `\bglpat-[A-Za-z0-9_-]{20}\b`
+2. **Trailing boundaries on dash-terminated tokens are stricter.** `\bxox[baprs]-[A-Za-z0-9-]{10,64}\b`
    in JavaScript requires a *word* character after a token ending in `-`, which
    truncates such tokens. FRS-1 uses `word_dash`, which does not.
 3. **`coordinates` accepts a leading minus after a word character.** The JavaScript

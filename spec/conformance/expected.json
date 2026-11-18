@@ -1,4 +1,32 @@
 {
+  "age/secret-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "age_secret_key",
+        "end": 74,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "AGE-SECRET-KEY-***"
+  },
+  "alibaba/access-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "alibaba_access_key",
+        "end": 24,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "LTAI***"
+  },
   "allow/exact-value": {
     "findings": [
       {
@@ -115,6 +143,20 @@
     ],
     "redact": "parola=***"
   },
+  "atlassian/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "atlassian_token",
+        "end": 192,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "ATATT3***"
+  },
   "aws/access-key": {
     "findings": [
       {
@@ -146,6 +188,20 @@
       }
     ],
     "redact": "key AKIA*** pasted from the console"
+  },
+  "aws/bedrock-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "aws_bedrock_key",
+        "end": 132,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "ABSK***"
   },
   "aws/secret-key": {
     "findings": [
@@ -202,6 +258,20 @@
       }
     ],
     "redact": "Authorization: Bearer ***"
+  },
+  "brevo/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "brevo_key",
+        "end": 89,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "xkeysib-***"
   },
   "card/negative-luhn": {
     "findings": [],
@@ -331,6 +401,20 @@
     ],
     "redact": "wallet 0x5290***"
   },
+  "digitalocean/oauth-token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "digitalocean_token",
+        "end": 71,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "doo_v1_***"
+  },
   "discord/webhook": {
     "findings": [
       {
@@ -345,6 +429,20 @@
     ],
     "redact": "[REDACTED DISCORD WEBHOOK]"
   },
+  "dockerhub/pat": {
+    "findings": [
+      {
+        "column": 17,
+        "confidence": 0.92,
+        "detector": "dockerhub_token",
+        "end": 52,
+        "line": 1,
+        "risk": "critical",
+        "start": 16
+      }
+    ],
+    "redact": "docker login -p dckr_pat_***"
+  },
   "doppler/token": {
     "findings": [
       {
@@ -358,6 +456,20 @@
       }
     ],
     "redact": "dp.st.***"
+  },
+  "dynatrace/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "dynatrace_token",
+        "end": 96,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "dt0c01.***"
   },
   "email/basic": {
     "findings": [
@@ -489,6 +601,20 @@
     ],
     "redact": "mail a***@*** now"
   },
+  "flyio/token": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.92,
+        "detector": "flyio_token",
+        "end": 53,
+        "line": 1,
+        "risk": "critical",
+        "start": 6
+      }
+    ],
+    "redact": "FlyV1 fo1_***"
+  },
   "gcp/refresh-token": {
     "findings": [
       {
@@ -535,6 +661,38 @@
     "findings": [],
     "redact": "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789ab"
   },
+  "gitlab/deploy-token-negative": {
+    "findings": [],
+    "redact": "gldt-ABCDEFGHIJ is too short"
+  },
+  "gitlab/routable-token": {
+    "findings": [
+      {
+        "column": 10,
+        "confidence": 0.92,
+        "detector": "gitlab_token",
+        "end": 52,
+        "line": 1,
+        "risk": "critical",
+        "start": 9
+      }
+    ],
+    "redact": "CI_TOKEN glpat-*** here"
+  },
+  "gitlab/runner-token": {
+    "findings": [
+      {
+        "column": 8,
+        "confidence": 0.92,
+        "detector": "gitlab_token",
+        "end": 32,
+        "line": 1,
+        "risk": "critical",
+        "start": 7
+      }
+    ],
+    "redact": "runner glrt-*** registered"
+  },
   "gitlab/token": {
     "findings": [
       {
@@ -552,6 +710,48 @@
   "google/api-key": {
     "findings": [],
     "redact": "AIzaSyA0123456789abcdefghijklmnopqrstuvw"
+  },
+  "google/oauth-secret": {
+    "findings": [
+      {
+        "column": 7,
+        "confidence": 0.92,
+        "detector": "google_oauth_secret",
+        "end": 41,
+        "line": 1,
+        "risk": "critical",
+        "start": 6
+      }
+    ],
+    "redact": "oauth GOCSPX-***"
+  },
+  "grafana/service-account": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "grafana_token",
+        "end": 46,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "glsa_***"
+  },
+  "heroku/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "heroku_api_key",
+        "end": 65,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "HRKU-***"
   },
   "huggingface/token": {
     "findings": [
@@ -952,6 +1152,20 @@
       }
     ]
   },
+  "jfrog/api-key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "jfrog_token",
+        "end": 73,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "AKCp***"
+  },
   "jwt/basic": {
     "findings": [
       {
@@ -1061,6 +1275,38 @@
       "note": "safe",
       "password": "***"
     }
+  },
+  "langsmith/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "langsmith_key",
+        "end": 51,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "lsv2_pt_***"
+  },
+  "mailchimp/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "mailchimp_key",
+        "end": 37,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED MAILCHIMP KEY]"
+  },
+  "mailchimp/negative-region": {
+    "findings": [],
+    "redact": "0123456789abcdef0123456789abcdef-us-east-1"
   },
   "mode/hash": {
     "findings": [
@@ -1267,6 +1513,20 @@
     ],
     "redact": "g*** [at] *** [dot] ***"
   },
+  "onepassword/token": {
+    "findings": [
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "onepassword_token",
+        "end": 270,
+        "line": 1,
+        "risk": "critical",
+        "start": 3
+      }
+    ],
+    "redact": "op ops_***"
+  },
   "openai/does-not-eat-anthropic": {
     "findings": [],
     "redact": "sk-ant-api03-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
@@ -1373,6 +1633,34 @@
     ],
     "redact": "phone (5***"
   },
+  "pinecone/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "pinecone_key",
+        "end": 74,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "pcsk_***"
+  },
+  "planetscale/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "planetscale_token",
+        "end": 53,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "pscale_tkn_***"
+  },
   "postman/key": {
     "findings": [
       {
@@ -1466,6 +1754,70 @@
     ],
     "redact": "a [REDACTED PRIVATE KEY] b [REDACTED PRIVATE KEY] c"
   },
+  "pulumi/token": {
+    "findings": [
+      {
+        "column": 8,
+        "confidence": 0.92,
+        "detector": "pulumi_token",
+        "end": 51,
+        "line": 1,
+        "risk": "critical",
+        "start": 7
+      }
+    ],
+    "redact": "PULUMI pul-***"
+  },
+  "pypi/negative-no-macaroon": {
+    "findings": [],
+    "redact": "pypi-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWX"
+  },
+  "pypi/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "pypi_token",
+        "end": 80,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "pypi-***"
+  },
+  "resend/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "resend_key",
+        "end": 36,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "re_***"
+  },
+  "resend/negative-identifier": {
+    "findings": [],
+    "redact": "re_compute_cache"
+  },
+  "rubygems/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "rubygems_key",
+        "end": 57,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "rubygems_***"
+  },
   "selection/disable-email": {
     "findings": [
       {
@@ -1540,6 +1892,20 @@
     ],
     "redact": "SENTRY_DSN=[REDACTED SENTRY DSN]"
   },
+  "sentry/user-token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "sentry_auth_token",
+        "end": 71,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "sntryu_***"
+  },
   "slack/token": {
     "findings": [
       {
@@ -1553,6 +1919,20 @@
       }
     ],
     "redact": "xoxb-***"
+  },
+  "slack/webhook": {
+    "findings": [
+      {
+        "column": 15,
+        "confidence": 0.92,
+        "detector": "slack_webhook",
+        "end": 91,
+        "line": 1,
+        "risk": "critical",
+        "start": 14
+      }
+    ],
+    "redact": "SLACK_WEBHOOK [REDACTED SLACK WEBHOOK]"
   },
   "stripe/live-key": {
     "findings": [
@@ -1660,6 +2040,20 @@
       "text": "a***@***"
     }
   },
+  "tavily/key": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "tavily_key",
+        "end": 41,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "tvly-***"
+  },
   "telegram/bot-token": {
     "findings": [
       {
@@ -1729,6 +2123,20 @@
       }
     ],
     "redact": "Bluebirds are not ***"
+  },
+  "terraform/token": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "terraform_cloud_token",
+        "end": 89,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "[REDACTED TERRAFORM TOKEN]"
   },
   "twilio/key": {
     "findings": [

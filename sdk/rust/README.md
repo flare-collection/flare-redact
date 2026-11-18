@@ -3,12 +3,17 @@
 Hide secrets and PII before they reach a log, a model, or a vendor.
 
 Three dependencies — `regex`, `serde`, `serde_json` — and the same
-[FRS-1 detector spec](../../spec/SPEC.md) as the JavaScript, Python and Go
+[FRS-1 detector spec](https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md) as the JavaScript, Python and Go
 engines, so a policy written once behaves identically in every service you own.
-The [shared conformance corpus](../../spec/conformance/) runs in `cargo test`, so
+The [shared conformance corpus](https://github.com/flare-collection/flare-redact/tree/main/spec/conformance/) runs in `cargo test`, so
 "identically" is a test rather than a claim.
 
-Not on crates.io yet — it builds from this repository:
+```bash
+cargo add flare-redact
+```
+
+crates.io releases start with the first release after 1.9.1. Until it lands, or
+to pin a tag, depend on the repository:
 
 ```toml
 [dependencies]
@@ -165,5 +170,5 @@ fails to load. Failing open is how a redactor leaks.
 - **Limits fail closed.** Input over `max_input_length` returns `Error::Limit`
   rather than partially redacted text.
 
-MIT © Umud Hasanli · [Specification](../../spec/SPEC.md) ·
+MIT © Umud Hasanli · [Specification](https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md) ·
 [Source](https://github.com/flare-collection/flare-redact)

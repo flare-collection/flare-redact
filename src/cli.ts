@@ -1,5 +1,5 @@
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
-import { discoverScanFiles, type SkipSummary } from './file-discovery.js';
+import { discoverScanFiles, normalizePath, type SkipSummary } from './file-discovery.js';
 import { readStagedChanges } from './staged.js';
 import { withoutCodeAssignments } from './code-reference.js';
 import {
@@ -332,7 +332,10 @@ function runScan(
       if (data === PARSE_ERROR) return 2;
       // Parsed JSON has no lines to read around a finding, so it is not filtered.
       const found = typeof data === 'string' ? scanText(data) : policy.scan(data);
-      for (const finding of found) findings.push(file ? { ...finding, file } : finding);
+      // Reports name files with forward slashes on every platform, as --staged
+      // does with git's paths, so a report reads the same on Windows and a
+      // SARIF artifact URI is a valid URI there too.
+      for (const finding of found) findings.push(file ? { ...finding, file: normalizePath(file) } : finding);
     }
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);

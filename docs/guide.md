@@ -53,7 +53,7 @@ projects are not forced across the major version; upgrade explicitly with
 ### Set up in one command
 
 ```bash
-npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, Sentry, pino, winston, express
+npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, ai, Sentry, pino, winston, express
 npx flare-redact init --hook   # also stops any commit that adds a secret
 npx flare-redact init --ci     # also writes .github/workflows/flare-redact.yml
 ```
@@ -145,6 +145,7 @@ Clone the repository and run these small applications locally:
 | Example | What it proves | Run |
 |---|---|---|
 | [`openai-privacy`](../examples/openai-privacy) | The model sees an opaque placeholder while the app receives the restored value | `npm --prefix examples/openai-privacy start` |
+| [`ai-sdk`](../examples/ai-sdk) | The Vercel AI SDK middleware redacts prompts and tool results, and restores text, streams and tool calls | `npm --prefix examples/ai-sdk start` |
 | [`express-pino`](../examples/express-pino) | Express keeps the original request while Pino receives a safe snapshot | `npm --prefix examples/express-pino run smoke` |
 | [`universal-boundaries`](../examples/universal-boundaries) | Any SDK method is sanitized and cross-tool placeholder exfiltration is blocked | `npm --prefix examples/universal-boundaries start` |
 | [`flareflow-agent`](../examples/flareflow-agent) | An injected model can carry an opaque secret token but cannot restore it at an unauthorized sink or path | `npm --prefix examples/flareflow-agent start` |
@@ -168,11 +169,20 @@ dependencies of any kind.
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](../sdk/go) |
-| **Python** | `pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"` | [`sdk/python`](../sdk/python) |
-| **Rust** | `flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.9.1" }` | [`sdk/rust`](../sdk/rust) |
+| **Python** | `pip install flare-redact` | [`sdk/python`](../sdk/python) |
+| **Rust** | `cargo add flare-redact` | [`sdk/rust`](../sdk/rust) |
 
-The Python and Rust engines are not published to PyPI and crates.io yet, so they
-install from this repository. The commands above are the ones that work today.
+The Python and Rust engines are published to PyPI and crates.io starting with the
+first release after 1.9.1. Until it lands, or to pin a tag, install them from
+this repository:
+
+```bash
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.9.1#subdirectory=sdk/python"
+```
+
+```toml
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.9.1" }
+```
 
 ```python
 from flare_redact import create_session
@@ -367,6 +377,61 @@ even when a placeholder is split across chunks. Inside tool arguments, partial
 JSON and JSON-mode output (`response_format`), restored values are JSON-escaped,
 so the JSON still parses and keeps its structure. There's a `redactPrompt(text)`
 too if you'd rather hold the vault yourself.
+
+### Every provider through the Vercel AI SDK
+
+On the [Vercel AI SDK](https://ai-sdk.dev), one middleware covers every
+provider it supports:
+
+```js
+import { generateText, wrapLanguageModel } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { flareRedactMiddleware } from 'flare-redact/ai-sdk';
+
+const model = wrapLanguageModel({
+  model: openai('gpt-4o'),
+  middleware: flareRedactMiddleware({ preset: 'llm' }),
+});
+
+const { text } = await generateText({ model, prompt: 'Email the invoice to alice@corp.com' });
+```
+
+Swap `openai(...)` for `anthropic(...)`, `google(...)`, `bedrock(...)`,
+`mistral(...)` or any other AI SDK provider; the middleware stays the same. It
+works with AI SDK 5, 6 and 7, with `generateText`, `streamText`, structured
+output and multi-step tool loops, and takes the same options as `wrapOpenAI`.
+
+On each model call:
+
+- System, user and assistant text, reasoning, tool-call inputs and tool results
+  are redacted to opaque placeholders before the provider sees them. Roles,
+  tool names and ids, and `providerOptions` (cache control, for example) are
+  left alone.
+- Text, reasoning and tool calls in the result are restored, streamed or not,
+  including placeholders split across chunks. A value restored inside JSON (a
+  tool call's input, structured output) is escaped, so the JSON still parses.
+- File and image parts pass through unchanged. If a document may hold personal
+  data, redact its text before you attach it.
+- Raw provider chunks and the `request` and `response` bodies are left as they
+  were: they record what actually crossed the wire.
+
+Each call gets its own vault, as with `wrapOpenAI`. Pass a session to keep one
+vault for a whole conversation, so a value keeps the same placeholder in every
+step and turn. The redacted history then stays identical from one call to the
+next, which keeps provider prompt caching working:
+
+```js
+import { createSession } from 'flare-redact/session';
+
+const middleware = flareRedactMiddleware({ session: createSession({ preset: 'llm' }) });
+```
+
+Like `wrapOpenAI`, the middleware restores any placeholder from the call into
+any tool call before the AI SDK runs your tools. It does not stop a
+prompt-injected model from moving a value from one tool to another; when tools
+sit in different trust domains, use the scoped boundaries in
+[Protect tool calls and MCP loops](#protect-tool-calls-and-mcp-loops) or
+[FlareFlow](#enforce-information-flow-across-agent-tools).
 
 ## Ways to hide a value
 
@@ -963,6 +1028,23 @@ old finding, and people would learn to skip it. `--staged` reads the staged diff
 so a commit is stopped only for what it introduces, and each finding points at
 its line in the staged file. Skip the check once with `git commit --no-verify`.
 
+Already using [pre-commit](https://pre-commit.com)? Add the hook to
+`.pre-commit-config.yaml` instead. It works in any repository, Node project or
+not, as long as Node 20 or newer is on the PATH:
+
+```yaml
+repos:
+  - repo: https://github.com/flare-collection/flare-redact
+    rev: v1.9.1
+    hooks:
+      - id: flare-redact        # only the lines being added, like --staged
+```
+
+pre-commit builds the tagged release once and caches it. `flare-redact` reads
+the staged diff, so `pre-commit run --all-files` finds nothing for it to check.
+For that, and for pre-commit.ci, add `id: flare-redact-files`, which scans the
+whole of each file pre-commit passes.
+
 A scan leaves out assignments whose value is plainly code rather than a
 secret: `token = process.env.TOKEN`, `password = os.getenv("DB_PASSWORD")`,
 `secret = ${SECRET}`, `password: string`, `apiKey = config.apiKey`,
@@ -975,8 +1057,41 @@ reported. `--no-code-filter` turns it off. It applies to `--scan` and
 `--staged` only: `redact()` keeps masking every such assignment, because
 hiding too much in a log is safe and missing a secret is not.
 
-In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
-hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
+On GitHub, the action does the setup and reports each finding on the pull
+request:
+
+```yaml
+- uses: actions/checkout@v5
+- uses: flare-collection/flare-redact@v1
+  with:
+    exclude: package-lock.json
+```
+
+Each finding becomes an annotation at its line, the job summary gets a table of
+detectors and locations, and the step fails. Values are never printed. The
+action runs the npm release that matches the tag you pin (`@v1` follows the
+latest 1.x), on the runner, with Node 20 or newer (it installs Node 24 when the
+runner has none).
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `path` | `.` | Files or directories to scan, separated by spaces or new lines |
+| `preset` | | `logs`, `llm`, `gdpr` or `strict` |
+| `exclude` | | Globs to skip, separated by spaces or new lines |
+| `args` | | More scan flags, such as `--min-confidence 0.9` or `--enable phone` |
+| `fail-on-findings` | `true` | Fail the step when anything is found |
+| `annotate` | `true` | Annotate each finding on the pull request |
+| `upload-sarif` | `false` | Send the SARIF report to GitHub code scanning |
+| `sarif-file` | runner temp | Where to write the SARIF report |
+| `version` | the pinned release | Another npm version, or a packed `.tgz` |
+
+Outputs are `findings` (the count) and `sarif-file`. To see findings in the
+repository's Security tab, give the job `permissions: { contents: read,
+security-events: write }` and set `upload-sarif: true`; you may then want
+`annotate: false` to avoid seeing each finding twice.
+
+Anywhere else, use `scan` from code, or `--scan` from the CLI (which exits
+non-zero on a hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
 reports never echo the matched secret value:
 
 ```yaml
@@ -1055,7 +1170,7 @@ On by default:
 | `aws_access_key` | AWS access key IDs (`AKIA…`, `ASIA…`) |
 | `aws_secret_key` | AWS secret access keys in assignments (`aws_secret_access_key=…`, `"secretAccessKey": …`) |
 | `github_token` | GitHub PATs and OAuth tokens (`ghp_…`, `github_pat_…`) |
-| `gitlab_token` | GitLab PATs (`glpat-…`) |
+| `gitlab_token` | GitLab access, deploy, runner, pipeline trigger and CI job tokens (`glpat-…`, `gldt-…`, `glrt-…`), including routable tokens |
 | `slack_token` | Slack tokens (`xoxb-…`) |
 | `stripe_key` | Stripe secret / restricted keys (`sk_live_…`, `rk_…`) |
 | `anthropic_key` | Anthropic API keys (`sk-ant-…`) |
@@ -1074,12 +1189,17 @@ On by default:
 | `credit_card` | card numbers (Luhn-validated) |
 | `iban` | IBANs (mod-97 validated) |
 | `openrouter_key` / `huggingface_token` / `groq_key` / `xai_key` / `perplexity_key` / `replicate_token` | more AI provider keys |
-| `discord_bot_token` / `discord_webhook` / `telegram_bot_token` | chat tokens and webhook URLs |
+| `aws_bedrock_key` / `langsmith_key` / `pinecone_key` / `tavily_key` | AI platform keys: Amazon Bedrock (`ABSK…`), LangSmith (`lsv2_…`), Pinecone (`pcsk_…`), Tavily (`tvly-…`) |
+| `discord_bot_token` / `discord_webhook` / `telegram_bot_token` / `slack_webhook` | chat tokens and webhook URLs |
 | `shopify_token` / `square_token` / `stripe_webhook_secret` | commerce secrets |
 | `digitalocean_token` / `azure_storage_key` / `vault_token` / `databricks_token` | cloud & infra secrets |
-| `sentry_dsn` / `new_relic_key` | observability secrets |
-| `airtable_pat` / `postman_key` / `linear_key` / `figma_token` / `notion_token` | SaaS workspace tokens |
+| `alibaba_access_key` / `google_oauth_secret` / `heroku_api_key` / `flyio_token` / `terraform_cloud_token` / `pulumi_token` / `planetscale_token` | more cloud, deploy and database credentials |
+| `pypi_token` / `rubygems_key` / `dockerhub_token` / `jfrog_token` | package and image registry tokens that can publish releases |
+| `onepassword_token` / `age_secret_key` | keys that unlock other secrets: 1Password service accounts (`ops_…`), age identities |
+| `sentry_dsn` / `sentry_auth_token` / `new_relic_key` / `grafana_token` / `dynatrace_token` | observability secrets |
+| `airtable_pat` / `postman_key` / `linear_key` / `figma_token` / `notion_token` / `atlassian_token` | SaaS workspace tokens |
 | `doppler_token` / `supabase_key` / `netlify_token` / `mailgun_key` | platform API keys |
+| `mailchimp_key` / `brevo_key` / `resend_key` | email and marketing API keys |
 
 Opt in with `enable`:
 
@@ -1203,6 +1323,10 @@ extractFeatures(value, context?): number[]      // the raw feature vector
 wrapOpenAI(client, opts?)                       // scrub prompts, restore replies (+streaming)
 wrapAnthropic(client, opts?)                    // same for messages.create + system
 redactPrompt(text, opts?): { text, vault }
+
+// from 'flare-redact/ai-sdk'
+flareRedactMiddleware(opts?)                    // Vercel AI SDK: wrapLanguageModel({ model, middleware })
+                                                // opts.session keeps one vault across calls
 
 // from 'flare-redact/tool'
 createScopedToolBoundary(opts?)                // scope-safe model ↔ tool/MCP boundary
