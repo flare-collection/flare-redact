@@ -13,6 +13,11 @@ import { preCommitHook, HOOK_COMMAND } from '../dist/init.js';
 const cli = fileURLToPath(new URL('../bin/flare-redact.mjs', import.meta.url));
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const token = (c) => 'ghp_' + c.repeat(36);
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const windows = process.platform === 'win32';
+// A file name full of glob characters. Windows forbids `*` in a name; `[` and
+// `]` are glob characters it allows.
+const ODD = windows ? '[odd].md' : '*odd.md';
 
 // Keep the developer's own git configuration (global hooks, signing) out of the tests.
 const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
@@ -57,7 +62,7 @@ test('only lines the commit adds are reported, at their staged line', () => {
     git(dir, 'commit', '-qm', 'init');
     writeFileSync(join(dir, 'a.txt'), `old line\nold token ${token('b')}\nnew line\nkey = "AKIAIOSFODNN7EXAMPLE"\n`);
     mkdirSync(join(dir, 'sub dir'));
-    writeFileSync(join(dir, 'sub dir', '*odd.md'), 'contact alice@corp.com\n');
+    writeFileSync(join(dir, 'sub dir', ODD), 'contact alice@corp.com\n');
     mkdirSync(join(dir, 'node_modules', 'x'), { recursive: true });
     writeFileSync(join(dir, 'node_modules', 'x', 'i.js'), `t = '${token('c')}'\n`);
     git(dir, 'add', '-f', '.');
@@ -65,7 +70,7 @@ test('only lines the commit adds are reported, at their staged line', () => {
     const pretty = flare(join(dir, 'sub dir'), '--staged');
     assert.equal(pretty.status, 1);
     assert.match(pretty.stdout, /at a\.txt:4:8/);
-    assert.match(pretty.stdout, /at sub dir\/\*odd\.md:1:9/);
+    assert.match(pretty.stdout, new RegExp(`at sub dir/${escapeRegExp(ODD)}:1:9`));
     assert.match(pretty.stdout, /git commit --no-verify/);
     assert.doesNotMatch(pretty.stdout, /a\.txt:2:/, 'the committed token is not reported again');
 
@@ -73,7 +78,7 @@ test('only lines the commit adds are reported, at their staged line', () => {
     assert.equal(report.summary.total, 2);
     assert.equal(report.summary.filesScanned, 2);
     assert.equal(report.summary.skipped.excluded, 1);
-    assert.deepEqual(report.findings.map((f) => [f.file, f.line, f.start]), [['a.txt', 4, undefined], ['sub dir/*odd.md', 1, undefined]]);
+    assert.deepEqual(report.findings.map((f) => [f.file, f.line, f.start]), [['a.txt', 4, undefined], [`sub dir/${ODD}`, 1, undefined]]);
     assert.equal(flare(dir, '--staged', '--exclude', '*.md', '--exclude', 'a.txt').status, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -128,13 +133,25 @@ test('a staged file over the size limit is skipped and counted', () => {
   }
 });
 
+// The shell git runs hooks with, and a PATH that has a shell's tools but no
+// Node: /bin/sh and an empty folder, or on Windows the sh that Git for Windows
+// ships in its usr/bin, with only that folder on the PATH.
+function hookShell(empty) {
+  if (!windows) return { sh: '/bin/sh', env: { PATH: empty } };
+  const execPath = spawnSync('git', ['--exec-path'], { encoding: 'utf8' }).stdout.trim();
+  const usrBin = join(execPath, '..', '..', '..', 'usr', 'bin');
+  return { sh: join(usrBin, 'sh.exe'), env: { PATH: usrBin, SYSTEMROOT: process.env.SYSTEMROOT } };
+}
+
 test('the hook lets a commit through when Node is not on the PATH', () => {
   const dir = repo();
   const empty = mkdtempSync(join(tmpdir(), 'flare-empty-path-'));
   try {
     const hook = join(dir, 'pre-commit');
     writeFileSync(hook, preCommitHook(version));
-    const result = spawnSync('/bin/sh', [hook], { cwd: dir, encoding: 'utf8', env: { PATH: empty } });
+    const { sh, env: hookEnv } = hookShell(empty);
+    const result = spawnSync(sh, [hook], { cwd: dir, encoding: 'utf8', env: hookEnv });
+    assert.equal(result.error, undefined);
     assert.equal(result.status, 0);
     assert.match(result.stderr, /Node not found on PATH, commit not scanned/);
   } finally {
@@ -167,7 +184,7 @@ test('init --hook installs a hook that stops a commit adding a secret', () => {
 
     const install = flare(dir, 'init', '--hook');
     assert.equal(install.status, 0, install.stderr);
-    assert.match(install.stdout, /Wrote \.git\/hooks\/pre-commit/);
+    assert.match(install.stdout, /Wrote \.git[\\/]hooks[\\/]pre-commit/);
     const hook = join(dir, '.git', 'hooks', 'pre-commit');
     assert.equal(readFileSync(hook, 'utf8'), preCommitHook(version));
     assert.ok(statSync(hook).mode & 0o100, 'the hook is executable');
