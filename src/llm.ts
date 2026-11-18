@@ -1,12 +1,18 @@
-import { createVault, buildStreamRestore, type Vault, type VaultOptions } from './vault.js';
+import { createVault, buildStreamRestore, escapeEntriesForJson, requestsJsonOutput, type Vault, type VaultOptions } from './vault.js';
 
 export type { Vault, VaultOptions } from './vault.js';
 export { createVault } from './vault.js';
 
 const WRAPPED = Symbol.for('flare-redact.wrapped');
 
-function makeStreamRestorer(vault: Vault) {
-  return buildStreamRestore(vault.entries());
+/**
+ * A streaming restorer. `json` is for text that is JSON (tool-call arguments,
+ * partial JSON, JSON-mode output): the originals go in escaped, so the
+ * assembled text stays valid JSON and a restored value cannot add or replace
+ * fields in it.
+ */
+function makeStreamRestorer(vault: Vault, json = false) {
+  return buildStreamRestore(json ? escapeEntriesForJson(vault.entries()) : vault.entries());
 }
 
 /** Redact a prompt and hand back the vault so you can restore the reply yourself. */
@@ -35,20 +41,23 @@ export function wrapOpenAI<T extends OpenAILike>(client: T, opts: VaultOptions =
     const vault = createVault(opts);
     const messages = Array.isArray(params?.messages) ? vault.redact(params.messages) : params?.messages;
     const result = original({ ...params, messages }, ...rest);
-    if (params?.stream) return wrapOpenAIStream(result, vault);
+    if (params?.stream) return wrapOpenAIStream(result, vault, requestsJsonOutput(params));
+    // vault.restore escapes originals inside strings that are JSON documents,
+    // which covers tool_calls[].function.arguments and JSON-mode content.
     return Promise.resolve(result).then((res) => vault.restore(res));
   };
   completions[WRAPPED] = true;
   return client;
 }
 
-async function* wrapOpenAIStream(result: unknown, vault: Vault): AsyncGenerator<unknown> {
+async function* wrapOpenAIStream(result: unknown, vault: Vault, jsonContent: boolean): AsyncGenerator<unknown> {
   const stream = (await result) as AsyncIterable<OpenAIChunk>;
   const restorers = new Map<string, ReturnType<typeof makeStreamRestorer>>();
+  // Tool arguments are always JSON; content is JSON when response_format asks for it.
   const getRestorer = (key: string) => {
     let restorer = restorers.get(key);
     if (!restorer) {
-      restorer = makeStreamRestorer(vault);
+      restorer = makeStreamRestorer(vault, jsonContent || key.includes(':tool:'));
       restorers.set(key, restorer);
     }
     return restorer;
@@ -129,20 +138,22 @@ export function wrapAnthropic<T extends AnthropicLike>(client: T, opts: VaultOpt
     };
     if (params?.system !== undefined) redacted.system = vault.redact(params.system);
     const result = original(redacted, ...rest);
-    if (params?.stream) return wrapAnthropicStream(result, vault);
+    if (params?.stream) return wrapAnthropicStream(result, vault, requestsJsonOutput(params));
     return Promise.resolve(result).then((res) => vault.restore(res));
   };
   messages[WRAPPED] = true;
   return client;
 }
 
-async function* wrapAnthropicStream(result: unknown, vault: Vault): AsyncGenerator<unknown> {
+async function* wrapAnthropicStream(result: unknown, vault: Vault, jsonText: boolean): AsyncGenerator<unknown> {
   const stream = (await result) as AsyncIterable<AnthropicEvent>;
   const restorers = new Map<string, ReturnType<typeof makeStreamRestorer>>();
+  // partial_json is the tool input as JSON text; text deltas are prose unless
+  // the request asked for structured output (output_config.format).
   const getRestorer = (key: string) => {
     let restorer = restorers.get(key);
     if (!restorer) {
-      restorer = makeStreamRestorer(vault);
+      restorer = makeStreamRestorer(vault, jsonText || key.startsWith('json:'));
       restorers.set(key, restorer);
     }
     return restorer;

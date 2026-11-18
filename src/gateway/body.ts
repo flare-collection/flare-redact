@@ -17,6 +17,7 @@
  */
 
 import { buildStreamRestore, type IncrementalRestorer, type Vault } from '../index.js';
+import { escapeEntriesForJson } from '../vault.js';
 
 export type PathSegment =
   | { kind: 'key'; name: string }
@@ -201,7 +202,7 @@ export function restoreBody(raw: string, contentType: string, vault: Vault): str
  * `JSON.stringify(value).slice(1, -1)` is the escaped inner form of the string.
  */
 export function jsonEscapedEntries(vault: Vault): Array<[string, string]> {
-  return vault.entries().map(([placeholder, original]) => [placeholder, JSON.stringify(original).slice(1, -1)]);
+  return escapeEntriesForJson(vault.entries());
 }
 
 /**
