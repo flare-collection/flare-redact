@@ -53,7 +53,7 @@ projects are not forced across the major version; upgrade explicitly with
 ### Set up in one command
 
 ```bash
-npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, Sentry, pino, winston, express
+npx flare-redact init          # the lines to paste for openai, @anthropic-ai/sdk, ai, Sentry, pino, winston, express
 npx flare-redact init --hook   # also stops any commit that adds a secret
 npx flare-redact init --ci     # also writes .github/workflows/flare-redact.yml
 ```
@@ -145,6 +145,7 @@ Clone the repository and run these small applications locally:
 | Example | What it proves | Run |
 |---|---|---|
 | [`openai-privacy`](../examples/openai-privacy) | The model sees an opaque placeholder while the app receives the restored value | `npm --prefix examples/openai-privacy start` |
+| [`ai-sdk`](../examples/ai-sdk) | The Vercel AI SDK middleware redacts prompts and tool results, and restores text, streams and tool calls | `npm --prefix examples/ai-sdk start` |
 | [`express-pino`](../examples/express-pino) | Express keeps the original request while Pino receives a safe snapshot | `npm --prefix examples/express-pino run smoke` |
 | [`universal-boundaries`](../examples/universal-boundaries) | Any SDK method is sanitized and cross-tool placeholder exfiltration is blocked | `npm --prefix examples/universal-boundaries start` |
 | [`flareflow-agent`](../examples/flareflow-agent) | An injected model can carry an opaque secret token but cannot restore it at an unauthorized sink or path | `npm --prefix examples/flareflow-agent start` |
@@ -376,6 +377,61 @@ even when a placeholder is split across chunks. Inside tool arguments, partial
 JSON and JSON-mode output (`response_format`), restored values are JSON-escaped,
 so the JSON still parses and keeps its structure. There's a `redactPrompt(text)`
 too if you'd rather hold the vault yourself.
+
+### Every provider through the Vercel AI SDK
+
+On the [Vercel AI SDK](https://ai-sdk.dev), one middleware covers every
+provider it supports:
+
+```js
+import { generateText, wrapLanguageModel } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { flareRedactMiddleware } from 'flare-redact/ai-sdk';
+
+const model = wrapLanguageModel({
+  model: openai('gpt-4o'),
+  middleware: flareRedactMiddleware({ preset: 'llm' }),
+});
+
+const { text } = await generateText({ model, prompt: 'Email the invoice to alice@corp.com' });
+```
+
+Swap `openai(...)` for `anthropic(...)`, `google(...)`, `bedrock(...)`,
+`mistral(...)` or any other AI SDK provider; the middleware stays the same. It
+works with AI SDK 5, 6 and 7, with `generateText`, `streamText`, structured
+output and multi-step tool loops, and takes the same options as `wrapOpenAI`.
+
+On each model call:
+
+- System, user and assistant text, reasoning, tool-call inputs and tool results
+  are redacted to opaque placeholders before the provider sees them. Roles,
+  tool names and ids, and `providerOptions` (cache control, for example) are
+  left alone.
+- Text, reasoning and tool calls in the result are restored, streamed or not,
+  including placeholders split across chunks. A value restored inside JSON (a
+  tool call's input, structured output) is escaped, so the JSON still parses.
+- File and image parts pass through unchanged. If a document may hold personal
+  data, redact its text before you attach it.
+- Raw provider chunks and the `request` and `response` bodies are left as they
+  were: they record what actually crossed the wire.
+
+Each call gets its own vault, as with `wrapOpenAI`. Pass a session to keep one
+vault for a whole conversation, so a value keeps the same placeholder in every
+step and turn. The redacted history then stays identical from one call to the
+next, which keeps provider prompt caching working:
+
+```js
+import { createSession } from 'flare-redact/session';
+
+const middleware = flareRedactMiddleware({ session: createSession({ preset: 'llm' }) });
+```
+
+Like `wrapOpenAI`, the middleware restores any placeholder from the call into
+any tool call before the AI SDK runs your tools. It does not stop a
+prompt-injected model from moving a value from one tool to another; when tools
+sit in different trust domains, use the scoped boundaries in
+[Protect tool calls and MCP loops](#protect-tool-calls-and-mcp-loops) or
+[FlareFlow](#enforce-information-flow-across-agent-tools).
 
 ## Ways to hide a value
 
@@ -1001,8 +1057,41 @@ reported. `--no-code-filter` turns it off. It applies to `--scan` and
 `--staged` only: `redact()` keeps masking every such assignment, because
 hiding too much in a log is safe and missing a secret is not.
 
-In CI, `scan` from code, or `--scan` from the CLI (which exits non-zero on a
-hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
+On GitHub, the action does the setup and reports each finding on the pull
+request:
+
+```yaml
+- uses: actions/checkout@v5
+- uses: flare-collection/flare-redact@v1
+  with:
+    exclude: package-lock.json
+```
+
+Each finding becomes an annotation at its line, the job summary gets a table of
+detectors and locations, and the step fails. Values are never printed. The
+action runs the npm release that matches the tag you pin (`@v1` follows the
+latest 1.x), on the runner, with Node 20 or newer (it installs Node 24 when the
+runner has none).
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `path` | `.` | Files or directories to scan, separated by spaces or new lines |
+| `preset` | | `logs`, `llm`, `gdpr` or `strict` |
+| `exclude` | | Globs to skip, separated by spaces or new lines |
+| `args` | | More scan flags, such as `--min-confidence 0.9` or `--enable phone` |
+| `fail-on-findings` | `true` | Fail the step when anything is found |
+| `annotate` | `true` | Annotate each finding on the pull request |
+| `upload-sarif` | `false` | Send the SARIF report to GitHub code scanning |
+| `sarif-file` | runner temp | Where to write the SARIF report |
+| `version` | the pinned release | Another npm version, or a packed `.tgz` |
+
+Outputs are `findings` (the count) and `sarif-file`. To see findings in the
+repository's Security tab, give the job `permissions: { contents: read,
+security-events: write }` and set `upload-sarif: true`; you may then want
+`annotate: false` to avoid seeing each finding twice.
+
+Anywhere else, use `scan` from code, or `--scan` from the CLI (which exits
+non-zero on a hit). File scans report `file:line:column`, while machine-readable JSON and SARIF
 reports never echo the matched secret value:
 
 ```yaml
@@ -1234,6 +1323,10 @@ extractFeatures(value, context?): number[]      // the raw feature vector
 wrapOpenAI(client, opts?)                       // scrub prompts, restore replies (+streaming)
 wrapAnthropic(client, opts?)                    // same for messages.create + system
 redactPrompt(text, opts?): { text, vault }
+
+// from 'flare-redact/ai-sdk'
+flareRedactMiddleware(opts?)                    // Vercel AI SDK: wrapLanguageModel({ model, middleware })
+                                                // opts.session keeps one vault across calls
 
 // from 'flare-redact/tool'
 createScopedToolBoundary(opts?)                // scope-safe model ↔ tool/MCP boundary

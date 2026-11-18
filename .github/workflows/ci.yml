@@ -33,6 +33,10 @@ jobs:
       - if: matrix.node == 24
         run: npm --prefix examples/openai-privacy start
       - if: matrix.node == 24
+        run: npm --prefix examples/ai-sdk install
+      - if: matrix.node == 24
+        run: npm --prefix examples/ai-sdk start
+      - if: matrix.node == 24
         run: npm --prefix examples/express-pino install
       - if: matrix.node == 24
         run: npm --prefix examples/express-pino run smoke
@@ -209,10 +213,73 @@ jobs:
           docker rm -f gateway
           exit 1
 
+  action:
+    name: GitHub Action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run build
+      # The action runs a release from npm by default; point it at this commit
+      # instead, so the code under review is what gets tested.
+      - name: Pack this commit
+        id: pack
+        shell: bash
+        run: echo "tarball=$GITHUB_WORKSPACE/$(npm pack --silent | tail -n 1)" >> "$GITHUB_OUTPUT"
+      - name: Write fixtures
+        shell: bash
+        run: |
+          mkdir -p action-fixtures/leaky action-fixtures/clean
+          node -e "process.stdout.write('deploy key: ghp_' + 'a'.repeat(36) + '\\n')" > action-fixtures/leaky/config.txt
+          echo 'nothing to see here' > action-fixtures/clean/readme.txt
+      - name: Scan a clean directory
+        id: clean
+        uses: ./
+        with:
+          path: action-fixtures/clean
+          version: ${{ steps.pack.outputs.tarball }}
+      - name: Scan a leaky directory, report only
+        id: report
+        uses: ./
+        with:
+          path: action-fixtures/leaky
+          version: ${{ steps.pack.outputs.tarball }}
+          fail-on-findings: 'false'
+          annotate: 'false'
+      - name: Scan a leaky directory, expecting the step to fail
+        id: leaky
+        continue-on-error: true
+        uses: ./
+        with:
+          path: action-fixtures/leaky
+          version: ${{ steps.pack.outputs.tarball }}
+          annotate: 'false'
+      - name: Check the results
+        shell: bash
+        env:
+          CLEAN: ${{ steps.clean.outputs.findings }}
+          REPORTED: ${{ steps.report.outputs.findings }}
+          SARIF: ${{ steps.report.outputs.sarif-file }}
+          LEAKY: ${{ steps.leaky.outcome }}
+        run: |
+          set -x
+          test "$CLEAN" = 0
+          test "$REPORTED" = 1
+          grep -q '"ruleId": "github_token"' "$SARIF"
+          if grep -q 'aaaaaaaaaaaaaaaa' "$SARIF"; then echo "the SARIF report contains the value"; exit 1; fi
+          test "$LEAKY" = failure
+
   publish:
     name: Publish npm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, platforms, runtimes, spec, python, go, rust]
+    needs: [test, platforms, runtimes, spec, python, go, rust, action]
     runs-on: ubuntu-latest
     permissions:
       # npm Trusted Publishing: the job proves it is this workflow with an OIDC
@@ -270,6 +337,17 @@ jobs:
           fi
           node scripts/release-notes.mjs "$VERSION" > release-notes.md
           gh release create "v$VERSION" --target "$GITHUB_SHA" --title "flare-redact v$VERSION" --notes-file release-notes.md
+      # `uses: flare-collection/flare-redact@v1` follows the latest release of
+      # the same major version, the way GitHub Actions are usually consumed.
+      - if: steps.version.outputs.publish == 'true'
+        name: Point the major tag of the GitHub Action at this release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          case "$VERSION" in *-*) echo "prerelease: v${VERSION%%.*} stays where it is"; exit 0 ;; esac
+          major="v${VERSION%%.*}"
+          git tag -f "$major" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$major"
 
   # The Go module lives in sdk/go, so Go only sees a release through a tag named
   # sdk/go/vX.Y.Z. Without one, `go get` and pkg.go.dev fall back to

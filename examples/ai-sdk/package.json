@@ -1,0 +1,12 @@
+{
+  "name": "flare-redact-example-ai-sdk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "ai": "^7.0.176",
+    "flare-redact": "file:../.."
+  }
+}
