@@ -190,6 +190,10 @@
     { "name": "vault/round-trip", "input": "email ada@example.com and grace@example.org", "vault": { "placeholderStyle": "readable" }, "checks": ["vault"] },
     { "name": "vault/stable-placeholder", "input": "ada@example.com then ada@example.com again", "vault": { "placeholderStyle": "readable" }, "checks": ["vault"] },
     { "name": "vault/structured", "input": { "cc": ["grace@example.org"], "password": "hunter2", "to": "ada@example.com" }, "vault": { "placeholderStyle": "readable" }, "checks": ["vault"] },
-    { "name": "vault/array-order", "input": ["ada@example.com", "grace@example.org", "ada@example.com"], "vault": { "placeholderStyle": "readable" }, "checks": ["vault"] }
+    { "name": "vault/array-order", "input": ["ada@example.com", "grace@example.org", "ada@example.com"], "vault": { "placeholderStyle": "readable" }, "checks": ["vault"] },
+    { "name": "vault/reply-json-arguments", "input": { "password": "x\",\"extra\":true,\"y\":\"\\\n\t\u0001", "user": "bob" }, "vault": { "placeholderStyle": "readable", "reply": { "arguments": "{\"password\":\"[SENSITIVE_KEY_1]\",\"remember\":false}", "name": "login" } }, "checks": ["vault"] },
+    { "name": "vault/reply-json-document", "input": "save Q\"uo\\te\nline\ttab\u0001end", "options": { "terms": ["Q\"uo\\te\nline\ttab\u0001end"] }, "vault": { "placeholderStyle": "readable", "reply": "\n [\"[CUSTOM_TERM_1]\", 1]" }, "checks": ["vault"] },
+    { "name": "vault/reply-json-structure-kept", "input": "call back https://user:pa\",\"extra\":true,\"note\":\"x@example.com/pay", "vault": { "placeholderStyle": "readable", "reply": "{\"amount\":10,\"callback\":\"[URL_CREDENTIALS_1]\"}" }, "checks": ["vault"] },
+    { "name": "vault/reply-other-strings-verbatim", "input": "save Q\"uo\\te\nline\ttab\u0001end", "options": { "terms": ["Q\"uo\\te\nline\ttab\u0001end"] }, "vault": { "placeholderStyle": "readable", "reply": { "leaf": { "note": "[CUSTOM_TERM_1]" }, "text": ["said \"[CUSTOM_TERM_1]\" twice", "{ not json [CUSTOM_TERM_1]", "[CUSTOM_TERM_1]"] } }, "checks": ["vault"] }
   ]
 }

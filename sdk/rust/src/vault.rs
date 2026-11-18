@@ -206,14 +206,16 @@ impl Vault {
         self.by_placeholder.is_empty()
     }
 
-    /// Put the originals back into `text`.
+    /// Put the originals back into `text`. When `text` is a JSON object or
+    /// array, the originals go in JSON-escaped (see [`Restorer::json_aware`]).
     pub fn restore_str(&self, text: &str) -> String {
-        Restorer::new(&self.entries()).restore(text)
+        Restorer::json_aware(&self.entries()).restore(text)
     }
 
-    /// Put the originals back into any JSON value.
+    /// Put the originals back into any JSON value. A string that is a JSON
+    /// object or array gets the originals JSON-escaped.
     pub fn restore(&self, value: &Value) -> Value {
-        let restorer = Restorer::new(&self.entries());
+        let restorer = Restorer::json_aware(&self.entries());
         restore_value(value, &restorer)
     }
 
@@ -221,6 +223,55 @@ impl Vault {
     pub fn stream(&self) -> StreamRestorer {
         StreamRestorer::new(&self.entries())
     }
+
+    /// A stream restorer for text that is JSON, such as tool-call arguments
+    /// (see [`StreamRestorer::json`]).
+    pub fn stream_json(&self) -> StreamRestorer {
+        StreamRestorer::json(&self.entries())
+    }
+}
+
+/// `value` as it must appear inside a JSON string literal (FRS-1 §11): quote,
+/// backslash and control characters escaped, nothing else.
+fn json_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for c in value.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\u{c}' => out.push_str("\\f"),
+            '\r' => out.push_str("\\r"),
+            c if u32::from(c) < 0x20 => {
+                let code = u32::from(c);
+                out.push_str(&format!("\\u{code:04x}"));
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Placeholder → original pairs with each original escaped for the inside of a
+/// JSON string literal.
+///
+/// A placeholder can only sit inside a string in valid JSON, so an original
+/// spliced in this form keeps the JSON valid, and quotes, backslashes or
+/// control characters in it cannot end the string and add or replace fields.
+pub fn escape_entries_for_json(entries: &[(String, String)]) -> Vec<(String, String)> {
+    entries
+        .iter()
+        .map(|(placeholder, original)| (placeholder.clone(), json_escape(original)))
+        .collect()
+}
+
+/// Whether `text` is a complete JSON object or array.
+pub fn is_json_document(text: &str) -> bool {
+    let trimmed = text.trim_start_matches([' ', '\t', '\n', '\r']);
+    (trimmed.starts_with('{') || trimmed.starts_with('['))
+        && serde_json::from_str::<serde::de::IgnoredAny>(text).is_ok()
 }
 
 fn restore_value(value: &Value, restorer: &Restorer) -> Value {
@@ -244,13 +295,15 @@ fn restore_value(value: &Value, restorer: &Restorer) -> Value {
 pub struct Restorer {
     pattern: Option<Regex>,
     lookup: HashMap<String, String>,
+    /// Set by [`Restorer::json_aware`]: the same pairs with JSON-escaped originals.
+    escaped: Option<Box<Restorer>>,
 }
 
 impl Restorer {
     /// Build a restorer from placeholder → original pairs.
     pub fn new(entries: &[(String, String)]) -> Restorer {
         if entries.is_empty() {
-            return Restorer { pattern: None, lookup: HashMap::new() };
+            return Restorer { pattern: None, lookup: HashMap::new(), escaped: None };
         }
         let mut ordered: Vec<&(String, String)> = entries.iter().collect();
         ordered.sort_by_key(|entry| std::cmp::Reverse(entry.0.len()));
@@ -262,11 +315,32 @@ impl Restorer {
         Restorer {
             pattern: Regex::new(&alternation).ok(),
             lookup: entries.iter().cloned().collect(),
+            escaped: None,
         }
+    }
+
+    /// Like [`Restorer::new`], except that a string which is a JSON object or
+    /// array (tool-call arguments, JSON-mode output) gets the originals
+    /// JSON-escaped, so it is still valid JSON with the same structure after
+    /// the restore. Any other string gets the originals verbatim.
+    pub fn json_aware(entries: &[(String, String)]) -> Restorer {
+        let mut restorer = Restorer::new(entries);
+        if !entries.is_empty() {
+            restorer.escaped = Some(Box::new(Restorer::new(&escape_entries_for_json(entries))));
+        }
+        restorer
     }
 
     /// Replace every known placeholder in `text`.
     pub fn restore(&self, text: &str) -> String {
+        let restored = self.replace(text);
+        match &self.escaped {
+            Some(escaped) if restored != text && is_json_document(text) => escaped.replace(text),
+            _ => restored,
+        }
+    }
+
+    fn replace(&self, text: &str) -> String {
         let Some(pattern) = &self.pattern else { return text.to_string() };
         pattern
             .replace_all(text, |captures: &regex::Captures<'_>| {
@@ -290,6 +364,14 @@ pub struct StreamRestorer {
 }
 
 impl StreamRestorer {
+    /// A stream restorer for text that is JSON (tool-call arguments, partial
+    /// tool input, JSON-mode output): the originals go in JSON-escaped, so the
+    /// assembled text stays valid JSON and a restored value cannot add or
+    /// replace fields in it.
+    pub fn json(entries: &[(String, String)]) -> StreamRestorer {
+        StreamRestorer::new(&escape_entries_for_json(entries))
+    }
+
     /// Build a stream restorer from placeholder → original pairs.
     pub fn new(entries: &[(String, String)]) -> StreamRestorer {
         StreamRestorer {
@@ -382,6 +464,11 @@ impl Session {
     /// A restorer for a streamed reply.
     pub fn stream(&self) -> StreamRestorer {
         self.vault.stream()
+    }
+
+    /// A restorer for a streamed reply that is JSON.
+    pub fn stream_json(&self) -> StreamRestorer {
+        self.vault.stream_json()
     }
 
     /// Start a fresh conversation with no carried-over mappings.

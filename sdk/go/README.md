@@ -115,6 +115,11 @@ for chunk := range chunks {
 fmt.Print(restorer.Flush())
 ```
 
+When the streamed text is JSON, such as tool-call arguments, use
+`session.StreamJSON()`: the originals go in JSON-escaped, so the arguments stay
+valid JSON with the same structure. `Restore` and `RestoreString` do this on
+their own for any string that is a JSON object or array.
+
 ## Ways to hide a value
 
 | `Mode` | `ada@example.com` becomes | Use it for |

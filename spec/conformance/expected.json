@@ -2241,6 +2241,76 @@
     ],
     "redact": "hvs.***"
   },
+  "vault/reply-json-arguments": {
+    "vault": {
+      "entries": [
+        [
+          "[SENSITIVE_KEY_1]",
+          "x\",\"extra\":true,\"y\":\"\\\n\t\u0001"
+        ]
+      ],
+      "redacted": {
+        "password": "[SENSITIVE_KEY_1]",
+        "user": "bob"
+      },
+      "reply": {
+        "arguments": "{\"password\":\"x\\\",\\\"extra\\\":true,\\\"y\\\":\\\"\\\\\\n\\t\\u0001\",\"remember\":false}",
+        "name": "login"
+      },
+      "restored": {
+        "password": "x\",\"extra\":true,\"y\":\"\\\n\t\u0001",
+        "user": "bob"
+      }
+    }
+  },
+  "vault/reply-json-document": {
+    "vault": {
+      "entries": [
+        [
+          "[CUSTOM_TERM_1]",
+          "Q\"uo\\te\nline\ttab\u0001end"
+        ]
+      ],
+      "redacted": "save [CUSTOM_TERM_1]",
+      "reply": "\n [\"Q\\\"uo\\\\te\\nline\\ttab\\u0001end\", 1]",
+      "restored": "save Q\"uo\\te\nline\ttab\u0001end"
+    }
+  },
+  "vault/reply-json-structure-kept": {
+    "vault": {
+      "entries": [
+        [
+          "[URL_CREDENTIALS_1]",
+          "https://user:pa\",\"extra\":true,\"note\":\"x@"
+        ]
+      ],
+      "redacted": "call back [URL_CREDENTIALS_1]example.com/pay",
+      "reply": "{\"amount\":10,\"callback\":\"https://user:pa\\\",\\\"extra\\\":true,\\\"note\\\":\\\"x@\"}",
+      "restored": "call back https://user:pa\",\"extra\":true,\"note\":\"x@example.com/pay"
+    }
+  },
+  "vault/reply-other-strings-verbatim": {
+    "vault": {
+      "entries": [
+        [
+          "[CUSTOM_TERM_1]",
+          "Q\"uo\\te\nline\ttab\u0001end"
+        ]
+      ],
+      "redacted": "save [CUSTOM_TERM_1]",
+      "reply": {
+        "leaf": {
+          "note": "Q\"uo\\te\nline\ttab\u0001end"
+        },
+        "text": [
+          "said \"Q\"uo\\te\nline\ttab\u0001end\" twice",
+          "{ not json Q\"uo\\te\nline\ttab\u0001end",
+          "Q\"uo\\te\nline\ttab\u0001end"
+        ]
+      },
+      "restored": "save Q\"uo\\te\nline\ttab\u0001end"
+    }
+  },
   "vault/round-trip": {
     "vault": {
       "entries": [

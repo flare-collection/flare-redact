@@ -13,6 +13,7 @@ the conversation involves.
 
 from __future__ import annotations
 
+import json as _json
 import re
 import secrets
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
@@ -21,7 +22,10 @@ from .engine import (
     Options, allow_matcher, key_matcher, map_graph, resolve_detectors, scan_string,
 )
 
-__all__ = ["Vault", "Session", "StreamRestorer", "build_restore", "restore"]
+__all__ = [
+    "Vault", "Session", "StreamRestorer", "build_restore", "build_json_aware_restore",
+    "escape_entries_for_json", "is_json_document", "requests_json_output", "restore",
+]
 
 PlaceholderFn = Callable[[str, int], str]
 
@@ -48,6 +52,86 @@ def build_restore(entries: Sequence[Tuple[str, str]]) -> Callable[[str], str]:
     return lambda text: pattern.sub(lambda m: lookup.get(m.group(0), m.group(0)), text)
 
 
+_JSON_ESCAPES = {'"': '\\"', "\\": "\\\\", "\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\f", "\r": "\\r"}
+_NEEDS_ESCAPE = re.compile(r'["\\\x00-\x1f\ud800-\udfff]')
+_JSON_WHITESPACE = " \t\n\r"
+
+
+def _json_escape(value: str) -> str:
+    """``value`` as it must appear inside a JSON string literal (FRS-1 §11)."""
+    return _NEEDS_ESCAPE.sub(lambda m: _JSON_ESCAPES.get(m.group(0)) or f"\\u{ord(m.group(0)):04x}", value)
+
+
+def escape_entries_for_json(entries: Sequence[Tuple[str, str]]) -> List[Tuple[str, str]]:
+    """Each original escaped for the inside of a JSON string literal.
+
+    A placeholder can only sit inside a string in valid JSON, so an original
+    spliced in this form keeps the JSON valid, and quotes, backslashes or control
+    characters in it cannot end the string and add or replace fields.
+    """
+    return [(placeholder, _json_escape(original)) for placeholder, original in entries]
+
+
+def _reject_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")
+
+
+def is_json_document(text: str) -> bool:
+    """True when ``text`` is a complete JSON object or array."""
+    if text.lstrip(_JSON_WHITESPACE)[:1] not in ("{", "["):
+        return False
+    try:
+        _json.loads(text, parse_constant=_reject_constant)
+    except (ValueError, RecursionError):
+        return False
+    return True
+
+
+def build_json_aware_restore(entries: Sequence[Tuple[str, str]]) -> Callable[[str], str]:
+    """:func:`build_restore`, except that a string which is a JSON object or array
+    (tool-call arguments, JSON-mode output) gets its originals JSON-escaped, so it
+    is still valid JSON with the same structure after the restore."""
+    if not entries:
+        return lambda text: text
+    plain = build_restore(entries)
+    escaped: List[Callable[[str], str]] = []
+
+    def restore_text(text: str) -> str:
+        restored = plain(text)
+        if restored == text or not is_json_document(text):
+            return restored
+        if not escaped:
+            escaped.append(build_restore(escape_entries_for_json(entries)))
+        return escaped[0](text)
+
+    return restore_text
+
+
+def _format_type(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return value.get("type")
+    return getattr(value, "type", None)
+
+
+def _field(value: Any, name: str) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(name)
+    return getattr(value, name, None)
+
+
+def requests_json_output(request: Any) -> bool:
+    """Whether a model request asks for JSON output, so the answer text is JSON.
+
+    OpenAI ``response_format`` (Chat Completions) or ``text.format`` (Responses),
+    Anthropic ``output_config.format`` or the beta ``output_format``.
+    """
+    if request is None:
+        return False
+    openai = (_format_type(_field(request, "response_format")), _format_type(_field(_field(request, "text"), "format")))
+    anthropic = (_format_type(_field(_field(request, "output_config"), "format")), _format_type(_field(request, "output_format")))
+    return any(kind in ("json_object", "json_schema") for kind in openai) or "json_schema" in anthropic
+
+
 class StreamRestorer:
     """Restores placeholders in a stream, even when one is split across chunks.
 
@@ -55,11 +139,18 @@ class StreamRestorer:
     still turn out to be the start of a placeholder. Everything before that is
     safe to emit immediately, so a token streamed as ``[FR_EMA`` + ``IL_ab…]``
     is still restored exactly once.
+
+    ``json=True`` is for a stream whose text is JSON (tool-call arguments,
+    partial tool input, JSON-mode output): the originals go in JSON-escaped, so
+    the assembled text stays valid JSON and a restored value cannot add or
+    replace fields in it.
     """
 
     __slots__ = ("_restore", "_placeholders", "_buffer")
 
-    def __init__(self, entries: Sequence[Tuple[str, str]]) -> None:
+    def __init__(self, entries: Sequence[Tuple[str, str]], *, json: bool = False) -> None:
+        if json:
+            entries = escape_entries_for_json(entries)
         self._restore = build_restore(entries)
         self._placeholders = [placeholder for placeholder, _ in entries]
         self._buffer = ""
@@ -87,6 +178,11 @@ class StreamRestorer:
         out = self._restore(self._buffer)
         self._buffer = ""
         return out
+
+    @property
+    def pending(self) -> bool:
+        """Whether text is held back waiting for the rest of a placeholder."""
+        return bool(self._buffer)
 
 
 class Vault:
@@ -164,13 +260,20 @@ class Vault:
         return map_graph(value, self._redact_str, sensitive)
 
     def restore(self, value: Any) -> Any:
-        """Put the originals back into any text or structure."""
-        restorer = build_restore(list(self._by_placeholder.items()))
+        """Put the originals back into any text or structure.
+
+        A string that is a JSON object or array gets the originals JSON-escaped.
+        """
+        restorer = build_json_aware_restore(list(self._by_placeholder.items()))
         return map_graph(value, restorer)
 
-    def stream(self) -> StreamRestorer:
-        """A restorer for streamed output, safe across chunk boundaries."""
-        return StreamRestorer(list(self._by_placeholder.items()))
+    def stream(self, *, json: bool = False) -> StreamRestorer:
+        """A restorer for streamed output, safe across chunk boundaries.
+
+        Pass ``json=True`` when the streamed text is JSON, such as tool-call
+        arguments.
+        """
+        return StreamRestorer(list(self._by_placeholder.items()), json=json)
 
     def entries(self) -> List[Tuple[str, str]]:
         """The placeholder → original pairs minted so far."""
@@ -220,9 +323,9 @@ class Session:
         """Mask a whole ``[{"role": …, "content": …}]`` chat array in one call."""
         return self._vault.redact([dict(message) for message in messages])
 
-    def stream(self) -> StreamRestorer:
-        """A restorer for a streamed reply."""
-        return self._vault.stream()
+    def stream(self, *, json: bool = False) -> StreamRestorer:
+        """A restorer for a streamed reply; ``json=True`` when the text is JSON."""
+        return self._vault.stream(json=json)
 
     def reset(self) -> None:
         """Start a fresh conversation — a new vault, no carried-over mappings."""
@@ -233,7 +336,10 @@ class Session:
 
 
 def restore(value: Any, source: Union[Vault, Mapping[str, str], Sequence[Tuple[str, str]]]) -> Any:
-    """Put originals back using a vault, a mapping, or placeholder → value pairs."""
+    """Put originals back using a vault, a mapping, or placeholder → value pairs.
+
+    A string that is a JSON object or array gets the originals JSON-escaped.
+    """
     if isinstance(source, Vault):
         entries = source.entries()
     elif isinstance(source, Mapping):
@@ -242,4 +348,4 @@ def restore(value: Any, source: Union[Vault, Mapping[str, str], Sequence[Tuple[s
         entries = list(source)
     if not entries:
         return value
-    return map_graph(value, build_restore(entries))
+    return map_graph(value, build_json_aware_restore(entries))
