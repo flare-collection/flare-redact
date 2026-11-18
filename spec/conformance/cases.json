@@ -46,6 +46,8 @@
     { "name": "bearer/header", "input": "Authorization: Bearer abcdefghijklmnopqrstuvwx" },
     { "name": "basic/header", "input": "Authorization: Basic YWRtaW46aHVudGVyMg==" },
     { "name": "url/credentials", "input": "DATABASE_URL=postgres://app:s3cr3t-pass@db.internal:5432/main" },
+    { "name": "url/credentials-underscore-scheme", "input": "SQLALCHEMY_URL=oracle+cx_oracle://scott:tiger-pass@db.internal:1521/orcl" },
+    { "name": "url/credentials-long-scheme-run", "input": "a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.ab://u:p@h then mysql+mysqldb://root:s3cret@localhost/app" },
     { "name": "private-key/pem", "input": "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\n-----END RSA PRIVATE KEY-----" },
     { "name": "private-key/mismatched-footer", "input": "-----BEGIN RSA PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\n-----END CERTIFICATE-----\nnext line" },
     { "name": "private-key/truncated", "input": "log: -----BEGIN OPENSSH PRIVATE KEY-----\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ\nMIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAq7BFUpkGp3+LQmlQ" },
