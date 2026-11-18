@@ -3,6 +3,7 @@ package flareredact
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -226,20 +227,28 @@ func (v *Vault) Size() int {
 	return len(v.byPlaceholder)
 }
 
-// RestoreString puts the originals back into text.
+// RestoreString puts the originals back into text. When text is a JSON object
+// or array, the originals go in JSON-escaped (see BuildJSONAwareRestorer).
 func (v *Vault) RestoreString(text string) string {
-	return BuildRestorer(v.Entries())(text)
+	return BuildJSONAwareRestorer(v.Entries())(text)
 }
 
-// Restore puts the originals back into any supported value.
+// Restore puts the originals back into any supported value. A string that is
+// a JSON object or array gets the originals JSON-escaped.
 func (v *Vault) Restore(value any) any {
-	restore := BuildRestorer(v.Entries())
+	restore := BuildJSONAwareRestorer(v.Entries())
 	return mapStrings(value, restore, 0)
 }
 
 // Stream returns a restorer for streamed output, safe across chunk boundaries.
 func (v *Vault) Stream() *StreamRestorer {
 	return NewStreamRestorer(v.Entries())
+}
+
+// StreamJSON returns a stream restorer for text that is JSON, such as tool-call
+// arguments (see NewJSONStreamRestorer).
+func (v *Vault) StreamJSON() *StreamRestorer {
+	return NewJSONStreamRestorer(v.Entries())
 }
 
 func mapStrings(value any, transform func(string) string, depth int) any {
@@ -296,6 +305,85 @@ func BuildRestorer(entries [][2]string) func(string) string {
 	return replacer.Replace
 }
 
+// jsonEscape returns value as it must appear inside a JSON string literal
+// (FRS-1 §11): quote, backslash and control characters escaped, nothing else.
+func jsonEscape(value string) string {
+	const digits = "0123456789abcdef"
+	var out strings.Builder
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		switch c {
+		case '"':
+			out.WriteString(`\"`)
+		case '\\':
+			out.WriteString(`\\`)
+		case '\b':
+			out.WriteString(`\b`)
+		case '\t':
+			out.WriteString(`\t`)
+		case '\n':
+			out.WriteString(`\n`)
+		case '\f':
+			out.WriteString(`\f`)
+		case '\r':
+			out.WriteString(`\r`)
+		default:
+			if c < 0x20 {
+				out.WriteString(`\u00`)
+				out.WriteByte(digits[c>>4])
+				out.WriteByte(digits[c&0xf])
+			} else {
+				out.WriteByte(c)
+			}
+		}
+	}
+	return out.String()
+}
+
+// EscapeEntriesForJSON returns the pairs with each original escaped for the
+// inside of a JSON string literal. A placeholder can only sit inside a string
+// in valid JSON, so an original spliced in this form keeps the JSON valid, and
+// quotes, backslashes or control characters in it cannot end the string and
+// add or replace fields.
+func EscapeEntriesForJSON(entries [][2]string) [][2]string {
+	out := make([][2]string, len(entries))
+	for i, entry := range entries {
+		out[i] = [2]string{entry[0], jsonEscape(entry[1])}
+	}
+	return out
+}
+
+// IsJSONDocument reports whether text is a complete JSON object or array.
+func IsJSONDocument(text string) bool {
+	trimmed := strings.TrimLeft(text, " \t\n\r")
+	if trimmed == "" || (trimmed[0] != '{' && trimmed[0] != '[') {
+		return false
+	}
+	return json.Valid([]byte(text))
+}
+
+// BuildJSONAwareRestorer is BuildRestorer, except that a string which is a
+// JSON object or array (tool-call arguments, JSON-mode output) gets the
+// originals JSON-escaped, so it is still valid JSON with the same structure
+// after the restore. Any other string gets the originals verbatim.
+func BuildJSONAwareRestorer(entries [][2]string) func(string) string {
+	if len(entries) == 0 {
+		return func(text string) string { return text }
+	}
+	plain := BuildRestorer(entries)
+	var escaped func(string) string
+	return func(text string) string {
+		restored := plain(text)
+		if restored == text || !IsJSONDocument(text) {
+			return restored
+		}
+		if escaped == nil {
+			escaped = BuildRestorer(EscapeEntriesForJSON(entries))
+		}
+		return escaped(text)
+	}
+}
+
 func sortByPlaceholderLength(entries [][2]string) {
 	for i := 1; i < len(entries); i++ {
 		for j := i; j > 0 && len(entries[j][0]) > len(entries[j-1][0]); j-- {
@@ -312,6 +400,14 @@ type StreamRestorer struct {
 	restore      func(string) string
 	placeholders []string
 	buffer       string
+}
+
+// NewJSONStreamRestorer builds a stream restorer for text that is JSON
+// (tool-call arguments, partial tool input, JSON-mode output): the originals go
+// in JSON-escaped, so the assembled text stays valid JSON and a restored value
+// cannot add or replace fields in it.
+func NewJSONStreamRestorer(entries [][2]string) *StreamRestorer {
+	return NewStreamRestorer(EscapeEntriesForJSON(entries))
 }
 
 // NewStreamRestorer builds a restorer for the given placeholder → original pairs.
@@ -386,6 +482,9 @@ func (s *Session) Restore(value any) any { return s.vault.Restore(value) }
 
 // Stream returns a restorer for a streamed reply.
 func (s *Session) Stream() *StreamRestorer { return s.vault.Stream() }
+
+// StreamJSON returns a stream restorer for a streamed reply that is JSON.
+func (s *Session) StreamJSON() *StreamRestorer { return s.vault.StreamJSON() }
 
 // Reset starts a fresh conversation with no carried-over mappings.
 func (s *Session) Reset() error {

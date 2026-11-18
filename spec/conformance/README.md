@@ -41,7 +41,10 @@ formatting change.
   accepts.
 - `checks` defaults to `["redact", "scan"]`; add `"vault"` for a round trip, and
   set `"vault": {"placeholderStyle": "readable"}` so the placeholders are
-  deterministic.
+  deterministic. A `"reply"` inside `"vault"` is a value that uses those
+  placeholders, as a model would send it back; it is restored with the same
+  vault (see [SPEC.md §11](../SPEC.md#11-vaults-and-reversible-redaction) for
+  restoring into JSON text).
 
 A good case answers a question someone will actually ask. The corpus is
 deliberately full of negatives — a Luhn-invalid card, a random 12-digit run, a

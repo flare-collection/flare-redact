@@ -398,9 +398,32 @@ model without sending the data" work.
 - A generator that mints a duplicate placeholder for two different values is an
   error; silently merging them would restore the wrong secret.
 
+**Restoring into JSON text.** Tool-call arguments and JSON-mode output are JSON
+held in a string, and a placeholder in valid JSON can only sit inside a string
+literal. A string being restored is a *JSON document* when, after any leading
+JSON whitespace (space, tab, LF, CR), it starts with `{` or `[` and the whole
+string parses as JSON. In a JSON document each original is inserted
+**JSON-escaped**; every other string gets the original verbatim. Structured data
+is restored one string at a time by the same rule. The escaped form is the
+content of a JSON string literal:
+
+| Original | Inserted as |
+|---|---|
+| `"` | `\"` |
+| `\` | `\\` |
+| U+0008, U+0009, U+000A, U+000C, U+000D | `\b`, `\t`, `\n`, `\f`, `\r` |
+| any other code point below U+0020 | `\u00xx`, lowercase hex |
+| a lone surrogate, where the host string can hold one | `\uxxxx`, lowercase hex |
+| anything else | itself |
+
+The document stays valid JSON, and a quote, backslash or control character in a
+restored value cannot end its string and add or replace fields.
+
 Streaming restoration holds back the longest proper prefix of any placeholder that
 the emitted tail could still be starting, so a placeholder split across two chunks
-is still restored exactly once.
+is still restored exactly once. A stream restorer also has a JSON mode, which
+inserts the escaped form, for streams whose text is JSON: tool-call arguments,
+partial tool input, and output the request asked to be JSON.
 
 ## 12. Limits and failure modes
 

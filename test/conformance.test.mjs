@@ -45,6 +45,7 @@ function runCase(testCase) {
       restored: vault.restore(redacted),
       entries: vault.entries().map(([placeholder, original]) => [placeholder, original]),
     };
+    if (testCase.vault && 'reply' in testCase.vault) result.vault.reply = vault.restore(testCase.vault.reply);
   }
   return result;
 }

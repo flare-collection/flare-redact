@@ -103,6 +103,11 @@ for chunk in stream {
 print!("{}", restorer.flush());
 ```
 
+When the streamed text is JSON, such as tool-call arguments, use
+`session.stream_json()`: the originals go in JSON-escaped, so the arguments stay
+valid JSON with the same structure. `restore` and `restore_str` do this on their
+own for any string that is a JSON object or array.
+
 ## Ways to hide a value
 
 | `Mode` | `ada@example.com` becomes | Use it for |

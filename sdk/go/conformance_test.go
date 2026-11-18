@@ -19,6 +19,8 @@ type conformanceCase struct {
 	Checks  []string       `json:"checks"`
 	Vault   *struct {
 		PlaceholderStyle string `json:"placeholderStyle"`
+		// Reply uses the placeholders, as a model would send it back.
+		Reply any `json:"reply"`
 	} `json:"vault"`
 }
 
@@ -131,11 +133,15 @@ func runConformanceCase(t *testing.T, testCase conformanceCase) map[string]any {
 		for _, entry := range vault.Entries() {
 			entries = append(entries, []string{entry[0], entry[1]})
 		}
-		result["vault"] = map[string]any{
+		vaultResult := map[string]any{
 			"redacted": redacted,
 			"restored": vault.Restore(redacted),
 			"entries":  entries,
 		}
+		if testCase.Vault != nil && testCase.Vault.Reply != nil {
+			vaultResult["reply"] = vault.Restore(testCase.Vault.Reply)
+		}
+		result["vault"] = vaultResult
 	}
 
 	return result
