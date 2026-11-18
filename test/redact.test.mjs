@@ -44,6 +44,26 @@ test('redacts the password inside a connection string', () => {
   assert.equal(redact('postgres://user:s3cr3t@db.host:5432/app'), 'postgres://user:***@db.host:5432/app');
 });
 
+test('redacts connection strings whose scheme has an underscore', () => {
+  // SQLAlchemy driver names such as cx_oracle and redshift_connector.
+  assert.equal(redact('oracle+cx_oracle://scott:tiger99@db:1521/orcl'), 'oracle+cx_oracle://scott:***@db:1521/orcl');
+  assert.equal(redact('redshift+redshift_connector://u:hunter22@h/db'), 'redshift+redshift_connector://u:***@h/db');
+  assert.equal(redact('my_app://u:hunter22@h/db'), 'my_app://u:***@h/db');
+  // A URL with a user but no password stays as it is.
+  assert.equal(redact('oracle+cx_oracle://scott@db:1521/orcl'), 'oracle+cx_oracle://scott@db:1521/orcl');
+});
+
+test('a long run of scheme characters is scanned in linear time', () => {
+  // Every position in "a-b.a-b.…" can start a scheme. With an unbounded scheme
+  // each start read to the end of the run, so time grew with the square of the
+  // length: 160 kB took about 25 s. The scheme is now at most 64 characters.
+  const run = 'a-b.'.repeat(50_000) + '://';
+  const start = performance.now();
+  assert.equal(redact(run), run);
+  assert.ok(performance.now() - start < 2000, `took ${Math.round(performance.now() - start)} ms`);
+  assert.equal(redact('a-b.'.repeat(20) + 'x://u:hunter22@h'), 'a-b.'.repeat(20) + 'x://u:***@h');
+});
+
 test('masks a Luhn-valid card, ignores an invalid digit run', () => {
   assert.equal(redact('card 4242 4242 4242 4242 end'), 'card **** **** **** 4242 end');
   assert.equal(redact('id 1234 5678 9012 3456'), 'id 1234 5678 9012 3456');

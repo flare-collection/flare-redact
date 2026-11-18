@@ -15,7 +15,7 @@
  * everything this touches.
  */
 
-import { buildRestore, buildStreamRestore, createVault, type IncrementalRestorer, type Vault, type VaultOptions } from './vault.js';
+import { buildRestore, buildStreamRestore, createVault, escapeEntriesForJson, type IncrementalRestorer, type Vault, type VaultOptions } from './vault.js';
 import type { Session } from './session.js';
 
 export interface FlareRedactMiddlewareOptions extends VaultOptions {
@@ -40,7 +40,6 @@ export interface FlareRedactLanguageModelMiddleware {
 }
 
 type Obj = Record<string, unknown>;
-type Entries = Array<[string, string]>;
 
 const isObj = (value: unknown): value is Obj => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -52,9 +51,6 @@ const STRUCTURAL = new Set([
 
 /** Parts that pass through untouched: files and images, and provider-defined parts. */
 const PASS_THROUGH = new Set(['file', 'image', 'reasoning-file', 'custom']);
-
-/** The text of a placeholder's original as it must appear inside a JSON string. */
-const jsonEscaped = (entries: Entries): Entries => entries.map(([ph, value]) => [ph, JSON.stringify(value).slice(1, -1)]);
 
 const isJson = (text: string): boolean => {
   try {
@@ -129,7 +125,7 @@ interface Restorers {
 
 function restorers(vault: Vault, jsonOutput: boolean): Restorers {
   const entries = vault.entries();
-  const escaped = jsonEscaped(entries);
+  const escaped = escapeEntriesForJson(entries);
   const plain = buildRestore(entries);
   const json = buildRestore(escaped);
   return {

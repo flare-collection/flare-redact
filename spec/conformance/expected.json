@@ -1758,6 +1758,43 @@
     ],
     "redact": "DATABASE_URL=postgres://app:***@db.internal:5432/main"
   },
+  "url/credentials-long-scheme-run": {
+    "findings": [
+      {
+        "column": 11,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 81,
+        "line": 1,
+        "risk": "critical",
+        "start": 10
+      },
+      {
+        "column": 89,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 116,
+        "line": 1,
+        "risk": "critical",
+        "start": 88
+      }
+    ],
+    "redact": "a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.a-b.ab://u:***@h then mysql+mysqldb://root:***@localhost/app"
+  },
+  "url/credentials-underscore-scheme": {
+    "findings": [
+      {
+        "column": 16,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 51,
+        "line": 1,
+        "risk": "critical",
+        "start": 15
+      }
+    ],
+    "redact": "SQLALCHEMY_URL=oracle+cx_oracle://scott:***@db.internal:1521/orcl"
+  },
   "vault/array-order": {
     "vault": {
       "entries": [

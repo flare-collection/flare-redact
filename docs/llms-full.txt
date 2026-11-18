@@ -95,6 +95,8 @@ const openai = wrapOpenAI(new OpenAI());        // prompts redacted, replies res
 const anthropic = wrapAnthropic(new Anthropic()); // includes system prompt + streaming
 ```
 
+Restoring into JSON text (tool-call arguments, partial JSON, JSON-mode output, any string that is a JSON object or array) JSON-escapes each original, so the result stays valid JSON with the same structure.
+
 ```js
 // Vercel AI SDK, any provider (from 'flare-redact/ai-sdk'), AI SDK 5, 6 and 7:
 import { wrapLanguageModel } from 'ai';
