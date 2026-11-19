@@ -1750,6 +1750,46 @@
     ],
     "redact": "peer [REDACTED IPv6]"
   },
+  "network/ipv6-compressed": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.92,
+        "detector": "ipv6",
+        "end": 28,
+        "line": 1,
+        "risk": "medium",
+        "start": 5
+      },
+      {
+        "column": 34,
+        "confidence": 0.92,
+        "detector": "ipv6",
+        "end": 40,
+        "line": 1,
+        "risk": "medium",
+        "start": 33
+      },
+      {
+        "column": 46,
+        "confidence": 0.92,
+        "detector": "ipv6",
+        "end": 64,
+        "line": 1,
+        "risk": "medium",
+        "start": 45
+      }
+    ],
+    "redact": "peer [REDACTED IPv6] and [REDACTED IPv6] and [REDACTED IPv6]"
+  },
+  "network/ipv6-negative-clock": {
+    "findings": [],
+    "redact": "35=D|52=20261118-12:30:45.123| at 09:15:00, nic 00:1b:44:11:3a:b7"
+  },
+  "network/ipv6-negative-letters": {
+    "findings": [],
+    "redact": "call dead::beef then Foo::abc"
+  },
   "network/mac": {
     "findings": [
       {

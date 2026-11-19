@@ -17,7 +17,7 @@ to pin a tag, depend on the repository:
 
 ```toml
 [dependencies]
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.10.0" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.10.1" }
 ```
 
 ```rust
