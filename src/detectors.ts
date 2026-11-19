@@ -57,6 +57,11 @@ export interface Detector {
   reject?: RegExp[];
 }
 
+/** `[A-Za-z0-9_]`: the neighbours `\b` forbids, as a set for `boundary`. */
+const WORD_CHARS: ReadonlySet<string> = new Set(
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_',
+);
+
 export function keepPrefix(n: number) {
   return (v: string): string => (v.length <= n ? '***' : v.slice(0, n) + '***');
 }
@@ -354,7 +359,14 @@ export const DETECTORS: Detector[] = [
     id: 'ipv6',
     label: 'IPv6 address',
     why: 'Can be personal data or reveal internal infrastructure.',
-    pattern: /\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\b/g,
+    // The full form has eight groups; every shorter form needs "::". Each "::"
+    // alternative tries the longest tail first, so a compressed address is
+    // masked whole, and clock times such as 12:30:45 never match. A match made
+    // only of letters (dead::beef, C++ scopes) is rejected.
+    pattern:
+      /::(?:ffff(?::0{1,4})?:)?(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])|(?:[A-Fa-f0-9]{1,4}:){1,4}:(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])|(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}|[A-Fa-f0-9]{1,4}:(?::[A-Fa-f0-9]{1,4}){1,6}|(?:[A-Fa-f0-9]{1,4}:){1,2}(?::[A-Fa-f0-9]{1,4}){1,5}|(?:[A-Fa-f0-9]{1,4}:){1,3}(?::[A-Fa-f0-9]{1,4}){1,4}|(?:[A-Fa-f0-9]{1,4}:){1,4}(?::[A-Fa-f0-9]{1,4}){1,3}|(?:[A-Fa-f0-9]{1,4}:){1,5}(?::[A-Fa-f0-9]{1,4}){1,2}|(?:[A-Fa-f0-9]{1,4}:){1,6}:[A-Fa-f0-9]{1,4}|(?:[A-Fa-f0-9]{1,4}:){1,7}:|:(?::[A-Fa-f0-9]{1,4}){1,7}/g,
+    boundary: { before: WORD_CHARS, after: WORD_CHARS },
+    reject: [/^[A-Fa-f:]+$/],
     mask: () => '[REDACTED IPv6]',
     default: false,
     tags: ['network'],

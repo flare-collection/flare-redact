@@ -177,11 +177,11 @@ first release after 1.9.1. Until it lands, or to pin a tag, install them from
 this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.10.0#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.10.1#subdirectory=sdk/python"
 ```
 
 ```toml
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.10.0" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.10.1" }
 ```
 
 ```python
@@ -1035,7 +1035,7 @@ not, as long as Node 20 or newer is on the PATH:
 ```yaml
 repos:
   - repo: https://github.com/flare-collection/flare-redact
-    rev: v1.10.0
+    rev: v1.10.1
     hooks:
       - id: flare-redact        # only the lines being added, like --staged
 ```
@@ -1100,7 +1100,7 @@ reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.10.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.10.1 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and

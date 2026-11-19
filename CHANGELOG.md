@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.10.1 (2026-11-19)
+
+### Fixed: the IPv6 detector
+
+- Times of day such as `12:30:45` are no longer masked as IPv6 addresses. The
+  old pattern accepted any three to eight colon-separated hex groups, so clock
+  times in logs and FIX messages were redacted when `ipv6` was enabled (it is
+  part of the `gdpr` and `strict` presets).
+- A compressed address is now masked whole. `2001:db8::8a2e:370:7334` used to
+  come out as `2001:db8::[REDACTED IPv6]`, leaving the network prefix visible.
+  The pattern now knows every `::` form, `fe80::1`, `::1`, a trailing `::` and
+  an embedded IPv4 address (`::ffff:192.168.1.10`, `64:ff9b::192.0.2.33`).
+- MAC addresses and code such as `dead::beef` or `Foo::abc` are not matched.
+- The JavaScript, Python, Go and Rust engines change together; new conformance
+  cases cover compressed addresses, clock times and letter-only matches.
+
 ## 1.10.0 (2026-11-18)
 
 ### Security: restored values keep the structure of JSON (GHSA-4c5j-9f3p-p7mh)
