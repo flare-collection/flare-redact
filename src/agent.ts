@@ -1,4 +1,5 @@
 import { compilePolicy, type RedactOptions } from './index.js';
+import { errorChain } from './graph.js';
 import { decodeJsonStringContent, isJsonDocument, restore } from './vault.js';
 
 const FLOW_TOKEN = /\[FR_FLOW_[a-f0-9]{32}\]/g;
@@ -380,6 +381,7 @@ function collectOccurrences(input: unknown, records: ReadonlyMap<string, TokenRe
     if (value instanceof Error) {
       collectString(value.message, appendPointer(path, 'message'));
       if (typeof value.stack === 'string') collectString(value.stack, appendPointer(path, 'stack'));
+      for (const [key, descriptor] of errorChain(value)) walk(descriptor.value, appendPointer(path, key));
     }
     if (value instanceof URL || value instanceof URLSearchParams) {
       collectString(value.toString(), path);

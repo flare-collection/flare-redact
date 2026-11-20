@@ -1,4 +1,18 @@
 type StringMapper = (value: string) => string;
+
+/**
+ * The parts of an error chain that JavaScript keeps non-enumerable: `cause`
+ * and AggregateError's `errors`. A logger prints them, so a walk that only
+ * follows enumerable properties would drop the real reason for a failure.
+ */
+export function errorChain(error: Error): Array<[string, PropertyDescriptor]> {
+  const out: Array<[string, PropertyDescriptor]> = [];
+  for (const key of ['cause', 'errors']) {
+    const descriptor = Object.getOwnPropertyDescriptor(error, key);
+    if (descriptor && !descriptor.enumerable && 'value' in descriptor) out.push([key, descriptor]);
+  }
+  return out;
+}
 type SensitiveValueMapper = (key: string, value: string) => string;
 
 function isAtomicObject(value: object): boolean {
@@ -39,6 +53,9 @@ export function mapGraph(
           : {}),
       });
       copyEnumerable(value, out, walk, mapSensitiveValue);
+      for (const [key, descriptor] of errorChain(value)) {
+        Object.defineProperty(out, key, { ...descriptor, value: walk(descriptor.value) });
+      }
       return out;
     }
 
