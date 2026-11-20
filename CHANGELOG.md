@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.10.3 (2026-11-20)
+
+### Fixed: an error keeps its cause
+
+- Redacting an error dropped its `cause` and an `AggregateError`'s `errors`,
+  because both are non-enumerable. A failed `fetch` logged through
+  `--import flare-redact/register` showed only `TypeError: fetch failed`, without
+  the `ECONNREFUSED` underneath. Both are now kept, redacted and still
+  non-enumerable; `scan()` reports findings inside them (`cause.message`), and
+  FlareFlow checks a placeholder inside a cause before restoring it.
+- Python keeps an exception's `__cause__` and `__context__` the same way.
+
 ## 1.10.2 (2026-11-20)
 
 ### Fixed: a value redacted from JSON text comes back escaped once
@@ -17,16 +29,6 @@
   function now also receives `text`, the whole string the match was found in.
 - The JavaScript, Python, Go and Rust engines change together; FRS-1 section 11
   describes the rule and three new conformance cases cover it.
-
-### Fixed: an error keeps its cause
-
-- Redacting an error dropped its `cause` and an `AggregateError`'s `errors`,
-  because both are non-enumerable. A failed `fetch` logged through
-  `--import flare-redact/register` showed only `TypeError: fetch failed`, without
-  the `ECONNREFUSED` underneath. Both are now kept, redacted and still
-  non-enumerable; `scan()` reports findings inside them (`cause.message`), and
-  FlareFlow checks a placeholder inside a cause before restoring it.
-- Python keeps an exception's `__cause__` and `__context__` the same way.
 
 ## 1.10.1 (2026-11-19)
 

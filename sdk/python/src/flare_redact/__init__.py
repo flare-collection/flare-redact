@@ -52,7 +52,7 @@ from .pack import Detector, Pack, PackError, core_pack, load_pack
 from .transforms import pseudonymize, surrogate
 from .vault import Session, StreamRestorer, Vault, build_restore, restore
 
-__version__ = "1.10.2"
+__version__ = "1.10.3"
 
 #: The FRS-1 revision this engine implements.
 SPEC_REVISION = "FRS-1"
