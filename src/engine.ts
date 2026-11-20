@@ -76,7 +76,8 @@ export interface RedactOptions {
    */
   detectors?: Detector[];
   mode?: Mode;
-  mask?: string | ((f: { value: string; detector: Detector }) => string);
+  /** A fixed mask, or a function of the match; `text` is the whole string it was found in. */
+  mask?: string | ((f: { value: string; detector: Detector; text?: string }) => string);
   /** @deprecated Use transformSecret. */
   hashSalt?: string;
   /** Secret key for hash, pseudonym, and surrogate modes. Never hard-code it. */
@@ -138,7 +139,7 @@ export class RedactionLimitError extends FlareRedactError {
   }
 }
 
-export type Replace = (value: string, det: Detector) => string;
+export type Replace = (value: string, det: Detector, text?: string) => string;
 
 function matches(entry: string, d: Detector): boolean {
   return d.id === entry || (d.tags?.includes(entry) ?? false);
@@ -214,7 +215,7 @@ export function makeReplacer(opts: RedactOptions): Replace {
   const mask = opts.mask;
   const mode = opts.mode ?? 'mask';
   if (typeof mask === 'string') return () => mask;
-  if (typeof mask === 'function') return (value, det) => mask({ value, detector: det });
+  if (typeof mask === 'function') return (value, det, text) => mask({ value, detector: det, text });
   if (mode === 'label') return (_value, det) => `[REDACTED:${det.id}]`;
   if (mode === 'hash') return (value, det) => `${det.id}_${hmacFingerprint(secret, value)}`;
   if (mode === 'pseudonym' || mode === 'fpe') return (value) => pseudonymize(value, secret);
@@ -479,7 +480,7 @@ export function redactString(
   let cursor = 0;
   for (const h of hits) {
     out += text.slice(cursor, h.start);
-    out += replace(h.value, h.det);
+    out += replace(h.value, h.det, text);
     cursor = h.end!;
   }
   return out + text.slice(cursor);

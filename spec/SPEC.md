@@ -433,6 +433,18 @@ content of a JSON string literal:
 The document stays valid JSON, and a quote, backslash or control character in a
 restored value cannot end its string and add or replace fields.
 
+**Capturing from JSON text.** When a vault redacts a string that is a JSON
+document, by the same test, it stores each captured value **decoded**. A capture
+is decoded when it is valid content of a JSON string literal: no unescaped `"`,
+no code point below U+0020, only the escapes `\"`, `\\`, `\/`, `\b`, `\f`, `\n`,
+`\r`, `\t` and `\uXXXX`, and every surrogate written as `\uXXXX` part of a
+high-low pair of such escapes. The stored original is then the text the content
+denotes; any other capture is stored as captured. So a value redacted from JSON
+text and restored into JSON text gets the same value back, escaped once (an
+escape may change spelling: `\u0041` comes back as `A`), and restored into
+other text it reads as the value itself. FlareFlow applies the same rule when it
+mints a placeholder.
+
 Streaming restoration holds back the longest proper prefix of any placeholder that
 the emitted tail could still be starting, so a placeholder split across two chunks
 is still restored exactly once. A stream restorer also has a JSON mode, which

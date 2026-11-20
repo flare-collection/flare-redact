@@ -272,3 +272,49 @@ test('agent flows: an authorized restore into string arguments stays valid JSON'
   const call = flow.authorizeForSink('notes.save', { arguments: JSON.stringify({ note: safe, n: 1 }) });
   assert.deepEqual(JSON.parse(call.arguments), { note: AWKWARD, n: 1 });
 });
+
+// Capturing from JSON text (issue #34): a value captured from a string that is
+// a JSON document is stored decoded, so a round trip through JSON is exact.
+const JSON_WITH_ESCAPE = '{"url":"https://user:p\\"ss@db.example.com/x"}';
+
+test('a value captured from JSON text round-trips through JSON exactly', () => {
+  const vault = createVault({ placeholderStyle: 'readable' });
+  assert.equal(vault.restore(vault.redact(JSON_WITH_ESCAPE)), JSON_WITH_ESCAPE);
+  assert.deepEqual(vault.entries(), [['[URL_CREDENTIALS_1]', 'https://user:p"ss@']]);
+  assert.equal(vault.restore('[URL_CREDENTIALS_1]'), 'https://user:p"ss@');
+});
+
+test('a value captured from other text is stored as captured', () => {
+  const vault = createVault({ placeholderStyle: 'readable' });
+  vault.redact('url https://user:p\\"ss@db.example.com/x');
+  assert.equal(vault.entries()[0][1], 'https://user:p\\"ss@');
+});
+
+test('a capture that is not valid JSON string content is stored as captured', () => {
+  const vault = createVault({ placeholderStyle: 'readable', terms: ['ab\\ud800cd', 'x\\u0041y'] });
+  vault.redact('["ab\\ud800cd", "x\\u0041y"]');
+  assert.deepEqual(new Set(vault.entries().map(([, original]) => original)), new Set(['ab\\ud800cd', 'xAy']));
+});
+
+test('FlareFlow restores a value captured from JSON text exactly', () => {
+  const flow = createAgentFlow({
+    sinks: {
+      'db.connect': {
+        capabilities: [{ id: 'db', sources: ['user'], detectors: ['url_credentials'], paths: ['/arguments'] }],
+      },
+    },
+  });
+  const safe = flow.protectForModel('user', JSON_WITH_ESCAPE);
+  assert.equal(flow.authorizeForSink('db.connect', { arguments: safe }).arguments, JSON_WITH_ESCAPE);
+});
+
+test('decodeJsonStringContent reads JSON string content and rejects anything else', async () => {
+  const { decodeJsonStringContent: decode } = await import('../dist/vault.js');
+  assert.equal(decode('plain'), 'plain');
+  assert.equal(decode('q\\"b\\\\s\\/'), 'q"b\\s/');
+  assert.equal(decode('\\b\\f\\n\\r\\t'), '\b\f\n\r\t');
+  assert.equal(decode('\\u00e9\\uD83D\\uDE00'), 'é\u{1F600}');
+  for (const text of ['a"b', 'a\nb', 'a\\', '\\x', '\\u12', '\\ud800', '\\udc00', '\\ud800\\u0041']) {
+    assert.equal(decode(text), undefined, text);
+  }
+});

@@ -2560,6 +2560,47 @@
       ]
     }
   },
+  "vault/capture-json-text-decoded": {
+    "vault": {
+      "entries": [
+        [
+          "[URL_CREDENTIALS_1]",
+          "https://user:p\"ss@"
+        ]
+      ],
+      "redacted": "{\"url\":\"[URL_CREDENTIALS_1]db.example.com/x\"}",
+      "reply": "user https://user:p\"ss@",
+      "restored": "{\"url\":\"https://user:p\\\"ss@db.example.com/x\"}"
+    }
+  },
+  "vault/capture-json-text-invalid-content-verbatim": {
+    "vault": {
+      "entries": [
+        [
+          "[CUSTOM_TERM_1]",
+          "ab\\ud800cd"
+        ],
+        [
+          "[CUSTOM_TERM_2]",
+          "xAy"
+        ]
+      ],
+      "redacted": "[\"[CUSTOM_TERM_1]\", \"[CUSTOM_TERM_2]\"]",
+      "restored": "[\"ab\\\\ud800cd\", \"xAy\"]"
+    }
+  },
+  "vault/capture-other-text-verbatim": {
+    "vault": {
+      "entries": [
+        [
+          "[URL_CREDENTIALS_1]",
+          "https://user:p\\\"ss@"
+        ]
+      ],
+      "redacted": "url [URL_CREDENTIALS_1]db.example.com/x",
+      "restored": "url https://user:p\\\"ss@db.example.com/x"
+    }
+  },
   "vault/hashicorp-token": {
     "findings": [
       {

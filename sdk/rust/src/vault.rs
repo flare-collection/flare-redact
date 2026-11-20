@@ -147,10 +147,17 @@ impl Vault {
         if plan.is_empty() {
             return Ok(text.to_string());
         }
+        // A value captured from JSON text is stored decoded, so restoring it into
+        // JSON escapes it exactly once and restoring it into prose gives the value.
+        let json_text = is_json_document(text);
         let mut out = String::with_capacity(text.len());
         let mut cursor = 0usize;
         for (start, end, value, detector_id) in plan {
             out.push_str(&text[cursor..start]);
+            let value = match json_text {
+                true => decode_json_string_content(&value).unwrap_or(value),
+                false => value,
+            };
             out.push_str(&self.mint(&value, &detector_id)?);
             cursor = end;
         }
@@ -265,6 +272,74 @@ pub fn escape_entries_for_json(entries: &[(String, String)]) -> Vec<(String, Str
         .iter()
         .map(|(placeholder, original)| (placeholder.clone(), json_escape(original)))
         .collect()
+}
+
+fn hex4(text: &str, at: usize) -> Option<u32> {
+    let digits = text.get(at..at + 4)?;
+    match digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        true => u32::from_str_radix(digits, 16).ok(),
+        false => None,
+    }
+}
+
+/// `text` read as the content of a JSON string literal, or `None` when it is
+/// not valid content: an unescaped quote or control character, an unknown or
+/// cut-off escape, or a `\u` escape that leaves a lone surrogate (FRS-1 §11).
+pub(crate) fn decode_json_string_content(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0usize;
+    let mut run = 0usize;
+    while i < bytes.len() {
+        let byte = bytes[i];
+        if byte == b'"' || byte < 0x20 {
+            return None;
+        }
+        if byte != b'\\' {
+            i += 1;
+            continue;
+        }
+        out.push_str(&text[run..i]);
+        let simple = match bytes.get(i + 1) {
+            Some(b'"') => Some('"'),
+            Some(b'\\') => Some('\\'),
+            Some(b'/') => Some('/'),
+            Some(b'b') => Some('\u{8}'),
+            Some(b'f') => Some('\u{c}'),
+            Some(b'n') => Some('\n'),
+            Some(b'r') => Some('\r'),
+            Some(b't') => Some('\t'),
+            Some(b'u') => None,
+            _ => return None,
+        };
+        if let Some(simple) = simple {
+            out.push(simple);
+            i += 2;
+            run = i;
+            continue;
+        }
+        let unit = hex4(text, i + 2)?;
+        i += 6;
+        let code = match unit {
+            0xdc00..=0xdfff => return None,
+            0xd800..=0xdbff => {
+                if text.get(i..i + 2) != Some("\\u") {
+                    return None;
+                }
+                let low = hex4(text, i + 2)?;
+                if !(0xdc00..=0xdfff).contains(&low) {
+                    return None;
+                }
+                i += 6;
+                0x10000 + ((unit - 0xd800) << 10) + (low - 0xdc00)
+            }
+            _ => unit,
+        };
+        out.push(char::from_u32(code)?);
+        run = i;
+    }
+    out.push_str(&text[run..]);
+    Some(out)
 }
 
 /// Whether `text` is a complete JSON object or array.
@@ -475,5 +550,23 @@ impl Session {
     pub fn reset(&mut self) -> Result<(), Error> {
         self.vault = Vault::new(self.options.clone())?.style(self.style);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_json_string_content as decode;
+
+    #[test]
+    fn decodes_json_string_content() {
+        assert_eq!(decode("plain").as_deref(), Some("plain"));
+        assert_eq!(decode(r#"q\"b\\s\/"#).as_deref(), Some(r#"q"b\s/"#));
+        assert_eq!(decode(r"\b\f\n\r\t").as_deref(), Some("\u{8}\u{c}\n\r\t"));
+        assert_eq!(decode(r"é😀").as_deref(), Some("\u{e9}\u{1F600}"));
+        for text in [
+            "a\"b", "a\nb", "a\\", r"\x", r"\u12", r"\ud800", r"\udc00", r"\ud800A",
+        ] {
+            assert_eq!(decode(text), None, "{text:?}");
+        }
     }
 }

@@ -72,6 +72,51 @@ def escape_entries_for_json(entries: Sequence[Tuple[str, str]]) -> List[Tuple[st
     return [(placeholder, _json_escape(original)) for placeholder, original in entries]
 
 
+_SIMPLE_UNESCAPES = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
+_HEX4 = re.compile(r"[0-9A-Fa-f]{4}")
+
+
+def _hex4(text: str, at: int) -> int:
+    digits = text[at : at + 4]
+    return int(digits, 16) if _HEX4.fullmatch(digits) else -1
+
+
+def _decode_json_string_content(text: str) -> Optional[str]:
+    """``text`` read as the content of a JSON string literal, or ``None`` when it
+    is not valid content: an unescaped quote or control character, an unknown or
+    cut-off escape, or a ``\\u`` escape that leaves a lone surrogate (FRS-1 §11)."""
+    out: List[str] = []
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if char == '"' or char < " ":
+            return None
+        if char != "\\":
+            out.append(char)
+            i += 1
+            continue
+        simple = _SIMPLE_UNESCAPES.get(text[i + 1 : i + 2])
+        if simple is not None:
+            out.append(simple)
+            i += 2
+            continue
+        if text[i + 1 : i + 2] != "u":
+            return None
+        unit = _hex4(text, i + 2)
+        i += 6
+        if unit < 0 or 0xDC00 <= unit <= 0xDFFF:
+            return None
+        if 0xD800 <= unit <= 0xDBFF:
+            low = _hex4(text, i + 2) if text[i : i + 2] == "\\u" else -1
+            if not 0xDC00 <= low <= 0xDFFF:
+                return None
+            out.append(chr(0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00)))
+            i += 6
+            continue
+        out.append(chr(unit))
+    return "".join(out)
+
+
 def _reject_constant(name: str) -> Any:
     raise ValueError(f"{name} is not JSON")
 
@@ -239,11 +284,19 @@ class Vault:
         hits = scan_string(text, self._detectors, self._allow, self.options)
         if not hits:
             return text
+        # A value captured from JSON text is stored decoded, so restoring it into
+        # JSON escapes it exactly once and restoring it into prose gives the value.
+        json_text = is_json_document(text)
         out: List[str] = []
         cursor = 0
         for hit in hits:
             out.append(text[cursor : hit.start])
-            out.append(self._mint(hit.value, hit.detector.id))
+            value = hit.value
+            if json_text:
+                decoded = _decode_json_string_content(value)
+                if decoded is not None:
+                    value = decoded
+            out.append(self._mint(value, hit.detector.id))
             cursor = hit.end
         out.append(text[cursor:])
         return "".join(out)
