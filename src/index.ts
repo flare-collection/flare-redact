@@ -1,6 +1,6 @@
 import { SENSITIVE_KEY_DETECTOR } from './detectors.js';
 import { createVault } from './vault.js';
-import { mapGraph } from './graph.js';
+import { errorChain, mapGraph } from './graph.js';
 import {
   resolveDetectors,
   keyMatcher,
@@ -152,6 +152,9 @@ async function redactAsyncPrepared<T>(input: T, policy: PreparedPolicy): Promise
         if (!descriptor?.enumerable || !('value' in descriptor)) continue;
         Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value) });
       }
+      for (const [key, descriptor] of errorChain(value)) {
+        Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value) });
+      }
       return out;
     }
 
@@ -242,6 +245,7 @@ function scanPrepared(input: unknown, policy: PreparedPolicy): Finding[] {
       seen.add(value);
       if (value instanceof Error) {
         walk(value.message, path ? `${path}.message` : 'message');
+        for (const [key, descriptor] of errorChain(value)) walk(descriptor.value, path ? `${path}.${key}` : key);
       }
       if (value instanceof URL || value instanceof URLSearchParams) {
         walk(value.toString(), path);
@@ -339,6 +343,7 @@ async function scanAsyncPrepared(input: unknown, policy: PreparedPolicy): Promis
       seen.add(value);
       if (value instanceof Error) {
         await walk(value.message, path ? `${path}.message` : 'message');
+        for (const [key, descriptor] of errorChain(value)) await walk(descriptor.value, path ? `${path}.${key}` : key);
       }
       if (value instanceof URL || value instanceof URLSearchParams) {
         await walk(value.toString(), path);

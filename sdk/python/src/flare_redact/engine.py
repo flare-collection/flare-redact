@@ -521,12 +521,22 @@ def map_graph(
         if isinstance(node, BaseException):
             mapped_args = tuple(walk(arg) for arg in node.args)
             try:
-                return type(node)(*mapped_args)
+                rebuilt = type(node)(*mapped_args)
             except TypeError:
                 # An exception with a bespoke __init__ cannot be rebuilt safely;
                 # returning a plain Exception keeps the message redacted, which
                 # matters more than preserving the class.
-                return Exception(*mapped_args)
+                rebuilt = Exception(*mapped_args)
+            seen[identity] = rebuilt
+            # The chain a traceback prints: ``raise ... from`` and the exception
+            # being handled when this one was raised. Dropping it would hide the
+            # real reason for a failure.
+            if node.__cause__ is not None:
+                rebuilt.__cause__ = walk(node.__cause__)
+            if node.__context__ is not None:
+                rebuilt.__context__ = walk(node.__context__)
+            rebuilt.__suppress_context__ = node.__suppress_context__
+            return rebuilt
 
         return node
 
@@ -644,6 +654,10 @@ class Policy:
             if isinstance(node, BaseException):
                 for index, arg in enumerate(node.args):
                     walk(arg, f"{path}.args[{index}]" if path else f"args[{index}]")
+                for name in ("__cause__", "__context__"):
+                    linked = getattr(node, name)
+                    if linked is not None:
+                        walk(linked, f"{path}.{name}" if path else name)
                 return
 
         walk(value, "")

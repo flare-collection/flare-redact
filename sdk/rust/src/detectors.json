@@ -2,7 +2,7 @@
   "$schema": "./detectors.schema.json",
   "spec": "FRS-1",
   "id": "flare-redact/core",
-  "version": "1.10.2",
+  "version": "1.10.3",
   "title": "flare-redact core detector pack",
   "description": "The portable profile of the flare-redact detector set. Every pattern is written in the FRS-1 regular-expression subset so the JavaScript, Python, Go and Rust engines compile it to the same automaton and produce byte-identical output. See spec/SPEC.md.",
   "license": "MIT",

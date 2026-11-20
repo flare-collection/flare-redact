@@ -1,6 +1,6 @@
 {
   "name": "flare-redact",
-  "version": "1.10.2",
+  "version": "1.10.3",
   "description": "Keep secrets and PII out of logs, Sentry, LLM prompts and commits. Reads values, not field names. Zero dependencies.",
   "type": "module",
   "sideEffects": [
