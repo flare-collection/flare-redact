@@ -154,3 +154,77 @@ func TestIsJSONDocument(t *testing.T) {
 		}
 	}
 }
+
+// Capturing from JSON text (issue #34): a value captured from a string that is
+// a JSON document is stored decoded, so a round trip through JSON is exact.
+
+func readableVault(t *testing.T, options Options) *Vault {
+	t.Helper()
+	vault, err := NewVault(options, VaultOptions{Style: PlaceholderReadable})
+	if err != nil {
+		t.Fatalf("NewVault: %v", err)
+	}
+	return vault
+}
+
+func TestValueCapturedFromJSONTextRoundTripsExactly(t *testing.T) {
+	vault := readableVault(t, Options{})
+	input := `{"url":"https://user:p\"ss@db.example.com/x"}`
+	redacted, err := vault.RedactString(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := vault.RestoreString(redacted); got != input {
+		t.Errorf("round trip = %s", got)
+	}
+	want := [][2]string{{"[URL_CREDENTIALS_1]", `https://user:p"ss@`}}
+	if got := vault.Entries(); !reflect.DeepEqual(got, want) {
+		t.Errorf("Entries = %q", got)
+	}
+	if got := vault.RestoreString("[URL_CREDENTIALS_1]"); got != `https://user:p"ss@` {
+		t.Errorf("prose restore = %s", got)
+	}
+}
+
+func TestValueCapturedFromOtherTextIsStoredAsCaptured(t *testing.T) {
+	vault := readableVault(t, Options{})
+	if _, err := vault.RedactString(`url https://user:p\"ss@db.example.com/x`); err != nil {
+		t.Fatal(err)
+	}
+	if got := vault.Entries()[0][1]; got != `https://user:p\"ss@` {
+		t.Errorf("original = %s", got)
+	}
+}
+
+func TestCaptureThatIsNotValidStringContentIsStoredAsCaptured(t *testing.T) {
+	vault := readableVault(t, Options{Terms: []Term{{Term: `ab\ud800cd`}, {Term: `xAy`}}})
+	if _, err := vault.RedactString(`["ab\ud800cd", "xAy"]`); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, entry := range vault.Entries() {
+		got[entry[1]] = true
+	}
+	if !got[`ab\ud800cd`] || !got["xAy"] {
+		t.Errorf("Entries = %q", vault.Entries())
+	}
+}
+
+func TestDecodeJSONStringContent(t *testing.T) {
+	valid := map[string]string{
+		`plain`:      "plain",
+		`q\"b\\s\/`:  `q"b\s/`,
+		`\b\f\n\r\t`: "\b\f\n\r\t",
+		`é😀`:         "é\U0001F600",
+	}
+	for in, want := range valid {
+		if got, ok := decodeJSONStringContent(in); !ok || got != want {
+			t.Errorf("decode(%s) = %q, %v", in, got, ok)
+		}
+	}
+	for _, in := range []string{`a"b`, "a\nb", `a\`, `\x`, `\u12`, `\ud800`, `\udc00`, `\ud800A`} {
+		if _, ok := decodeJSONStringContent(in); ok {
+			t.Errorf("decode(%s) accepted", in)
+		}
+	}
+}

@@ -117,3 +117,59 @@ fn is_json_document_accepts_objects_and_arrays_only() {
         assert!(!is_json_document(text), "{text:?}");
     }
 }
+
+// Capturing from JSON text (issue #34): a value captured from a string that is
+// a JSON document is stored decoded, so a round trip through JSON is exact.
+
+fn readable_vault(options: Options) -> Vault {
+    Vault::new(options)
+        .expect("vault")
+        .style(PlaceholderStyle::Readable)
+}
+
+#[test]
+fn value_captured_from_json_text_round_trips_exactly() {
+    let mut vault = readable_vault(Options::new());
+    let input = r#"{"url":"https://user:p\"ss@db.example.com/x"}"#;
+    let redacted = vault.redact_str(input).expect("redact");
+    assert_eq!(vault.restore_str(&redacted), input);
+    assert_eq!(
+        vault.entries(),
+        vec![(
+            "[URL_CREDENTIALS_1]".to_string(),
+            r#"https://user:p"ss@"#.to_string()
+        )]
+    );
+    assert_eq!(
+        vault.restore_str("[URL_CREDENTIALS_1]"),
+        r#"https://user:p"ss@"#
+    );
+}
+
+#[test]
+fn value_captured_from_other_text_is_stored_as_captured() {
+    let mut vault = readable_vault(Options::new());
+    vault
+        .redact_str(r#"url https://user:p\"ss@db.example.com/x"#)
+        .expect("redact");
+    assert_eq!(vault.entries()[0].1, r#"https://user:p\"ss@"#);
+}
+
+#[test]
+fn capture_that_is_not_valid_string_content_is_stored_as_captured() {
+    let mut vault =
+        readable_vault(Options::new().terms([Term::new(r"ab\ud800cd"), Term::new(r"xAy")]));
+    vault
+        .redact_str(r#"["ab\ud800cd", "xAy"]"#)
+        .expect("redact");
+    let mut originals: Vec<String> = vault
+        .entries()
+        .into_iter()
+        .map(|(_, original)| original)
+        .collect();
+    originals.sort();
+    assert_eq!(
+        originals,
+        vec![r"ab\ud800cd".to_string(), "xAy".to_string()]
+    );
+}

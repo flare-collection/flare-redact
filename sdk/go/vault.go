@@ -120,8 +120,23 @@ func (v *Vault) RedactString(text string) (string, error) {
 
 func (v *Vault) redactStringLocked(text string) (string, error) {
 	var mintErr error
+	// A value captured from JSON text is stored decoded, so restoring it into
+	// JSON escapes it exactly once and restoring it into prose gives the value.
+	jsonText := -1
 	out, err := v.policy.rewrite(text, func(h hit) string {
-		placeholder, err := v.mint(h.value, h.detector.ID)
+		value := h.value
+		if jsonText < 0 {
+			jsonText = 0
+			if IsJSONDocument(text) {
+				jsonText = 1
+			}
+		}
+		if jsonText == 1 {
+			if decoded, ok := decodeJSONStringContent(value); ok {
+				value = decoded
+			}
+		}
+		placeholder, err := v.mint(value, h.detector.ID)
 		if err != nil && mintErr == nil {
 			mintErr = err
 		}
@@ -351,6 +366,90 @@ func EscapeEntriesForJSON(entries [][2]string) [][2]string {
 		out[i] = [2]string{entry[0], jsonEscape(entry[1])}
 	}
 	return out
+}
+
+func hex4(text string, at int) int {
+	if at+4 > len(text) {
+		return -1
+	}
+	unit, err := strconv.ParseUint(text[at:at+4], 16, 32)
+	if err != nil {
+		return -1
+	}
+	return int(unit)
+}
+
+// decodeJSONStringContent reads text as the content of a JSON string literal.
+// It reports false when text is not valid content: an unescaped quote or
+// control character, an unknown or cut-off escape, or a \u escape that leaves
+// a lone surrogate (FRS-1 §11).
+func decodeJSONStringContent(text string) (string, bool) {
+	if !strings.ContainsRune(text, '\\') {
+		return text, !strings.ContainsFunc(text, func(r rune) bool { return r == '"' || r < 0x20 })
+	}
+	var out strings.Builder
+	for i := 0; i < len(text); {
+		c := text[i]
+		if c == '"' || c < 0x20 {
+			return "", false
+		}
+		if c != '\\' {
+			out.WriteByte(c)
+			i++
+			continue
+		}
+		if i+1 >= len(text) {
+			return "", false
+		}
+		switch text[i+1] {
+		case '"', '\\', '/':
+			out.WriteByte(text[i+1])
+			i += 2
+			continue
+		case 'b':
+			out.WriteByte('\b')
+			i += 2
+			continue
+		case 'f':
+			out.WriteByte('\f')
+			i += 2
+			continue
+		case 'n':
+			out.WriteByte('\n')
+			i += 2
+			continue
+		case 'r':
+			out.WriteByte('\r')
+			i += 2
+			continue
+		case 't':
+			out.WriteByte('\t')
+			i += 2
+			continue
+		case 'u':
+		default:
+			return "", false
+		}
+		unit := hex4(text, i+2)
+		i += 6
+		if unit < 0 || (unit >= 0xdc00 && unit <= 0xdfff) {
+			return "", false
+		}
+		if unit >= 0xd800 && unit <= 0xdbff {
+			low := -1
+			if i+1 < len(text) && text[i] == '\\' && text[i+1] == 'u' {
+				low = hex4(text, i+2)
+			}
+			if low < 0xdc00 || low > 0xdfff {
+				return "", false
+			}
+			out.WriteRune(rune(0x10000 + (unit-0xd800)<<10 + (low - 0xdc00)))
+			i += 6
+			continue
+		}
+		out.WriteRune(rune(unit))
+	}
+	return out.String(), true
 }
 
 // IsJSONDocument reports whether text is a complete JSON object or array.

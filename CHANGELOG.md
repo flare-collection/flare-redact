@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.10.2 (2026-11-20)
+
+### Fixed: a value redacted from JSON text comes back escaped once
+
+- Since 1.10.0 an original restored into JSON text is JSON-escaped. When the
+  redacted input was itself JSON text and the captured value held an escape,
+  such as `p\"ss` in `{"url":"https://user:p\"ss@db.example.com/x"}`, the
+  vault stored the escaped form and the restore escaped it a second time, so a
+  round trip added a backslash (#34).
+- A vault now stores a value captured from a string that is a JSON document in
+  decoded form, when it is valid JSON string content. Restored into JSON it is
+  escaped exactly once; restored into other text it reads as the value itself.
+  Anything else is still stored as captured, so restored JSON stays valid.
+- FlareFlow applies the same rule when it mints a placeholder. A `mask`
+  function now also receives `text`, the whole string the match was found in.
+- The JavaScript, Python, Go and Rust engines change together; FRS-1 section 11
+  describes the rule and three new conformance cases cover it.
+
 ## 1.10.1 (2026-11-19)
 
 ### Fixed: the IPv6 detector

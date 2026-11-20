@@ -11,7 +11,12 @@ from types import SimpleNamespace
 
 import flare_redact as fr
 from flare_redact.integrations import wrap_anthropic, wrap_openai
-from flare_redact.vault import StreamRestorer, is_json_document, requests_json_output
+from flare_redact.vault import (
+    StreamRestorer,
+    _decode_json_string_content,
+    is_json_document,
+    requests_json_output,
+)
 
 # A quote, a backslash and control characters.
 AWKWARD = 'Q"uo\\te\nline\ttab\x01end'
@@ -278,6 +283,37 @@ class WrapAnthropicTest(unittest.TestCase):
         self.assertEqual(res["content"][0]["text"], f"Saving {AWKWARD}")
         self.assertEqual(res["content"][1]["input"], {"note": AWKWARD, "list": [AWKWARD]})
 
+
+
+class CaptureFromJsonTextTest(unittest.TestCase):
+    """A value captured from a string that is a JSON document is stored decoded,
+    so a round trip through JSON is exact (issue #34)."""
+
+    def test_round_trip_through_json_text_is_exact(self) -> None:
+        vault = fr.create_vault(placeholder_style="readable")
+        text = '{"url":"https://user:p\\"ss@db.example.com/x"}'
+        self.assertEqual(vault.restore(vault.redact(text)), text)
+        self.assertEqual(vault.entries(), [("[URL_CREDENTIALS_1]", 'https://user:p"ss@')])
+        self.assertEqual(vault.restore("[URL_CREDENTIALS_1]"), 'https://user:p"ss@')
+
+    def test_other_text_keeps_the_captured_form(self) -> None:
+        vault = fr.create_vault(placeholder_style="readable")
+        vault.redact('url https://user:p\\"ss@db.example.com/x')
+        self.assertEqual(vault.entries()[0][1], 'https://user:p\\"ss@')
+
+    def test_invalid_string_content_keeps_the_captured_form(self) -> None:
+        vault = fr.create_vault({"terms": ["ab\\ud800cd", "x\\u0041y"]}, placeholder_style="readable")
+        vault.redact('["ab\\ud800cd", "x\\u0041y"]')
+        self.assertEqual({original for _, original in vault.entries()}, {"ab\\ud800cd", "xAy"})
+
+    def test_decoder(self) -> None:
+        decode = _decode_json_string_content
+        self.assertEqual(decode("plain"), "plain")
+        self.assertEqual(decode('q\\"b\\\\s\\/'), 'q"b\\s/')
+        self.assertEqual(decode("\\b\\f\\n\\r\\t"), "\b\f\n\r\t")
+        self.assertEqual(decode("\\u00e9\\uD83D\\uDE00"), "é\U0001F600")
+        for text in ['a"b', "a\nb", "a\\", "\\x", "\\u12", "\\ud800", "\\udc00", "\\ud800\\u0041"]:
+            self.assertIsNone(decode(text), text)
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

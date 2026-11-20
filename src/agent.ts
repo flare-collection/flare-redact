@@ -1,5 +1,5 @@
 import { compilePolicy, type RedactOptions } from './index.js';
-import { restore } from './vault.js';
+import { decodeJsonStringContent, isJsonDocument, restore } from './vault.js';
 
 const FLOW_TOKEN = /\[FR_FLOW_[a-f0-9]{32}\]/g;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
@@ -557,9 +557,22 @@ export function createAgentFlow(options: AgentFlowOptions = {}): AgentFlow {
     return token;
   };
 
+  // A value captured from JSON text is stored decoded (FRS-1 §11), so an
+  // authorised restore into JSON escapes it exactly once.
+  let lastText: string | undefined;
+  let lastTextIsJson = false;
+  const capturedOriginal = (value: string, text: string | undefined): string => {
+    if (text === undefined) return value;
+    if (text !== lastText) {
+      lastText = text;
+      lastTextIsJson = isJsonDocument(text);
+    }
+    return lastTextIsJson ? (decodeJsonStringContent(value) ?? value) : value;
+  };
+
   const policy = compilePolicy({
     ...(options.policy ?? {}),
-    mask: ({ value, detector }) => mint(value, detector.id),
+    mask: ({ value, detector, text }) => mint(capturedOriginal(value, text), detector.id),
   });
 
   const evaluate = (rawSink: string, value: unknown): Evaluation => {

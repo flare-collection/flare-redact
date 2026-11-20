@@ -54,6 +54,50 @@ export function escapeEntriesForJson(entries: Array<[string, string]>): Array<[s
   return entries.map(([placeholder, original]) => [placeholder, JSON.stringify(original).slice(1, -1)]);
 }
 
+const SIMPLE_ESCAPES: Record<string, string> = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+
+function hex4(text: string, at: number): number {
+  const digits = text.slice(at, at + 4);
+  return /^[0-9A-Fa-f]{4}$/.test(digits) ? parseInt(digits, 16) : -1;
+}
+
+/**
+ * `text` read as the content of a JSON string literal, or `undefined` when it
+ * is not valid content: an unescaped quote or control character, an unknown or
+ * cut-off escape, or a `\u` escape that leaves a lone surrogate (FRS-1 §11).
+ */
+export function decodeJsonStringContent(text: string): string | undefined {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const code = text.charCodeAt(i);
+    if (code === 0x22 || code < 0x20) return undefined;
+    if (code !== 0x5c) {
+      out += text[i++];
+      continue;
+    }
+    const simple = SIMPLE_ESCAPES[text[i + 1] ?? ''];
+    if (simple !== undefined) {
+      out += simple;
+      i += 2;
+      continue;
+    }
+    if (text[i + 1] !== 'u') return undefined;
+    const unit = hex4(text, i + 2);
+    i += 6;
+    if (unit < 0 || (unit >= 0xdc00 && unit <= 0xdfff)) return undefined;
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const low = text[i] === '\\' && text[i + 1] === 'u' ? hex4(text, i + 2) : -1;
+      if (low < 0xdc00 || low > 0xdfff) return undefined;
+      out += String.fromCharCode(unit, low);
+      i += 6;
+      continue;
+    }
+    out += String.fromCharCode(unit);
+  }
+  return out;
+}
+
 /** True when `text` is a complete JSON object or array. */
 export function isJsonDocument(text: string): boolean {
   const first = text.trimStart()[0];
@@ -200,11 +244,14 @@ export function createVault(opts: VaultOptions = {}): Vault {
   const redactStr = (text: string): string => {
     const hits = scanString(text, dets, allow, opts);
     if (!hits.length) return text;
+    // A value captured from JSON text is stored decoded, so restoring it into
+    // JSON escapes it exactly once and restoring it into prose gives the value.
+    const json = isJsonDocument(text);
     let out = '';
     let cursor = 0;
     for (const h of hits) {
       out += text.slice(cursor, h.start);
-      out += mint(h.value, h.det.id);
+      out += mint(json ? (decodeJsonStringContent(h.value) ?? h.value) : h.value, h.det.id);
       cursor = h.end!;
     }
     return out + text.slice(cursor);
