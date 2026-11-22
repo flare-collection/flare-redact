@@ -2,7 +2,7 @@
 
 ## 1.10.4 (2026-11-22)
 
-### Security: password-only connection strings were not redacted (GHSA-4mg7-2jqp-54hq)
+### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)
 
 - `url_credentials` required a username before `:password@`, so a URL with an
   empty username, the usual form for Redis and Valkey and also used by
@@ -14,8 +14,8 @@
   masked: `postgres://user:pa:ss@db` became `postgres://user:pa:***@db`. The
   whole password is masked now, as the Python, Go and Rust engines already did.
 - The JavaScript, Python, Go and Rust engines change together, and the
-  conformance corpus has both cases. Reported privately by a security
-  researcher.
+  conformance corpus has both cases. Reported by Pranshu Raghav
+  ([@Zureno](https://github.com/Zureno)).
 
 ## 1.10.3 (2026-11-20)
 
