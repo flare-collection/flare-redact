@@ -2,7 +2,7 @@
   "$schema": "./detectors.schema.json",
   "spec": "FRS-1",
   "id": "flare-redact/core",
-  "version": "1.10.3",
+  "version": "1.10.4",
   "title": "flare-redact core detector pack",
   "description": "The portable profile of the flare-redact detector set. Every pattern is written in the FRS-1 regular-expression subset so the JavaScript, Python, Go and Rust engines compile it to the same automaton and produce byte-identical output. See spec/SPEC.md.",
   "license": "MIT",
@@ -341,8 +341,8 @@
     {
       "id": "url_credentials",
       "label": "Credentials in URL",
-      "why": "A username:password baked into a connection string leaks the password.",
-      "pattern": "[a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]+:[^@ \\t\\n\\x0B\\f\\r/]+@",
+      "why": "A password baked into a connection string, with or without a username, leaks the password.",
+      "pattern": "[a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]*:[^@ \\t\\n\\x0B\\f\\r/]+@",
       "boundary": {
         "before": "word"
       },
@@ -351,7 +351,7 @@
       ],
       "mask": {
         "type": "replace",
-        "pattern": "([a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]+:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
+        "pattern": "([a-zA-Z][a-zA-Z0-9_+.-]{0,63}://[^:@ \\t\\n\\x0B\\f\\r/]*:)[^@ \\t\\n\\x0B\\f\\r/]+(@)",
         "replacement": "$1***$2"
       },
       "default": true,

@@ -2499,6 +2499,43 @@
     ],
     "redact": "DATABASE_URL=postgres://app:***@db.internal:5432/main"
   },
+  "url/credentials-colon-in-password": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 26,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "postgres://app:***@10.0.0.5:5432/main"
+  },
+  "url/credentials-empty-username": {
+    "findings": [
+      {
+        "column": 11,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 34,
+        "line": 1,
+        "risk": "critical",
+        "start": 10
+      },
+      {
+        "column": 56,
+        "confidence": 0.92,
+        "detector": "url_credentials",
+        "end": 74,
+        "line": 1,
+        "risk": "critical",
+        "start": 55
+      }
+    ],
+    "redact": "REDIS_URL=redis://:***@localhost:6379/0 and amqp://:***@rabbit:5672"
+  },
   "url/credentials-long-scheme-run": {
     "findings": [
       {

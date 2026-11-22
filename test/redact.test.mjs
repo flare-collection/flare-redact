@@ -44,6 +44,29 @@ test('redacts the password inside a connection string', () => {
   assert.equal(redact('postgres://user:s3cr3t@db.host:5432/app'), 'postgres://user:***@db.host:5432/app');
 });
 
+test('redacts a password-only connection string with an empty username', () => {
+  // The canonical Redis/Valkey form, also used by RabbitMQ and others. Hosts such
+  // as localhost, IPs and service names have no domain for the email detector.
+  assert.equal(redact('redis://:SuperSecret123@localhost:6379/0'), 'redis://:***@localhost:6379/0');
+  assert.equal(redact('postgres://:SuperSecret123@10.0.0.5:5432/app'), 'postgres://:***@10.0.0.5:5432/app');
+  assert.equal(redact('REDIS_URL=rediss://:SuperSecret123@redis:6380'), 'REDIS_URL=rediss://:***@redis:6380');
+  assert.equal(
+    redact('{"url":"amqp://:SuperSecret123@rabbit:5672"}'),
+    '{"url":"amqp://:***@rabbit:5672"}',
+  );
+});
+
+test('masks a whole password that contains a colon', () => {
+  assert.equal(redact('postgres://user:pa:ss@db/x'), 'postgres://user:***@db/x');
+  assert.equal(redact('redis://:pa:ss@cache:6379'), 'redis://:***@cache:6379');
+});
+
+test('leaves URLs with no password alone', () => {
+  for (const s of ['http://host:8080/path', 'redis://:@host:6379', 'https://user@host/x', 'ftp://anonymous@mirror/pub']) {
+    assert.equal(redact(s), s);
+  }
+});
+
 test('redacts connection strings whose scheme has an underscore', () => {
   // SQLAlchemy driver names such as cx_oracle and redshift_connector.
   assert.equal(redact('oracle+cx_oracle://scott:tiger99@db:1521/orcl'), 'oracle+cx_oracle://scott:***@db:1521/orcl');
