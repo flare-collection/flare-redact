@@ -96,6 +96,10 @@ Want more than the defaults? Choose a goal instead of a detector list:
 
 ### Logs
 
+ORM query logs too: Prisma, Drizzle, TypeORM, Knex and Sequelize hooks from
+`flare-redact/db` mask bound parameters by the column they go into, so the
+password in `["ada@example.com", "hunter2"]` is caught ([details](docs/guide.md#database-query-logs)).
+
 ```js
 import pino from 'pino';
 import { pinoRedact } from 'flare-redact/pino';
@@ -107,6 +111,10 @@ log.info({ user: 'bob@corp.com', token: 'ghp_…' }, 'login');
 
 winston has `winstonRedact()` from `flare-redact/winston`, and plain `console`
 has `wrapConsole()` or the `--import` flag above.
+
+Not sure what turning it on would hide? Run in shadow mode first:
+`FLARE_REDACT_MODE=shadow` leaves the output as it is and prints what would have
+been redacted, by detector and field, when the process exits ([details](docs/guide.md#measure-before-you-enforce)).
 
 ### LLM prompts
 
@@ -142,6 +150,10 @@ Events, spans, logs and breadcrumbs are redacted in your process, before they
 leave it. Sentry's own ids, release and stack frames stay intact, so grouping
 and source maps keep working. [Details and limits](docs/guide.md#one-policy-everywhere).
 
+For Session Replay, `Sentry.replayIntegration({ maskFn: replayMaskFn() })` from
+`flare-redact/replay` masks only what is sensitive and keeps the rest of the
+replay readable. rrweb and PostHog work the same way ([details](docs/guide.md#mask-session-replays)).
+
 ### Commits and CI
 
 On GitHub, `uses: flare-collection/flare-redact@v1` annotates each finding on the pull request ([inputs](docs/guide.md#fail-a-build-when-a-secret-sneaks-in)).
@@ -173,6 +185,9 @@ polly.server.any().on('beforePersist', pollyBeforePersist());                  /
 ```
 
 ### No Node in the stack?
+
+Collecting logs with Fluent Bit? The [WASM filter](docs/guide.md#fluent-bit)
+redacts every record on the node, with no change to the services.
 
 Point any service at the [sidecar gateway](docs/guide.md#the-sidecar-gateway)
 and it redacts request bodies on the way to OpenAI or Anthropic, with no code

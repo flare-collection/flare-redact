@@ -11,6 +11,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Practical guides](https://flare-collection.github.io/flare-redact/guides/)
 - [Runnable examples](#runnable-examples)
 - [Python, Go, and Rust](#python-go-and-rust)
+- [Fluent Bit](#fluent-bit)
 - [The sidecar gateway](#the-sidecar-gateway)
 - [Redact anything](#redact-anything)
 - [Integrate any SDK or framework](#integrate-any-sdk-or-framework)
@@ -25,12 +26,15 @@ version. Coding assistants can read the same API in condensed form at
 - [Protect tool calls and MCP loops](#protect-tool-calls-and-mcp-loops)
 - [Your own words](#your-own-words)
 - [See what leaks, and why](#see-what-leaks-and-why)
+- [Measure before you enforce](#measure-before-you-enforce)
 - [Guard your logger in one line](#guard-your-logger-in-one-line)
+- [Database query logs](#database-query-logs)
 - [One policy, everywhere](#one-policy-everywhere)
 - [Anonymize a dataset for staging](#anonymize-a-dataset-for-staging)
 - [Clean test recordings and snapshots](#clean-test-recordings-and-snapshots)
 - [Clean data frames and SQL tables](#clean-data-frames-and-sql-tables)
 - [Guard what leaves your app](#guard-what-leaves-your-app)
+- [Mask session replays](#mask-session-replays)
 - [Streams](#streams)
 - [Fail a build when a secret sneaks in](#fail-a-build-when-a-secret-sneaks-in)
 - [CLI](#cli)
@@ -229,6 +233,32 @@ redact(text, { detectors: loadPack(acmePack).detectors });
 A pack that uses a construct an engine cannot execute exactly (a lookahead, a
 `\d` whose meaning differs between languages, a checksum it does not implement)
 fails to load. Failing open is how a redactor leaks.
+
+## Fluent Bit
+
+When logs are collected by Fluent Bit, redact them on the node with the WASM
+filter, before they reach Loki, Elasticsearch, Datadog or S3. It is the Rust
+engine compiled to WebAssembly, so it catches what the other engines catch.
+
+```text
+[FILTER]
+    Name             wasm
+    Match            *
+    WASM_Path        /etc/fluent-bit/flare-redact-fluent-bit.wasm
+    Function_Name    flare_redact
+    Accessible_Paths /etc/flare-redact
+    WASM_Stack_Size  2M
+    WASM_Heap_Size   8M
+```
+
+Keep the two size lines: Fluent Bit's 8 KB defaults are too small to compile
+the detectors, and the heap bounds the largest record. `Function_Name` picks the policy: `flare_redact` (defaults), `flare_redact_pii`
+(phone numbers too) or `flare_redact_label` (`[REDACTED:email]`). Anything else
+goes in a `flare-redact.json` in an accessible path, with the same option names
+as everywhere else. An invalid file, or a record that cannot be redacted, makes
+the filter replace the record with `{"flare_redact_error": "..."}` instead of
+passing it on. The `.wasm` is attached to every GitHub Release;
+[sdk/fluent-bit](../sdk/fluent-bit) has the build steps and every option.
 
 ## The sidecar gateway
 
@@ -869,6 +899,57 @@ isClean(payload);   // → false
 summary(payload);   // → { total: 3, byDetector: { email: 1, github_token: 1, sensitive_key: 1 } }
 ```
 
+## Measure before you enforce
+
+Turning redaction on in production is a leap of faith: nobody knows how many
+log lines carry an email, which detector fires most, or whether a field the
+team needs would be masked. Shadow mode counts what a policy would redact while
+the data passes through unchanged, so the decision rests on numbers. It never
+keeps a matched value.
+
+```bash
+FLARE_REDACT_MODE=shadow node --import flare-redact/register app.js
+```
+
+```
+[flare-redact shadow] 2184 findings in 1940 of 52310 values (3.7%) since 2026-11-23T09:00:00.000Z
+  email                    1602
+  jwt                      410
+  sensitive_key            172
+  top fields:
+    user.email             1544
+    headers.authorization  410
+```
+
+`FLARE_REDACT_MODE` is `enforce` (the default), `shadow` (count only) or
+`audit` (redact and count). The report goes to stderr when the process exits,
+and every `FLARE_REDACT_REPORT_EVERY` seconds when that is set. An unknown mode
+stops the process at startup, like an unknown preset.
+
+In code, an audit observes any value and can feed OpenTelemetry, so the counts
+land on the dashboards you already have:
+
+```js
+import { createAudit, shadowConsole } from 'flare-redact/audit';
+
+const audit = createAudit({ preset: 'gdpr', meter: metrics.getMeter('app') });
+audit.observe(webhookBody, 'webhook');     // returned unchanged, counted
+audit.redact(event, 'events');             // enforced, still counted
+shadowConsole(audit);                      // count console output
+audit.report();                            // { total, byDetector, byRisk, bySource, byPath }
+```
+
+The meter gets `flare_redact.findings` (by detector, risk and source) and
+`flare_redact.scanned` (by source). Field paths fold array indices, so
+`users[3].email` and `users[7].email` count as `users[].email`, and at most 500
+distinct paths are kept. Python has the same `Audit` and a logging filter:
+
+```python
+from flare_redact.audit import Audit, AuditFilter
+
+logging.getLogger().addFilter(AuditFilter(Audit(preset="gdpr")))   # enforce=True to redact too
+```
+
 ## Guard your logger in one line
 
 `wrapConsole` patches `console.*` so every argument is redacted on the way out,
@@ -971,6 +1052,39 @@ span. Keep personal data out of span names, as Sentry itself advises, and leave
 
 Same `policy` object flows into `flare-redact/llm`, `wrapConsole`, `createVault`,
 and `redactStream` too.
+
+## Database query logs
+
+Query logging is turned on to debug a slow page and left on. ORMs log the SQL
+and its bound parameters, and a parameter list is the hardest place to see a
+secret: in `["ada@example.com", "hunter2"]` the password has no shape a
+detector could recognise. `flare-redact/db` matches each placeholder and
+literal to the column it is compared with or inserted into, so a value bound to
+`password`, `token` or `api_key` is masked by name, and the rest is checked by
+the usual detectors.
+
+```
+insert into "users" ("email", "password", "api_key") values ($1, $2, $3) -- params: ["ada@example.com","hunter2","k-7c1e0f2a9b"]
+insert into "users" ("email", "password", "api_key") values ($1, $2, $3) -- params: ["a***@***","***","***"]
+```
+
+```js
+import { prismaQueryLogger, drizzleLogger, typeormLogger, knexQueryLogger, sequelizeLogging } from 'flare-redact/db';
+
+prisma.$on('query', prismaQueryLogger(logger.info));      // log: [{ emit: 'event', level: 'query' }]
+drizzle(client, { logger: drizzleLogger() });
+new DataSource({ ...config, logger: typeormLogger(new SimpleConsoleLogger()) });
+knex.on('query', knexQueryLogger(logger.debug));
+new Sequelize(url, { logging: sequelizeLogging(logger.debug) });   // logQueryParameters too
+```
+
+`redactQuery(sql, params)` does the same for any other client and returns
+`{ sql, params }`; positional (`$1`, `?`) and named (`:name`, `@name`)
+parameters are both understood. A column is found from `col = ?`,
+`col IN (?, ?)`, a qualified `"t"."col"` and `INSERT INTO t (a, b) VALUES ...`
+rows. Checked against Prisma 7, Drizzle on PGlite, TypeORM on sql.js, Knex on
+better-sqlite3 and Sequelize on SQLite: none of them leaked an email, password
+or API key into their logs.
 
 ## Streams
 
@@ -1128,6 +1242,52 @@ import { wrapFetch } from 'flare-redact/fetch';
 const fetch = wrapFetch(globalThis.fetch, { hosts: ['api.segment.io', 'telemetry.vendor.com'] });
 // bodies sent to those hosts are redacted; everything else is left alone
 ```
+
+## Mask session replays
+
+Session replay tools record what users see and type. Their built-in choices are
+to mask every character, which makes replays hard to use, or to mask only the
+elements a CSS selector names, which misses the email typed into a search box
+and the API key pasted into a support form. `flare-redact/replay` masks what is
+sensitive and keeps the rest readable.
+
+```js
+import { replayMaskFn, rrwebMasking } from 'flare-redact/replay';
+
+// rrweb
+rrweb.record({ emit, ...rrwebMasking() });
+
+// Sentry Session Replay: maskAllText and maskAllInputs stay on (the default)
+Sentry.replayIntegration({ maskFn: replayMaskFn() });
+
+// PostHog
+posthog.init(key, { session_recording: rrwebMasking() });
+```
+
+```
+Please call me at +44 20 7946 0958 or mail ada@example.com
+Please call me at *** ** **** **** or mail ***************
+```
+
+- Each masked character becomes `*` and spaces are kept, as rrweb's own masking
+  does, so the replayed layout does not shift. `preserveLength: false` gives
+  the usual masks (`a***@***`) or the chosen `mode` instead.
+- A form field is masked whole when it is a password field, when its
+  `autocomplete` names a password, one-time code or card number, or when its
+  `name` or `id` is a credential name such as `password` or `api_key`. Anything
+  else typed is masked where a detector finds something, and that holds for
+  later keystrokes too, not only the first snapshot.
+- Without detector options the `pii` group is on, so phone numbers count. Free
+  text names and addresses are not caught by default; add
+  `enable: ['pii', 'entities']`, or keep a selector-based mask on the parts of
+  the page that show them.
+- It runs in the browser with no Node built-ins: about 57 kB gzipped with every
+  detector bundled. Repeated texts are cached.
+
+Checked with rrweb 2.2, which Sentry and PostHog both record with. This makes
+replays readable, so it only shows text the detectors consider clean; keep
+`block` and `mask` selectors on screens that show sensitive data the detectors
+cannot recognise, such as medical notes.
 
 ## Fail a build when a secret sneaks in
 
@@ -1444,8 +1604,14 @@ redactCsv(text, opts?)   // 'flare-redact/csv'     → anonymize a CSV dataset
 redactHar(har, opts?)    // 'flare-redact/recording' → clean a HAR file (also redactHarEntry)
 pollyBeforePersist(opts?) // 'flare-redact/recording' → Polly.js beforePersist handler
 createSnapshotSerializer(opts?) // 'flare-redact/snapshot' → Vitest/Jest snapshot serializer
+redactQuery(sql, params?, opts?) // 'flare-redact/db' → SQL and bound parameters, masked by column
+// also from 'flare-redact/db': prismaQueryLogger, drizzleLogger, typeormLogger, knexQueryLogger, sequelizeLogging
 wrapFetch(fetch, opts?)  // 'flare-redact/fetch'   → redact egress to named hosts
+replayMaskFn(opts?)      // 'flare-redact/replay'  → rrweb maskTextFn/maskInputFn, Sentry maskFn
+rrwebMasking(opts?)      // 'flare-redact/replay'  → options for rrweb record() or PostHog session_recording
 createRedactionMiddleware(opts?) // 'flare-redact/middleware' → any function/handler
+createAudit(opts?)       // 'flare-redact/audit'   → shadow mode: count findings, optional OpenTelemetry meter
+shadowConsole(audit, console?, { enforce? }) // 'flare-redact/audit' → count console output
 
 // from 'flare-redact/ml'
 secretProbability(value, context?): number      // learned secret-vs-look-alike score, 0..1
