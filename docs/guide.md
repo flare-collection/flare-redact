@@ -11,6 +11,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Practical guides](https://flare-collection.github.io/flare-redact/guides/)
 - [Runnable examples](#runnable-examples)
 - [Python, Go, and Rust](#python-go-and-rust)
+- [Fluent Bit](#fluent-bit)
 - [The sidecar gateway](#the-sidecar-gateway)
 - [Redact anything](#redact-anything)
 - [Integrate any SDK or framework](#integrate-any-sdk-or-framework)
@@ -226,6 +227,29 @@ redact(text, { detectors: loadPack(acmePack).detectors });
 A pack that uses a construct an engine cannot execute exactly (a lookahead, a
 `\d` whose meaning differs between languages, a checksum it does not implement)
 fails to load. Failing open is how a redactor leaks.
+
+## Fluent Bit
+
+When logs are collected by Fluent Bit, redact them on the node with the WASM
+filter, before they reach Loki, Elasticsearch, Datadog or S3. It is the Rust
+engine compiled to WebAssembly, so it catches what the other engines catch.
+
+```text
+[FILTER]
+    Name             wasm
+    Match            *
+    WASM_Path        /etc/fluent-bit/flare-redact-fluent-bit.wasm
+    Function_Name    flare_redact
+    Accessible_Paths /etc/flare-redact
+```
+
+`Function_Name` picks the policy: `flare_redact` (defaults), `flare_redact_pii`
+(phone numbers too) or `flare_redact_label` (`[REDACTED:email]`). Anything else
+goes in a `flare-redact.json` in an accessible path, with the same option names
+as everywhere else. An invalid file, or a record that cannot be redacted, makes
+the filter replace the record with `{"flare_redact_error": "..."}` instead of
+passing it on. The `.wasm` is attached to every GitHub Release;
+[sdk/fluent-bit](../sdk/fluent-bit) has the build steps and every option.
 
 ## The sidecar gateway
 

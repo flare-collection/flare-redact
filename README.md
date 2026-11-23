@@ -155,6 +155,9 @@ Using [pre-commit](https://pre-commit.com)? Add `repo: https://github.com/flare-
 
 ### No Node in the stack?
 
+Collecting logs with Fluent Bit? The [WASM filter](docs/guide.md#fluent-bit)
+redacts every record on the node, with no change to the services.
+
 Point any service at the [sidecar gateway](docs/guide.md#the-sidecar-gateway)
 and it redacts request bodies on the way to OpenAI or Anthropic, with no code
 change. Or use the [Python, Go and Rust](docs/guide.md#python-go-and-rust) engines:

@@ -182,6 +182,28 @@ jobs:
           cargo package --locked
         working-directory: sdk/rust
 
+  fluent-bit:
+    name: Fluent Bit WASM filter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdk/fluent-bit
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: sdk/fluent-bit
+      - run: cargo test
+        working-directory: sdk/fluent-bit
+      - run: cargo build --release --target wasm32-wasip1
+        working-directory: sdk/fluent-bit
+      # Run the filter in the official Fluent Bit image, the way users will.
+      - name: Fluent Bit redacts records with the filter
+        run: sdk/fluent-bit/smoke-test.sh
+
   gateway-image:
     name: Gateway image
     runs-on: ubuntu-latest
@@ -279,7 +301,7 @@ jobs:
   publish:
     name: Publish npm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, platforms, runtimes, spec, python, go, rust, action]
+    needs: [test, platforms, runtimes, spec, python, go, rust, fluent-bit, action]
     runs-on: ubuntu-latest
     permissions:
       # npm Trusted Publishing: the job proves it is this workflow with an OIDC
@@ -374,6 +396,44 @@ jobs:
           fi
           gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/sdk/go/v$VERSION" -f sha="$sha" >/dev/null
           echo "tagged sdk/go/v$VERSION at $sha"
+
+  # The Fluent Bit filter is attached to the GitHub Release it was built for,
+  # only from the commit that release points at.
+  fluent-bit-asset:
+    name: Attach the Fluent Bit filter
+    needs: [publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          released="$(gh api "repos/$GITHUB_REPOSITORY/commits/v$VERSION" --jq .sha 2>/dev/null || true)"
+          if [ "$released" != "$GITHUB_SHA" ]; then
+            echo "v$VERSION is not this commit, so this push is not a release"
+            echo "attach=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "attach=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.check.outputs.attach == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - if: steps.check.outputs.attach == 'true'
+        run: cargo build --release --target wasm32-wasip1 --locked
+        working-directory: sdk/fluent-bit
+      - if: steps.check.outputs.attach == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          cp sdk/fluent-bit/target/wasm32-wasip1/release/flare_redact_fluent_bit.wasm flare-redact-fluent-bit.wasm
+          sha256sum flare-redact-fluent-bit.wasm > flare-redact-fluent-bit.wasm.sha256
+          gh release upload "v$VERSION" flare-redact-fluent-bit.wasm flare-redact-fluent-bit.wasm.sha256 --clobber
 
   # The Python and Rust engines ship only from the commit npm released: vX.Y.Z,
   # created by the publish job, has to point at this commit. A later push that

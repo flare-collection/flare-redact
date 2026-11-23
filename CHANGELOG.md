@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added: a Fluent Bit WASM filter
+
+- `sdk/fluent-bit`: the Rust engine as a Fluent Bit WASM filter, so logs are
+  redacted on the node before they are shipped. `Function_Name` picks a
+  policy (`flare_redact`, `flare_redact_pii`, `flare_redact_label`), and an
+  optional `flare-redact.json` takes the usual options.
+- It fails closed: an invalid config, or a record that cannot be redacted,
+  gives `{"flare_redact_error": "..."}` instead of the original record.
+- CI runs the filter in the official Fluent Bit 5.2.0 image, and each release
+  gets `flare-redact-fluent-bit.wasm` with its SHA-256.
+
 ## 1.10.4 (2026-11-22)
 
 ### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)
