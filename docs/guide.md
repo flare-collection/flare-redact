@@ -241,9 +241,12 @@ engine compiled to WebAssembly, so it catches what the other engines catch.
     WASM_Path        /etc/fluent-bit/flare-redact-fluent-bit.wasm
     Function_Name    flare_redact
     Accessible_Paths /etc/flare-redact
+    WASM_Stack_Size  2M
+    WASM_Heap_Size   8M
 ```
 
-`Function_Name` picks the policy: `flare_redact` (defaults), `flare_redact_pii`
+Keep the two size lines: Fluent Bit's 8 KB defaults are too small to compile
+the detectors, and the heap bounds the largest record. `Function_Name` picks the policy: `flare_redact` (defaults), `flare_redact_pii`
 (phone numbers too) or `flare_redact_label` (`[REDACTED:email]`). Anything else
 goes in a `flare-redact.json` in an accessible path, with the same option names
 as everywhere else. An invalid file, or a record that cannot be redacted, makes

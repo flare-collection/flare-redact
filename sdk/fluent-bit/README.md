@@ -24,12 +24,19 @@ cargo build --release --target wasm32-wasip1
     WASM_Path        /etc/fluent-bit/flare-redact-fluent-bit.wasm
     Function_Name    flare_redact
     Accessible_Paths /etc/flare-redact
+    WASM_Stack_Size  2M
+    WASM_Heap_Size   8M
 ```
 
 ```text
 {"log":"login ada@example.com key ghp_A1b2...","password":"hunter2hunter2","level":"info"}
 {"log":"login a***@*** key ghp_***","password":"***","level":"info"}
 ```
+
+Keep `WASM_Stack_Size` and `WASM_Heap_Size`. Fluent Bit's defaults are 8 KB
+each: the stack is too small to compile the detectors, and the heap holds each
+record while it is redacted, so its size bounds the largest record. With the
+defaults the filter traps and Fluent Bit drops the records.
 
 ## Choose a policy
 

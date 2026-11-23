@@ -8,7 +8,13 @@
 //!     WASM_Path        /etc/fluent-bit/flare-redact.wasm
 //!     Function_Name    flare_redact
 //!     Accessible_Paths /etc/flare-redact
+//!     WASM_Stack_Size  2M
+//!     WASM_Heap_Size   8M
 //! ```
+//!
+//! Fluent Bit gives a WASM filter an 8 KB stack and heap by default. The stack
+//! must be larger to compile the detectors, and the heap holds each record
+//! while it is redacted, so it bounds the largest record.
 //!
 //! Three functions are exported, so a policy can be picked without any file:
 //!
@@ -27,8 +33,7 @@
 //! redacted, the record is replaced by `{"flare_redact_error": "..."}` rather
 //! than passed on as it was.
 
-use std::cell::RefCell;
-use std::sync::OnceLock;
+use std::cell::{Cell, RefCell};
 
 use flare_redact::{Mode, Options, Policy, Term};
 use serde::Deserialize;
@@ -138,20 +143,28 @@ fn read_config() -> Option<String> {
     CONFIG_PATHS.iter().find_map(|path| std::fs::read_to_string(path).ok())
 }
 
+thread_local! {
+    /// The compiled policy per exported function. A `Cell` rather than a
+    /// `OnceLock`: if the runtime traps while the policy is being compiled
+    /// (a stack too small), nothing is left half-initialised, and the next
+    /// record simply tries again.
+    static POLICIES: [Cell<Option<&'static Result<Policy, String>>>; 3] =
+        const { [Cell::new(None), Cell::new(None), Cell::new(None)] };
+}
+
 fn policy(variant: Variant) -> &'static Result<Policy, String> {
-    static DEFAULT: OnceLock<Result<Policy, String>> = OnceLock::new();
-    static PII: OnceLock<Result<Policy, String>> = OnceLock::new();
-    static LABEL: OnceLock<Result<Policy, String>> = OnceLock::new();
-    let cell = match variant {
-        Variant::Default => &DEFAULT,
-        Variant::Pii => &PII,
-        Variant::Label => &LABEL,
-    };
-    cell.get_or_init(|| {
+    POLICIES.with(|cells| {
+        let cell = &cells[variant as usize];
+        if let Some(compiled) = cell.get() {
+            return compiled;
+        }
         let compiled = compile(variant, read_config().as_deref());
         if let Err(message) = &compiled {
             eprintln!("[flare-redact] {message}; every record is replaced until this is fixed");
         }
+        // Compiled once per function for the life of the filter.
+        let compiled: &'static Result<Policy, String> = Box::leak(Box::new(compiled));
+        cell.set(Some(compiled));
         compiled
     })
 }

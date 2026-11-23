@@ -32,6 +32,8 @@ run() {
     WASM_Path        /work/flare-redact.wasm
     Function_Name    $function_name
     Accessible_Paths /work
+    WASM_Stack_Size  2M
+    WASM_Heap_Size   8M
 
 [OUTPUT]
     Name   file
