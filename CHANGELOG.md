@@ -20,6 +20,23 @@
 - `flare-redact/snapshot`: a Vitest and Jest snapshot serializer that masks
   only values that need it and keeps the usual snapshot format.
 
+## 1.10.4 (2026-11-22)
+
+### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)
+
+- `url_credentials` required a username before `:password@`, so a URL with an
+  empty username, the usual form for Redis and Valkey and also used by
+  RabbitMQ, Postgres and others, passed through in clear text:
+  `redis://:SuperSecret123@localhost:6379` now becomes `redis://:***@localhost:6379`.
+  Hosts that look like a domain were sometimes caught by the email detector,
+  but `localhost`, IP addresses and service names leaked in full.
+- In the JavaScript engine a password containing a colon was only partly
+  masked: `postgres://user:pa:ss@db` became `postgres://user:pa:***@db`. The
+  whole password is masked now, as the Python, Go and Rust engines already did.
+- The JavaScript, Python, Go and Rust engines change together, and the
+  conformance corpus has both cases. Reported by Pranshu Raghav
+  ([@Zureno](https://github.com/Zureno)).
+
 ## 1.10.3 (2026-11-20)
 
 ### Fixed: an error keeps its cause
