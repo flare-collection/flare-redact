@@ -26,7 +26,6 @@ version. Coding assistants can read the same API in condensed form at
 - [Your own words](#your-own-words)
 - [See what leaks, and why](#see-what-leaks-and-why)
 - [Guard your logger in one line](#guard-your-logger-in-one-line)
-- [Database query logs](#database-query-logs)
 - [One policy, everywhere](#one-policy-everywhere)
 - [Anonymize a dataset for staging](#anonymize-a-dataset-for-staging)
 - [Guard what leaves your app](#guard-what-leaves-your-app)
@@ -970,39 +969,6 @@ span. Keep personal data out of span names, as Sentry itself advises, and leave
 Same `policy` object flows into `flare-redact/llm`, `wrapConsole`, `createVault`,
 and `redactStream` too.
 
-## Database query logs
-
-Query logging is turned on to debug a slow page and left on. ORMs log the SQL
-and its bound parameters, and a parameter list is the hardest place to see a
-secret: in `["ada@example.com", "hunter2"]` the password has no shape a
-detector could recognise. `flare-redact/db` matches each placeholder and
-literal to the column it is compared with or inserted into, so a value bound to
-`password`, `token` or `api_key` is masked by name, and the rest is checked by
-the usual detectors.
-
-```
-insert into "users" ("email", "password", "api_key") values ($1, $2, $3) -- params: ["ada@example.com","hunter2","k-7c1e0f2a9b"]
-insert into "users" ("email", "password", "api_key") values ($1, $2, $3) -- params: ["a***@***","***","***"]
-```
-
-```js
-import { prismaQueryLogger, drizzleLogger, typeormLogger, knexQueryLogger, sequelizeLogging } from 'flare-redact/db';
-
-prisma.$on('query', prismaQueryLogger(logger.info));      // log: [{ emit: 'event', level: 'query' }]
-drizzle(client, { logger: drizzleLogger() });
-new DataSource({ ...config, logger: typeormLogger(new SimpleConsoleLogger()) });
-knex.on('query', knexQueryLogger(logger.debug));
-new Sequelize(url, { logging: sequelizeLogging(logger.debug) });   // logQueryParameters too
-```
-
-`redactQuery(sql, params)` does the same for any other client and returns
-`{ sql, params }`; positional (`$1`, `?`) and named (`:name`, `@name`)
-parameters are both understood. A column is found from `col = ?`,
-`col IN (?, ?)`, a qualified `"t"."col"` and `INSERT INTO t (a, b) VALUES ...`
-rows. Checked against Prisma 7, Drizzle on PGlite, TypeORM on sql.js, Knex on
-better-sqlite3 and Sequelize on SQLite: none of them leaked an email, password
-or API key into their logs.
-
 ## Streams
 
 Pipe any log stream through it. Secrets may be split across chunks, and bounded
@@ -1360,8 +1326,6 @@ redactHttp(req, opts?)   // 'flare-redact/http'    → safe-to-log request snaps
 redactUrl(url, opts?)    // 'flare-redact/http'    → sanitized absolute/relative URL
 httpRedactor(opts?)      // 'flare-redact/http'    → Express/Connect middleware
 redactCsv(text, opts?)   // 'flare-redact/csv'     → anonymize a CSV dataset
-redactQuery(sql, params?, opts?) // 'flare-redact/db' → SQL and bound parameters, masked by column
-// also from 'flare-redact/db': prismaQueryLogger, drizzleLogger, typeormLogger, knexQueryLogger, sequelizeLogging
 wrapFetch(fetch, opts?)  // 'flare-redact/fetch'   → redact egress to named hosts
 createRedactionMiddleware(opts?) // 'flare-redact/middleware' → any function/handler
 
