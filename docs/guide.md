@@ -25,6 +25,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Protect tool calls and MCP loops](#protect-tool-calls-and-mcp-loops)
 - [Your own words](#your-own-words)
 - [See what leaks, and why](#see-what-leaks-and-why)
+- [Measure before you enforce](#measure-before-you-enforce)
 - [Guard your logger in one line](#guard-your-logger-in-one-line)
 - [One policy, everywhere](#one-policy-everywhere)
 - [Anonymize a dataset for staging](#anonymize-a-dataset-for-staging)
@@ -866,6 +867,57 @@ isClean(payload);   // → false
 summary(payload);   // → { total: 3, byDetector: { email: 1, github_token: 1, sensitive_key: 1 } }
 ```
 
+## Measure before you enforce
+
+Turning redaction on in production is a leap of faith: nobody knows how many
+log lines carry an email, which detector fires most, or whether a field the
+team needs would be masked. Shadow mode counts what a policy would redact while
+the data passes through unchanged, so the decision rests on numbers. It never
+keeps a matched value.
+
+```bash
+FLARE_REDACT_MODE=shadow node --import flare-redact/register app.js
+```
+
+```
+[flare-redact shadow] 2184 findings in 1940 of 52310 values (3.7%) since 2026-11-23T09:00:00.000Z
+  email                    1602
+  jwt                      410
+  sensitive_key            172
+  top fields:
+    user.email             1544
+    headers.authorization  410
+```
+
+`FLARE_REDACT_MODE` is `enforce` (the default), `shadow` (count only) or
+`audit` (redact and count). The report goes to stderr when the process exits,
+and every `FLARE_REDACT_REPORT_EVERY` seconds when that is set. An unknown mode
+stops the process at startup, like an unknown preset.
+
+In code, an audit observes any value and can feed OpenTelemetry, so the counts
+land on the dashboards you already have:
+
+```js
+import { createAudit, shadowConsole } from 'flare-redact/audit';
+
+const audit = createAudit({ preset: 'gdpr', meter: metrics.getMeter('app') });
+audit.observe(webhookBody, 'webhook');     // returned unchanged, counted
+audit.redact(event, 'events');             // enforced, still counted
+shadowConsole(audit);                      // count console output
+audit.report();                            // { total, byDetector, byRisk, bySource, byPath }
+```
+
+The meter gets `flare_redact.findings` (by detector, risk and source) and
+`flare_redact.scanned` (by source). Field paths fold array indices, so
+`users[3].email` and `users[7].email` count as `users[].email`, and at most 500
+distinct paths are kept. Python has the same `Audit` and a logging filter:
+
+```python
+from flare_redact.audit import Audit, AuditFilter
+
+logging.getLogger().addFilter(AuditFilter(Audit(preset="gdpr")))   # enforce=True to redact too
+```
+
 ## Guard your logger in one line
 
 `wrapConsole` patches `console.*` so every argument is redacted on the way out,
@@ -1328,6 +1380,8 @@ httpRedactor(opts?)      // 'flare-redact/http'    → Express/Connect middlewar
 redactCsv(text, opts?)   // 'flare-redact/csv'     → anonymize a CSV dataset
 wrapFetch(fetch, opts?)  // 'flare-redact/fetch'   → redact egress to named hosts
 createRedactionMiddleware(opts?) // 'flare-redact/middleware' → any function/handler
+createAudit(opts?)       // 'flare-redact/audit'   → shadow mode: count findings, optional OpenTelemetry meter
+shadowConsole(audit, console?, { enforce? }) // 'flare-redact/audit' → count console output
 
 // from 'flare-redact/ml'
 secretProbability(value, context?): number      // learned secret-vs-look-alike score, 0..1

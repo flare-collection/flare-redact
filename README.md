@@ -108,6 +108,10 @@ log.info({ user: 'bob@corp.com', token: 'ghp_…' }, 'login');
 winston has `winstonRedact()` from `flare-redact/winston`, and plain `console`
 has `wrapConsole()` or the `--import` flag above.
 
+Not sure what turning it on would hide? Run in shadow mode first:
+`FLARE_REDACT_MODE=shadow` leaves the output as it is and prints what would have
+been redacted, by detector and field, when the process exits ([details](docs/guide.md#measure-before-you-enforce)).
+
 ### LLM prompts
 
 ```js

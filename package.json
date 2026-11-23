@@ -61,6 +61,10 @@
       "types": "./dist/csv.d.ts",
       "default": "./dist/csv.js"
     },
+    "./audit": {
+      "types": "./dist/audit.d.ts",
+      "default": "./dist/audit.js"
+    },
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"

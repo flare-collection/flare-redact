@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added: shadow mode
+
+- `FLARE_REDACT_MODE=shadow` with `--import flare-redact/register` leaves the
+  console output alone and reports what would have been redacted, by detector
+  and field, on stderr at exit (and every `FLARE_REDACT_REPORT_EVERY`
+  seconds). `audit` redacts and reports. An unknown mode stops startup.
+- `flare-redact/audit`: `createAudit()` counts findings by detector, risk,
+  source and field path, never keeping a matched value, and can feed an
+  OpenTelemetry meter (`flare_redact.findings`, `flare_redact.scanned`).
+  `shadowConsole()` counts console output.
+- Python: `flare_redact.audit.Audit` with the same counts and counter names,
+  and `AuditFilter` for `logging`.
+
 ## 1.10.4 (2026-11-22)
 
 ### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)
