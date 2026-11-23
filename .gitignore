@@ -8,6 +8,7 @@ npm-debug.log*
 
 # SDK build output
 sdk/rust/target/
+sdk/fluent-bit/target/
 sdk/python/dist/
 sdk/python/build/
 __pycache__/
