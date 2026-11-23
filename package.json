@@ -73,6 +73,10 @@
       "types": "./dist/replay.d.ts",
       "default": "./dist/replay.js"
     },
+    "./audit": {
+      "types": "./dist/audit.d.ts",
+      "default": "./dist/audit.js"
+    },
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"
