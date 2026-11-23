@@ -28,6 +28,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Guard your logger in one line](#guard-your-logger-in-one-line)
 - [One policy, everywhere](#one-policy-everywhere)
 - [Anonymize a dataset for staging](#anonymize-a-dataset-for-staging)
+- [Clean test recordings and snapshots](#clean-test-recordings-and-snapshots)
 - [Clean data frames and SQL tables](#clean-data-frames-and-sql-tables)
 - [Guard what leaves your app](#guard-what-leaves-your-app)
 - [Streams](#streams)
@@ -1003,6 +1004,75 @@ Alice,alice@corp.com,4242 4242 4242 4242      Alice,user_93a78c61e204@example.in
 `redactCsv(text, opts)` is available from `flare-redact/csv` for the same thing
 in code.
 
+## Clean test recordings and snapshots
+
+Test suites write real traffic to disk and commit it: vcrpy and
+pytest-recording cassettes, Polly.js and Playwright HAR files, Jest and Vitest
+snapshots. A recording leaks where a log line does not: `X-Api-Key` and
+`Set-Cookie` headers, opaque session cookies, `?access_token=` in a URL, and
+bodies stored as JSON text, form text or base64. These hooks clean each of
+them before the file is written, and leave everything a test matches on alone.
+
+**pytest-recording and vcrpy.** Requests are masked the same way when they are
+recorded and when they are matched, so playback still works with a token in the
+query string. Gzip bodies are stored decompressed so they can be read and
+cleaned; binary bodies are left as they are.
+
+```python
+import pytest
+from flare_redact.recording import vcr_config as flare_vcr_config
+
+@pytest.fixture(scope="module")
+def vcr_config():
+    return flare_vcr_config()          # or vcr.VCR(**flare_vcr_config())
+```
+
+**Polly.js.** Polly matches a replayed request by a hash it took of the live
+request, so the recording on disk can be masked without breaking replay.
+
+```js
+import { pollyBeforePersist } from 'flare-redact/recording';
+
+polly.server.any().on('beforePersist', pollyBeforePersist());
+```
+
+**Any HAR file** (devtools export, Playwright `recordHar`): clean it in place
+before it is committed or attached to a ticket. Headers, cookies, query
+parameters and bodies are masked; timings, status codes and every other field
+stay as they were, and `Content-Length` and `size` are updated.
+
+```bash
+flare-redact --har < session.har > session.safe.har
+python -m flare_redact --har < session.har > session.safe.har
+```
+
+`redactHar(har, opts)` and `redactHarEntry(entry, opts)` do the same in code;
+the JavaScript and Python engines give the same output for the same file.
+
+**Vitest and Jest snapshots.** The serializer takes over only values that need
+masking and hands the masked copy back to the usual printer, so clean snapshots
+do not change.
+
+```js
+// vitest.config.js
+export default { test: { snapshotSerializers: ['flare-redact/snapshot'] } };
+```
+
+Jest cannot `require` an ES module before Node 24.9, so with Jest register it
+from a setup file (`setupFilesAfterEnv: ['<rootDir>/jest.setup.mjs']`, run with
+`NODE_OPTIONS=--experimental-vm-modules`):
+
+```js
+// jest.setup.mjs
+import { expect } from '@jest/globals';
+import serializer from 'flare-redact/snapshot';
+
+expect.addSnapshotSerializer(serializer);
+```
+
+`createSnapshotSerializer(opts)` builds one with your own options, for example
+`{ mode: 'label' }` for `[REDACTED:email]` in place of a mask.
+
 ## Clean data frames and SQL tables
 
 Data on its way to a notebook, a parquet file, a feature store or a model often
@@ -1371,6 +1441,9 @@ redactHttp(req, opts?)   // 'flare-redact/http'    → safe-to-log request snaps
 redactUrl(url, opts?)    // 'flare-redact/http'    → sanitized absolute/relative URL
 httpRedactor(opts?)      // 'flare-redact/http'    → Express/Connect middleware
 redactCsv(text, opts?)   // 'flare-redact/csv'     → anonymize a CSV dataset
+redactHar(har, opts?)    // 'flare-redact/recording' → clean a HAR file (also redactHarEntry)
+pollyBeforePersist(opts?) // 'flare-redact/recording' → Polly.js beforePersist handler
+createSnapshotSerializer(opts?) // 'flare-redact/snapshot' → Vitest/Jest snapshot serializer
 wrapFetch(fetch, opts?)  // 'flare-redact/fetch'   → redact egress to named hosts
 createRedactionMiddleware(opts?) // 'flare-redact/middleware' → any function/handler
 

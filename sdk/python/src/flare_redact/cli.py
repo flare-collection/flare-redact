@@ -46,6 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sarif", action="store_true", help="shorthand for --scan --format sarif")
     parser.add_argument("--summary", action="store_true", help="print a count of findings per detector")
     parser.add_argument("--json", dest="json_mode", action="store_true", help="parse input as JSON and redact recursively")
+    parser.add_argument("--har", dest="har_mode", action="store_true", help="redact a HAR file: headers, cookies, URLs and bodies")
     parser.add_argument("--mode", default="mask", help="mask | label | hash | pseudonym | surrogate")
     parser.add_argument("--secret-env", default="FLARE_REDACT_SECRET", help="env var holding the transform key")
     parser.add_argument("--min-confidence", type=float, default=0.0, help="drop findings below this confidence (0-1)")
@@ -257,6 +258,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             else:
                 sys.stdout.write(_format_pretty(findings) + "\n")
             return 1 if findings else 0
+
+        if args.har_mode:
+            from .recording import RecordingRedactor
+
+            redactor = RecordingRedactor(options)
+            for source in sources:
+                har = json.loads(_read(source))
+                if not isinstance(har, dict) or not isinstance(har.get("log"), dict):
+                    sys.stderr.write("--har expects a HAR document with a top-level \"log\" object\n")
+                    return 2
+                sys.stdout.write(json.dumps(redactor.har(har), indent=2, ensure_ascii=False) + "\n")
+            return 0
 
         for source in sources:
             raw = _read(source)
