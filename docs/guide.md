@@ -28,6 +28,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Guard your logger in one line](#guard-your-logger-in-one-line)
 - [One policy, everywhere](#one-policy-everywhere)
 - [Anonymize a dataset for staging](#anonymize-a-dataset-for-staging)
+- [Clean data frames and SQL tables](#clean-data-frames-and-sql-tables)
 - [Guard what leaves your app](#guard-what-leaves-your-app)
 - [Streams](#streams)
 - [Fail a build when a secret sneaks in](#fail-a-build-when-a-secret-sneaks-in)
@@ -206,8 +207,9 @@ Each SDK is dependency-light on purpose (Python is standard library only, Go is
 standard library only, Rust is `regex` plus `serde`) because a redaction library
 that expands your dependency tree is a security library that widened your attack
 surface. Each also ships the integrations its ecosystem actually uses: a
-`logging` filter and formatter and OpenAI/Anthropic client wrappers in Python, an
-`slog.Handler` and an `http.RoundTripper` in Go.
+`logging` filter and formatter, OpenAI/Anthropic client wrappers and
+[pandas, Polars and DuckDB](#clean-data-frames-and-sql-tables) helpers in
+Python, an `slog.Handler` and an `http.RoundTripper` in Go.
 
 Drift is the reason this is a specification and not three ports. Detection logic
 maintained in four hand-written copies diverges within a release or two, and a
@@ -1000,6 +1002,49 @@ Alice,alice@corp.com,4242 4242 4242 4242      Alice,user_93a78c61e204@example.in
 
 `redactCsv(text, opts)` is available from `flare-redact/csv` for the same thing
 in code.
+
+## Clean data frames and SQL tables
+
+Data on its way to a notebook, a parquet file, a feature store or a model often
+passes through pandas, Polars or DuckDB. The Python SDK cleans text columns
+where the data already is. None of the three libraries is a dependency; each is
+imported only when you use it.
+
+```python
+import flare_redact.frames as frames
+
+safe = frames.redact_frame(df)                          # pandas or Polars, lazy frames too
+safe = frames.redact_frame(df, columns=["note"], mode="label")
+frames.scan_frame(df)
+# {'total': 5, 'columns': {'note': {'rows': 2, 'by_detector': {'email': 1, 'github_token': 1}},
+#                          'password': {'rows': 3, 'by_detector': {'sensitive_key': 3}}}}
+```
+
+`frames.register()` adds a `.flare` namespace to pandas (`DataFrame`, `Series`)
+and Polars (`DataFrame`, `LazyFrame`, `Series`, `Expr`):
+
+```python
+frames.register()
+df.flare.redact()
+df.with_columns(pl.col("note").flare.redact())          # inside a Polars query
+```
+
+In DuckDB the same rules are SQL functions:
+
+```python
+frames.register_duckdb(con)
+con.sql("""
+    SELECT redact(note), redact_field('password', pw), redact_is_clean(note)
+    FROM tickets
+""")
+```
+
+A column is treated like a field, so a column named `password` or `api_key` is
+masked whole, as a dictionary key with that name would be. Each distinct value
+is redacted once (1M pandas or Polars rows with 2,000 distinct values take
+under 0.2 s), and with `mode="hash"`, `"pseudonym"` or `"surrogate"` the same
+value maps the same way everywhere, so joins keep working. `scan_frame` returns
+counts only, never values, so its report is safe to log.
 
 ## Guard what leaves your app
 

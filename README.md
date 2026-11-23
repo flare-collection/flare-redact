@@ -166,6 +166,9 @@ session = create_session(enable=["pii"])
 safe = session.redact("Email the invoice to ada@example.com")
 ```
 
+Data frames and SQL tables too: `frames.redact_frame(df)` for pandas and
+Polars, and `redact(note)` in DuckDB ([details](docs/guide.md#clean-data-frames-and-sql-tables)).
+
 ## How it compares
 
 | Tool | What it does well | What flare-redact adds |
