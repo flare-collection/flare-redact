@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.11.0 (2026-11-23)
 
 ### Added: clean test recordings and snapshots
 
