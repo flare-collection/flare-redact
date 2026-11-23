@@ -9,7 +9,7 @@ description = "Zero-dependency secret and PII redaction for Python — logs, pro
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
-authors = [{ name = "Umud Hasanli", email = "uh.hesenli81015@gmail.com" }]
+authors = [{ name = "Umud Hasanli" }]
 keywords = [
   "redact", "redaction", "secrets", "secret-detection", "pii", "pii-redaction",
   "masking", "anonymization", "pseudonymization", "gdpr", "pci-dss", "dlp",
