@@ -31,6 +31,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Clean test recordings and snapshots](#clean-test-recordings-and-snapshots)
 - [Clean data frames and SQL tables](#clean-data-frames-and-sql-tables)
 - [Guard what leaves your app](#guard-what-leaves-your-app)
+- [Mask session replays](#mask-session-replays)
 - [Streams](#streams)
 - [Fail a build when a secret sneaks in](#fail-a-build-when-a-secret-sneaks-in)
 - [CLI](#cli)
@@ -1129,6 +1130,52 @@ const fetch = wrapFetch(globalThis.fetch, { hosts: ['api.segment.io', 'telemetry
 // bodies sent to those hosts are redacted; everything else is left alone
 ```
 
+## Mask session replays
+
+Session replay tools record what users see and type. Their built-in choices are
+to mask every character, which makes replays hard to use, or to mask only the
+elements a CSS selector names, which misses the email typed into a search box
+and the API key pasted into a support form. `flare-redact/replay` masks what is
+sensitive and keeps the rest readable.
+
+```js
+import { replayMaskFn, rrwebMasking } from 'flare-redact/replay';
+
+// rrweb
+rrweb.record({ emit, ...rrwebMasking() });
+
+// Sentry Session Replay: maskAllText and maskAllInputs stay on (the default)
+Sentry.replayIntegration({ maskFn: replayMaskFn() });
+
+// PostHog
+posthog.init(key, { session_recording: rrwebMasking() });
+```
+
+```
+Please call me at +44 20 7946 0958 or mail ada@example.com
+Please call me at *** ** **** **** or mail ***************
+```
+
+- Each masked character becomes `*` and spaces are kept, as rrweb's own masking
+  does, so the replayed layout does not shift. `preserveLength: false` gives
+  the usual masks (`a***@***`) or the chosen `mode` instead.
+- A form field is masked whole when it is a password field, when its
+  `autocomplete` names a password, one-time code or card number, or when its
+  `name` or `id` is a credential name such as `password` or `api_key`. Anything
+  else typed is masked where a detector finds something, and that holds for
+  later keystrokes too, not only the first snapshot.
+- Without detector options the `pii` group is on, so phone numbers count. Free
+  text names and addresses are not caught by default; add
+  `enable: ['pii', 'entities']`, or keep a selector-based mask on the parts of
+  the page that show them.
+- It runs in the browser with no Node built-ins: about 57 kB gzipped with every
+  detector bundled. Repeated texts are cached.
+
+Checked with rrweb 2.2, which Sentry and PostHog both record with. This makes
+replays readable, so it only shows text the detectors consider clean; keep
+`block` and `mask` selectors on screens that show sensitive data the detectors
+cannot recognise, such as medical notes.
+
 ## Fail a build when a secret sneaks in
 
 Stop it before the commit exists:
@@ -1445,6 +1492,8 @@ redactHar(har, opts?)    // 'flare-redact/recording' → clean a HAR file (also 
 pollyBeforePersist(opts?) // 'flare-redact/recording' → Polly.js beforePersist handler
 createSnapshotSerializer(opts?) // 'flare-redact/snapshot' → Vitest/Jest snapshot serializer
 wrapFetch(fetch, opts?)  // 'flare-redact/fetch'   → redact egress to named hosts
+replayMaskFn(opts?)      // 'flare-redact/replay'  → rrweb maskTextFn/maskInputFn, Sentry maskFn
+rrwebMasking(opts?)      // 'flare-redact/replay'  → options for rrweb record() or PostHog session_recording
 createRedactionMiddleware(opts?) // 'flare-redact/middleware' → any function/handler
 
 // from 'flare-redact/ml'

@@ -35,6 +35,16 @@
   whole. Each distinct value is redacted once. None of the three libraries
   becomes a dependency.
 
+### Added: session replay masking
+
+- `flare-redact/replay`: `replayMaskFn()` for rrweb's `maskTextFn` and
+  `maskInputFn` and Sentry Session Replay's `maskFn`, and `rrwebMasking()` for
+  rrweb `record()` and PostHog `session_recording`. Sensitive text is masked
+  and the rest of the replay stays readable.
+- Masked characters become `*` with spaces kept, so the replay layout does not
+  shift. Password, one-time code and card fields, and fields named like a
+  credential, are masked whole. Browser-safe, with no Node built-ins.
+
 ## 1.10.4 (2026-11-22)
 
 ### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)

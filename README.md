@@ -142,6 +142,10 @@ Events, spans, logs and breadcrumbs are redacted in your process, before they
 leave it. Sentry's own ids, release and stack frames stay intact, so grouping
 and source maps keep working. [Details and limits](docs/guide.md#one-policy-everywhere).
 
+For Session Replay, `Sentry.replayIntegration({ maskFn: replayMaskFn() })` from
+`flare-redact/replay` masks only what is sensitive and keeps the rest of the
+replay readable. rrweb and PostHog work the same way ([details](docs/guide.md#mask-session-replays)).
+
 ### Commits and CI
 
 On GitHub, `uses: flare-collection/flare-redact@v1` annotates each finding on the pull request ([inputs](docs/guide.md#fail-a-build-when-a-secret-sneaks-in)).

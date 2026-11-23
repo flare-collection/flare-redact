@@ -69,6 +69,10 @@
       "types": "./dist/snapshot.d.ts",
       "default": "./dist/snapshot.js"
     },
+    "./replay": {
+      "types": "./dist/replay.d.ts",
+      "default": "./dist/replay.js"
+    },
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"
