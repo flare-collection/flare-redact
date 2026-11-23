@@ -61,6 +61,10 @@
       "types": "./dist/csv.d.ts",
       "default": "./dist/csv.js"
     },
+    "./db": {
+      "types": "./dist/db.d.ts",
+      "default": "./dist/db.js"
+    },
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"

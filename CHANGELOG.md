@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added: database query logs
+
+- `flare-redact/db`: `redactQuery(sql, params)` matches each placeholder and
+  literal to its column (`col = ?`, `col IN (...)`, qualified names, `INSERT`
+  rows), so a value bound to `password`, `token` or `api_key` is masked by
+  name, and checks everything else with the usual detectors.
+- Hooks for Prisma (`$on('query')`), Drizzle (`logger`), TypeORM (wraps any
+  logger), Knex (`on('query')`) and Sequelize (`logging`, with or without
+  `logQueryParameters`).
+
 ## 1.10.4 (2026-11-22)
 
 ### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)

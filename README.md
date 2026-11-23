@@ -96,6 +96,10 @@ Want more than the defaults? Choose a goal instead of a detector list:
 
 ### Logs
 
+ORM query logs too: Prisma, Drizzle, TypeORM, Knex and Sequelize hooks from
+`flare-redact/db` mask bound parameters by the column they go into, so the
+password in `["ada@example.com", "hunter2"]` is caught ([details](docs/guide.md#database-query-logs)).
+
 ```js
 import pino from 'pino';
 import { pinoRedact } from 'flare-redact/pino';
