@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Added: clean test recordings and snapshots
+
+- `flare-redact/recording`: `redactHar()`, `redactHarEntry()` and
+  `pollyBeforePersist()` clean recorded HTTP traffic. Credential headers are
+  recognised with or without an `x-` prefix (`X-Api-Key`, `Set-Cookie`,
+  `Proxy-Authorization`, `X-Amz-Security-Token`), cookies are always masked,
+  query strings and form bodies are masked one field at a time, and JSON,
+  form and base64 text bodies keep their field names. A body that needs no
+  change keeps its exact bytes; `Content-Length` and `size` follow a change.
+- `flare-redact --har` and `python -m flare_redact --har` clean a HAR file from
+  the command line, with the same output from both engines.
+- Python: `flare_redact.recording.vcr_config()` for vcrpy and
+  pytest-recording. Requests are masked the same way when recorded and when
+  matched, so playback keeps working; gzip bodies are stored decompressed so
+  they can be cleaned.
+- `flare-redact/snapshot`: a Vitest and Jest snapshot serializer that masks
+  only values that need it and keeps the usual snapshot format.
+
+### Added: pandas, Polars and DuckDB
+
+- Python `flare_redact.frames`: `redact_frame()` and `redact_series()` clean
+  the text columns of a pandas or Polars data frame (Polars lazy frames too),
+  and `scan_frame()` counts findings per column and detector without
+  including any value.
+- `frames.register()` adds a `.flare` namespace to pandas `DataFrame` and
+  `Series` and to Polars `DataFrame`, `LazyFrame`, `Series` and `Expr`, so
+  `pl.col("note").flare.redact()` works inside a query.
+- `frames.register_duckdb(con)` adds the SQL functions `redact(text)`,
+  `redact_field(name, value)` and `redact_is_clean(text)`.
+- A column name counts as a field name, so a `password` column is masked
+  whole. Each distinct value is redacted once. None of the three libraries
+  becomes a dependency.
+
 ## 1.10.4 (2026-11-22)
 
 ### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)

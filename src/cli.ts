@@ -17,6 +17,7 @@ import {
   type Finding,
 } from './index.js';
 import { redactCsv } from './csv.js';
+import { redactHar, type Har } from './recording.js';
 import { HELP, renderHelp } from './help.js';
 
 const VERSION: string = (() => {
@@ -38,6 +39,7 @@ interface ParsedArgs {
   summaryMode: boolean;
   jsonMode: boolean;
   csvMode: boolean;
+  harMode: boolean;
   showHelp: boolean;
   showVersion: boolean;
   listMode: boolean;
@@ -65,6 +67,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let summaryMode = false;
   let jsonMode = false;
   let csvMode = false;
+  let harMode = false;
   let showHelp = false;
   let showVersion = false;
   let listMode = false;
@@ -91,6 +94,7 @@ function parseArgs(argv: string[]): ParsedArgs {
       case '--summary': summaryMode = true; break;
       case '--json': jsonMode = true; break;
       case '--csv': csvMode = true; break;
+      case '--har': harMode = true; break;
       case '--list': listMode = true; break;
       case '-h': case '--help': showHelp = true; break;
       case '-v': case '--version': showVersion = true; break;
@@ -133,8 +137,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   }
   if (terms.length) opts.terms = terms;
   if (staged && files.length) throw new Error('--staged reads the git index; it takes no file arguments');
-  if (staged && (summaryMode || jsonMode || csvMode || vaultFile || restoreFile)) {
-    throw new Error('--staged only scans; it cannot be combined with --summary, --json, --csv, --vault or --restore');
+  if (staged && (summaryMode || jsonMode || csvMode || harMode || vaultFile || restoreFile)) {
+    throw new Error('--staged only scans; it cannot be combined with --summary, --json, --csv, --har, --vault or --restore');
   }
   return {
     opts,
@@ -144,6 +148,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     summaryMode,
     jsonMode,
     csvMode,
+    harMode,
     showHelp,
     showVersion,
     listMode,
@@ -391,6 +396,7 @@ export async function main(argv: string[]): Promise<number> {
     summaryMode,
     jsonMode,
     csvMode,
+    harMode,
     showHelp,
     showVersion,
     listMode,
@@ -431,6 +437,17 @@ export async function main(argv: string[]): Promise<number> {
     process.stderr.write(`${(e as Error).message}\n`);
     return 2;
   }
+  if (harMode) {
+    const har = tryParse(raw);
+    if (har === PARSE_ERROR) return 2;
+    if (!har || typeof har !== 'object' || typeof (har as Har).log !== 'object') {
+      process.stderr.write('--har expects a HAR document with a top-level "log" object\n');
+      return 2;
+    }
+    process.stdout.write(JSON.stringify(redactHar(har as Har, opts), null, 2) + '\n');
+    return 0;
+  }
+
   const data: unknown = jsonMode ? tryParse(raw) : raw;
   if (jsonMode && data === PARSE_ERROR) return 2;
 
