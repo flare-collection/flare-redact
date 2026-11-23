@@ -20,6 +20,21 @@
 - `flare-redact/snapshot`: a Vitest and Jest snapshot serializer that masks
   only values that need it and keeps the usual snapshot format.
 
+### Added: pandas, Polars and DuckDB
+
+- Python `flare_redact.frames`: `redact_frame()` and `redact_series()` clean
+  the text columns of a pandas or Polars data frame (Polars lazy frames too),
+  and `scan_frame()` counts findings per column and detector without
+  including any value.
+- `frames.register()` adds a `.flare` namespace to pandas `DataFrame` and
+  `Series` and to Polars `DataFrame`, `LazyFrame`, `Series` and `Expr`, so
+  `pl.col("note").flare.redact()` works inside a query.
+- `frames.register_duckdb(con)` adds the SQL functions `redact(text)`,
+  `redact_field(name, value)` and `redact_is_clean(text)`.
+- A column name counts as a field name, so a `password` column is masked
+  whole. Each distinct value is redacted once. None of the three libraries
+  becomes a dependency.
+
 ## 1.10.4 (2026-11-22)
 
 ### Security: password-only connection strings were not redacted (GHSA-h8xg-cv97-3pfp)
