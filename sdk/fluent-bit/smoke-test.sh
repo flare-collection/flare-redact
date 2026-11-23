@@ -7,7 +7,8 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 image="${FLUENT_BIT_IMAGE:-fluent/fluent-bit:5.2.0}"
 work="$(mktemp -d)"
-chmod 777 "$work"
+mkdir "$work/conf"
+chmod 777 "$work" "$work/conf"
 cp "$here/target/wasm32-wasip1/release/flare_redact_fluent_bit.wasm" "$work/flare-redact.wasm"
 
 token="ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
@@ -31,7 +32,7 @@ run() {
     Match            *
     WASM_Path        /work/flare-redact.wasm
     Function_Name    $function_name
-    Accessible_Paths /work
+    Accessible_Paths /etc/flare-redact
     WASM_Stack_Size  2M
     WASM_Heap_Size   8M
 
@@ -42,7 +43,7 @@ run() {
     File   $out
     Format plain
 CONF
-  docker run -d --name flare-redact-fb -v "$work:/work" "$image" /fluent-bit/bin/fluent-bit -c /work/fluent-bit.conf >/dev/null
+  docker run -d --name flare-redact-fb -v "$work:/work" -v "$work/conf:/etc/flare-redact" "$image" /fluent-bit/bin/fluent-bit -c /work/fluent-bit.conf >/dev/null
   sleep 8
   docker logs flare-redact-fb 2>&1 | tail -n 20
   docker rm -f flare-redact-fb >/dev/null
@@ -65,8 +66,16 @@ echo "--- flare_redact_label"
 cat "$work/label.log"
 grep -q 'REDACTED:email' "$work/label.log" || fail "the label function did not label"
 
+# The config file is read from /etc/flare-redact, listed in Accessible_Paths.
+echo '{"mode":"label","allow":["ada@example.com"]}' > "$work/conf/flare-redact.json"
+run flare_redact config.log
+echo "--- flare-redact.json"
+cat "$work/config.log"
+grep -q 'ada@example.com' "$work/config.log" || fail "the allow list in flare-redact.json was not applied"
+grep -q 'REDACTED:github_token' "$work/config.log" || fail "the mode in flare-redact.json was not applied"
+
 # A broken config fails closed: records are replaced, not passed through.
-echo '{"mode":"shout"}' > "$work/flare-redact.json"
+echo '{"mode":"shout"}' > "$work/conf/flare-redact.json"
 run flare_redact closed.log
 echo "--- invalid flare-redact.json"
 cat "$work/closed.log"

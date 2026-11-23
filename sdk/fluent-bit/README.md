@@ -48,8 +48,9 @@ Pick one with `Function_Name`, no file needed:
 | `flare_redact_pii` | the defaults plus the `pii` group, phone numbers included |
 | `flare_redact_label` | the defaults, written as `[REDACTED:email]` |
 
-For anything else, put a `flare-redact.json` in the working directory or in
-`/etc/flare-redact`, and list that directory in `Accessible_Paths`:
+For anything else, put a `flare-redact.json` in `/etc/flare-redact` and keep
+that directory in `Accessible_Paths`, as in the config above. Without it the
+filter cannot see the file and uses the function's own policy.
 
 ```json
 {

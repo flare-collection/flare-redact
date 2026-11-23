@@ -22,8 +22,9 @@
 //! - `flare_redact_pii`: the defaults plus the `pii` group (phone numbers, ...)
 //! - `flare_redact_label`: the defaults, written as `[REDACTED:email]`
 //!
-//! For anything else, put a `flare-redact.json` in one of the
-//! `Accessible_Paths` (the working directory or `/etc/flare-redact`):
+//! For anything else, put a `flare-redact.json` in `/etc/flare-redact` and keep
+//! that directory in `Accessible_Paths` (`.` works too, for the working
+//! directory):
 //!
 //! ```json
 //! { "enable": ["pii"], "disable": ["ipv4"], "allow": ["ops@example.com"], "terms": ["Project Falcon"] }
