@@ -153,6 +153,25 @@ npx flare-redact --scan . --sarif    # CI: exits 1 on a finding, never prints th
 
 Using [pre-commit](https://pre-commit.com)? Add `repo: https://github.com/flare-collection/flare-redact` with `id: flare-redact` ([setup](docs/guide.md#fail-a-build-when-a-secret-sneaks-in)).
 
+### Test recordings and snapshots
+
+Cassettes, HAR files and snapshots are committed with the code. Clean them
+before they are written, without breaking replay ([details](docs/guide.md#clean-test-recordings-and-snapshots)):
+
+```python
+from flare_redact.recording import vcr_config as flare_vcr_config
+
+@pytest.fixture(scope="module")
+def vcr_config():
+    return flare_vcr_config()   # vcrpy and pytest-recording
+```
+
+```js
+export default { test: { snapshotSerializers: ['flare-redact/snapshot'] } };  // Vitest
+polly.server.any().on('beforePersist', pollyBeforePersist());                  // Polly.js
+// npx flare-redact --har < session.har > session.safe.har                     // any HAR file
+```
+
 ### No Node in the stack?
 
 Point any service at the [sidecar gateway](docs/guide.md#the-sidecar-gateway)

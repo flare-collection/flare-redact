@@ -61,6 +61,14 @@
       "types": "./dist/csv.d.ts",
       "default": "./dist/csv.js"
     },
+    "./recording": {
+      "types": "./dist/recording.d.ts",
+      "default": "./dist/recording.js"
+    },
+    "./snapshot": {
+      "types": "./dist/snapshot.d.ts",
+      "default": "./dist/snapshot.js"
+    },
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added: clean test recordings and snapshots
+
+- `flare-redact/recording`: `redactHar()`, `redactHarEntry()` and
+  `pollyBeforePersist()` clean recorded HTTP traffic. Credential headers are
+  recognised with or without an `x-` prefix (`X-Api-Key`, `Set-Cookie`,
+  `Proxy-Authorization`, `X-Amz-Security-Token`), cookies are always masked,
+  query strings and form bodies are masked one field at a time, and JSON,
+  form and base64 text bodies keep their field names. A body that needs no
+  change keeps its exact bytes; `Content-Length` and `size` follow a change.
+- `flare-redact --har` and `python -m flare_redact --har` clean a HAR file from
+  the command line, with the same output from both engines.
+- Python: `flare_redact.recording.vcr_config()` for vcrpy and
+  pytest-recording. Requests are masked the same way when recorded and when
+  matched, so playback keeps working; gzip bodies are stored decompressed so
+  they can be cleaned.
+- `flare-redact/snapshot`: a Vitest and Jest snapshot serializer that masks
+  only values that need it and keeps the usual snapshot format.
+
 ## 1.10.3 (2026-11-20)
 
 ### Fixed: an error keeps its cause

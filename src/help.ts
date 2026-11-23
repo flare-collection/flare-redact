@@ -36,6 +36,8 @@ OPTIONS
   --summary         print a count of findings per detector
   --json            parse input as JSON and redact recursively
   --csv             parse input as CSV and redact every cell
+  --har             parse input as a HAR file (devtools, Playwright, Polly)
+                    and redact headers, cookies, URLs and bodies
   --mode <m>        mask | label | hash | pseudonym | surrogate
                     (fpe is a deprecated alias for pseudonym)
   --secret-env <n>  read the transform key from env var <n>
