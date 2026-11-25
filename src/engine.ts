@@ -1,7 +1,8 @@
-import { DETECTORS, SENSITIVE_KEY_RE, type Detector } from './detectors.js';
+import { DETECTORS, type Detector } from './detectors.js';
 import { hmacFingerprint } from './crypto.js';
 import { pseudonymize, surrogate } from './transforms.js';
-import { MULTILANG_KEY_SET } from './i18n.js';
+import { isSensitiveKeyName } from './i18n.js';
+import { normalizeKeyName, prefilterPattern } from './fold.js';
 import { buildTermsDetector, type TermSpec } from './terms.js';
 import { secretProbability } from './ml.js';
 import { ENTITY_DETECTORS, ENTITY_LABELS, isEntityDetector, recognizeEntities, type EntityLabel, type EntityOptions } from './entities.js';
@@ -193,10 +194,10 @@ export function keyMatcher(opts: RedactOptions): (key: string) => boolean {
     return rk.test(k);
   };
   if (Array.isArray(rk)) {
-    const set = new Set(rk.map((s) => s.toLowerCase()));
-    return (k) => set.has(k.toLowerCase());
+    const set = new Set(rk.map(normalizeKeyName));
+    return (k) => set.has(normalizeKeyName(k));
   }
-  return (k) => SENSITIVE_KEY_RE.test(k) || MULTILANG_KEY_SET.has(k.toLowerCase());
+  return isSensitiveKeyName;
 }
 
 export function allowMatcher(opts: RedactOptions): (value: string) => boolean {
@@ -268,6 +269,23 @@ function normalizedView(text: string): { text: string; sourceIndex?: number[] } 
   return { text: normalized, sourceIndex };
 }
 
+
+const prefilters = new WeakMap<Detector, RegExp>();
+
+/**
+ * A detector's prefilter as one case-insensitive search (SPEC §4), compiled once
+ * per detector. It follows the pattern's own case rules, so it can never skip a
+ * detector that would match, and it scans the subject without copying it.
+ */
+function prefilterOf(det: Detector): RegExp | undefined {
+  if (!det.prefilter?.length) return undefined;
+  let re = prefilters.get(det);
+  if (!re) {
+    re = prefilterPattern(det.prefilter);
+    prefilters.set(det, re);
+  }
+  return re;
+}
 export function scanString(
   text: string,
   dets: Detector[],
@@ -288,7 +306,8 @@ export function scanString(
       (entityDetectors ??= []).push(det);
       continue;
     }
-    if (det.prefilter && !det.prefilter.some((literal) => subject.toLowerCase().includes(literal.toLowerCase()))) continue;
+    const prefilter = prefilterOf(det);
+    if (prefilter && !prefilter.test(subject)) continue;
     const re = scanPattern(det);
     re.lastIndex = 0;
     let m: RegExpExecArray | null;

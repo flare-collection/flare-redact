@@ -1,5 +1,67 @@
 # Changelog
 
+## 1.12.0 (2026-11-25)
+
+### Added: Java and .NET engines
+
+- `sdk/java`: a Java 11+ engine with no dependencies, published to Maven
+  Central as `io.github.flare-collection:flare-redact`. Kotlin, Scala and
+  other JVM languages use the same jar.
+- `flare-redact-logback` adds a `%redact(...)` pattern converter and an
+  encoder that wraps any other encoder, JSON ones included.
+  `flare-redact-log4j2` adds a `%redact{...}` pattern converter and a
+  `<FlareRedact/>` rewrite policy that redacts messages (a `MapMessage` field
+  by field) and context data before any appender sees the event.
+- `sdk/dotnet`: an engine for `netstandard2.0` and `net8.0` with no
+  dependencies, published to NuGet as `FlareRedact`. On .NET 8 the detector
+  patterns compile to IL, and `JsonNode` and `JsonElement` come back as the
+  same kind.
+- `FlareRedact.Extensions.Logging` adds `AddFlareRedact()`, which wraps every
+  logger provider so each one receives the redacted message, redacted
+  structured values, the template with its literal text redacted, redacted
+  scopes and a redacted exception. `FlareRedact.Serilog` adds a wrapping sink
+  and an enricher.
+- Both engines run the whole conformance corpus, read the same JSON options
+  and packs as the other engines, and cover policies, vaults with streaming
+  restore (JSON-aware for tool-call arguments), all five replacement modes,
+  terms and custom packs. Case-insensitive matching uses a bundled Unicode 17
+  case table, so results do not change with the JVM or .NET version. Logging
+  never throws because of redaction: text over a limit is written as a fixed
+  notice, never as the original.
+- CI tests Java 11, 17 and 21 and .NET 8 and 10 (plus the `netstandard2.0`
+  build), and publishes to Maven Central and NuGet when the version changes.
+
+### Fixed: the engines agree in more places
+
+From a full audit of all the engines. Each item has a conformance case or a
+test.
+
+- Keywords match under Unicode case folding with i, I, İ and ı as one letter,
+  so `ŞİFRE:`, `MƏXFİ=`, `şıfre:` and identifiers upper-cased under a Turkish
+  locale (`APİ_KEY=`) are caught, and so are `PAſſWORD=`, the Kelvin sign and
+  Greek final sigma (`ΚΩΔΙΚΌΣ:`).
+- Sensitive key names are compared in one normalised form everywhere,
+  including the names passed in `redactKeys`, so `GİZLİ`, `ŞİFRE` and
+  `ΚΩΔΙΚΌΣ` keys are masked whole. Keys themselves are never rewritten.
+- A detector's prefilter follows the pattern's own case rules, so it can no
+  longer skip a detector that would have matched (`aws_ſecret_access_key`).
+- The assignment mask stops at the first separator, so `secret=key:value:more`
+  becomes `secret=***` instead of keeping part of the value.
+- SWIFT/BIC codes need a real country code in letters five and six, so
+  `PASSWORD`, `REDACTED` and `QWERTY12345` are no longer read as bank codes.
+- Terms: a combining mark counts as part of a word (`राज` no longer matches
+  inside `राजा`), longer terms win by characters with ties kept in your
+  order, the replacement comes from the term that matched, a failed boundary
+  moves the search on by one character, and dotted i folds as in keywords.
+- Context windows and the confidence model's windows are measured the same
+  way in every engine, and the model's context words use ASCII boundaries and
+  ASCII case folding.
+- A bare `.` in a custom pack now means the same in Python, Go and Rust as in
+  JavaScript: it no longer matches `\r`, U+2028 or U+2029.
+- The JavaScript `entropy` pack validator counts code points in its total as
+  well as in each symbol's count, as the other engines do. An emoji had been
+  counted twice.
+
 ## 1.11.0 (2026-11-23)
 
 ### Added: clean test recordings and snapshots

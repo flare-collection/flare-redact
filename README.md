@@ -64,8 +64,8 @@ redact({ user: 'bob@corp.com', password: 'hunter2', note: 'my key is AKIAIOSFODN
 - 🌍 **International by default: 24 languages** of secret vocabulary and
   national ID formats.
 - 🪶 **Zero dependencies.** Node 20+, browsers, edge runtimes, Bun and Deno.
-- 🐍 **Python, Go and Rust** engines that run the same detector spec and pass
-  the same conformance suite.
+- 🐍 **Python, Go, Rust, Java and .NET** engines that run the same detector
+  spec and pass the same conformance suite.
 
 <p align="center">
   🇬🇧 🇨🇳 🇮🇳 🇪🇸 🇸🇦 🇫🇷 🇵🇹 🇷🇺 🇯🇵 🇩🇪 🇰🇷 🇹🇷 🇮🇹 🇮🇷 🇵🇱 🇺🇦 🇳🇱 🇻🇳 🇮🇩 🇹🇭 🇬🇷 🇮🇱 🇦🇿 🇷🇴
@@ -191,7 +191,7 @@ redacts every record on the node, with no change to the services.
 
 Point any service at the [sidecar gateway](docs/guide.md#the-sidecar-gateway)
 and it redacts request bodies on the way to OpenAI or Anthropic, with no code
-change. Or use the [Python, Go and Rust](docs/guide.md#python-go-and-rust) engines:
+change. Or use the [Python, Go, Rust, Java and .NET](docs/guide.md#python-go-rust-java-and-net) engines:
 
 ```python
 from flare_redact import create_session

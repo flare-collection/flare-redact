@@ -186,6 +186,46 @@ jobs:
           cargo package --locked
         working-directory: sdk/rust
 
+  java:
+    name: Java SDK (JDK ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 11 is the oldest release the jar targets; 21 is the current LTS.
+        java: ['11', '17', '21']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - run: mvn -B -ntp verify
+        working-directory: sdk/java
+      # Build the jars Maven Central would receive (sources and javadoc too, with
+      # doclint on), so a broken release artifact fails the pull request.
+      - name: The release artifacts build
+        if: matrix.java == '21'
+        run: mvn -B -ntp -P release -Dgpg.skip=true -DskipTests package
+        working-directory: sdk/java
+
+  dotnet:
+    name: .NET SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet test sdk/dotnet/FlareRedact.sln -c Release
+      # The same suite against the netstandard2.0 build, which has its own code
+      # paths for astral letters and no System.Text.Json support.
+      - run: dotnet test sdk/dotnet/tests/FlareRedact.Tests -c Release -p:FlareTarget=netstandard2.0
+      - run: dotnet pack sdk/dotnet/FlareRedact.sln -c Release -o sdk/dotnet/artifacts
+
   fluent-bit:
     name: Fluent Bit WASM filter
     runs-on: ubuntu-latest
@@ -305,7 +345,7 @@ jobs:
   publish:
     name: Publish npm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, platforms, runtimes, spec, python, go, rust, fluent-bit, action]
+    needs: [test, platforms, runtimes, spec, python, go, rust, java, dotnet, fluent-bit, action]
     runs-on: ubuntu-latest
     permissions:
       # npm Trusted Publishing: the job proves it is this workflow with an OIDC
@@ -439,7 +479,7 @@ jobs:
           sha256sum flare-redact-fluent-bit.wasm > flare-redact-fluent-bit.wasm.sha256
           gh release upload "v$VERSION" flare-redact-fluent-bit.wasm flare-redact-fluent-bit.wasm.sha256 --clobber
 
-  # The Python and Rust engines ship only from the commit npm released: vX.Y.Z,
+  # The Python, Rust, Java and .NET engines ship only from the commit npm released: vX.Y.Z,
   # created by the publish job, has to point at this commit. A later push that
   # leaves the version alone publishes nothing, so a registry never receives
   # unreleased code under an already released version number. Re-running a
@@ -453,6 +493,8 @@ jobs:
     outputs:
       pypi: ${{ steps.check.outputs.pypi }}
       crates: ${{ steps.check.outputs.crates }}
+      maven: ${{ steps.check.outputs.maven }}
+      nuget: ${{ steps.check.outputs.nuget }}
     steps:
       - id: check
         env:
@@ -464,6 +506,8 @@ jobs:
             echo "v$VERSION is not this commit, so this push is not a release"
             echo "pypi=false" >> "$GITHUB_OUTPUT"
             echo "crates=false" >> "$GITHUB_OUTPUT"
+            echo "maven=false" >> "$GITHUB_OUTPUT"
+            echo "nuget=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # 200: this version is already there. 404: it is not. Anything else is
@@ -480,6 +524,8 @@ jobs:
           }
           check PyPI "https://pypi.org/pypi/flare-redact/$VERSION/json" pypi
           check crates.io "https://crates.io/api/v1/crates/flare-redact/$VERSION" crates
+          check "Maven Central" "https://repo1.maven.org/maven2/io/github/flare-collection/flare-redact/$VERSION/flare-redact-$VERSION.pom" maven
+          check NuGet "https://api.nuget.org/v3-flatcontainer/flareredact/$VERSION/flareredact.nuspec" nuget
 
   publish-python:
     name: Publish PyPI
@@ -534,3 +580,74 @@ jobs:
         working-directory: sdk/rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+
+  publish-java:
+    name: Publish Maven Central
+    needs: [sdk-release]
+    if: needs.sdk-release.outputs.maven == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: maven-central
+      url: https://central.sonatype.com/artifact/io.github.flare-collection/flare-redact
+    permissions:
+      contents: read
+    env:
+      # Maven Central has no trusted publishing: it needs a Central Portal user
+      # token and a GPG key whose public half is on a key server. Until the
+      # secrets exist on the maven-central environment, this job says so and
+      # publishes nothing.
+      HAS_SECRETS: ${{ secrets.MAVEN_CENTRAL_USERNAME != '' && secrets.MAVEN_CENTRAL_PASSWORD != '' && secrets.MAVEN_GPG_PRIVATE_KEY != '' }}
+    steps:
+      - if: env.HAS_SECRETS != 'true'
+        run: echo "::notice::Maven Central secrets are not configured; the Java SDK was not published"
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/checkout@v5
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          server-id: central
+          server-username: MAVEN_CENTRAL_USERNAME
+          server-password: MAVEN_CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      - if: env.HAS_SECRETS == 'true'
+        run: mvn -B -ntp -P release deploy
+        working-directory: sdk/java
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+  publish-dotnet:
+    name: Publish NuGet
+    needs: [sdk-release]
+    if: needs.sdk-release.outputs.nuget == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: nuget
+      url: https://www.nuget.org/packages/FlareRedact
+    permissions:
+      contents: read
+    env:
+      # A nuget.org API key scoped to the FlareRedact packages, stored on the
+      # nuget environment. Without it this job says so and publishes nothing.
+      HAS_SECRETS: ${{ secrets.NUGET_API_KEY != '' }}
+    steps:
+      - if: env.HAS_SECRETS != 'true'
+        run: echo "::notice::NUGET_API_KEY is not configured; the .NET SDK was not published"
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/checkout@v5
+      - if: env.HAS_SECRETS == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - if: env.HAS_SECRETS == 'true'
+        run: dotnet pack sdk/dotnet/FlareRedact.sln -c Release -o sdk/dotnet/artifacts
+      # --skip-duplicate lets a re-run finish a release that failed half way.
+      - if: env.HAS_SECRETS == 'true'
+        run: >-
+          dotnet nuget push "sdk/dotnet/artifacts/*.nupkg"
+          --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

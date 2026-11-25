@@ -108,6 +108,14 @@ class LimitTest(unittest.TestCase):
         with self.assertRaises(fr.RedactionLimitError):
             fr.redact("x" * 100, max_input_length=10)
 
+    def test_limit_counts_utf16_units(self) -> None:
+        # 6 characters, 8 UTF-16 code units: the limit is in UTF-16 units in
+        # every engine (SPEC §12).
+        text = "üüüü\U0001F600\U0001F600"
+        self.assertEqual(fr.redact(text, max_input_length=8), text)
+        with self.assertRaises(fr.RedactionLimitError):
+            fr.redact(text, max_input_length=7)
+
     def test_too_many_findings_fails_closed(self) -> None:
         text = " ".join(["ada@example.com"] * 50)
         with self.assertRaises(fr.RedactionLimitError):

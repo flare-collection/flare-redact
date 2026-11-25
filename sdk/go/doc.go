@@ -2,7 +2,7 @@
 // or a vendor.
 //
 // It implements the FRS-1 detector specification, the same one the JavaScript,
-// Python and Rust engines implement, so a policy written once behaves
+// Python, Rust, Java and .NET engines implement, so a policy written once behaves
 // identically everywhere in a polyglot system. The shared conformance corpus in
 // spec/conformance is run by every engine's test suite; a change that makes them
 // disagree fails CI.

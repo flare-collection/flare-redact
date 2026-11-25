@@ -1,4 +1,4 @@
-//! The Rust engine must agree with the JavaScript, Python and Go engines, case
+//! The Rust engine must agree with the JavaScript, Python, Go, Java and .NET engines, case
 //! for case. See `spec/SPEC.md` §13 — this file is the Rust half of that promise.
 
 use std::collections::BTreeMap;

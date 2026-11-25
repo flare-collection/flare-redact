@@ -549,7 +549,9 @@ export const EXTRA_DETECTORS: Detector[] = [
     id: 'swift_bic',
     label: 'SWIFT / BIC code',
     why: 'Identifies a bank for international transfers.',
-    pattern: /\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b/g,
+    // Letters five and six are an ISO 3166 country (XK for Kosovo), which keeps
+    // PASSWORD, REDACTED and QWERTY12345 from reading as bank codes.
+    pattern: /\b[A-Z]{4}(?:A[DEFGILMOQRSTUWXZ]|B[ABDEFGHIJLMNOQRSTVWYZ]|C[ACDFGHIKLMNORUVWXYZ]|D[EJKMOZ]|E[CEGHRST]|F[IJKMOR]|G[ABDEFGHILMNPQRSTUWY]|H[KMNRTU]|I[DELMNOQRST]|J[EMOP]|K[EGHIMNPRWYZ]|L[ABCIKRSTUVY]|M[ACDEFGHKLMNOPQRSTUVWXYZ]|N[ACEFGILOPRUZ]|OM|P[AEFGHKLMNRSTWY]|QA|R[EOSUW]|S[ABCDEGHIJKLMNORSTVXYZ]|T[CDFGHJKLMNORTVWZ]|U[AGMSYZ]|V[ACEGINU]|W[FS]|XK|Y[ET]|Z[AMW])[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b/g,
     mask: pre(4),
     default: false,
     tags: ['finance'],

@@ -365,12 +365,12 @@ covered by CI.`,
   },
   {
     name: 'sdks',
-    summary: 'the Python, Go and Rust engines, installed separately',
-    body: `SDKS: the same redactor in four languages
+    summary: 'the Python, Go, Rust, Java and .NET engines, installed separately',
+    body: `SDKS: the same redactor in six languages
 
-Python, Go and Rust have their own native engines. They are separate packages:
-installing flare-redact from npm gives you the JavaScript engine and nothing
-else, and it pulls no dependencies of any kind.
+Python, Go, Rust, Java and .NET have their own native engines. They are
+separate packages: installing flare-redact from npm gives you the JavaScript
+engine and nothing else, and it pulls no dependencies of any kind.
 
   Node    npm install flare-redact
 
@@ -380,18 +380,22 @@ else, and it pulls no dependencies of any kind.
 
   Rust    cargo add flare-redact
 
+  Java    io.github.flare-collection:flare-redact (Maven Central)
+
+  .NET    dotnet add package FlareRedact
+
 The Python and Rust engines are published to PyPI and crates.io starting with
 the first release after 1.9.1. Until it lands, or to pin a tag, install them
 from the repository:
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.11.0#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.12.0#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.11.0" }
+                           tag = "v1.12.0" }
 
-They are not ports that drift. All four implement FRS-1, the specification in
-spec/SPEC.md, and all four run the same conformance corpus in spec/conformance/
+They are not ports that drift. All six implement FRS-1, the specification in
+spec/SPEC.md, and all six run the same conformance corpus in spec/conformance/
 in their own test suites, so the same input and the same options produce the
 same output whichever engine you use.
 

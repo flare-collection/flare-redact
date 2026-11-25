@@ -1,5 +1,6 @@
-// The Node engine must agree with the Python, Go and Rust engines, case for
-// case. See spec/SPEC.md §13 — this file is the JavaScript half of that promise.
+// The Node engine must agree with the Python, Go, Rust, Java and .NET engines,
+// case for case. See spec/SPEC.md §13; this file is the JavaScript part of that
+// promise.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ const expected = read('../spec/conformance/expected.json');
 const pack = loadPack(packDocument);
 
 /** Six decimals: finer than any decision made with the value, coarse enough that
- *  four languages' floating-point formatting cannot disagree about the text. */
+ *  six languages' floating-point formatting cannot disagree about the text. */
 const round = (value) => Math.round(value * 1e6) / 1e6;
 
 function normaliseFinding(finding) {
@@ -83,4 +84,18 @@ test('the pack preserves each detector default, risk and tags', () => {
     assert.equal(detector.default, original.default, `${detector.id}: default differs`);
     assert.deepEqual(detector.tags ?? [], original.tags ?? [], `${detector.id}: tags differ`);
   }
+});
+
+test('a pack entropy validator counts code points, as the other engines do', () => {
+  // "Z😀a" is three code points, so its entropy is log2(3) ≈ 1.585. Dividing by
+  // the UTF-16 length (4) instead gives 1.5 and refused the match.
+  const document = {
+    ...packDocument,
+    detectors: [{
+      id: 'emoji_token', label: 'Emoji token', why: 'test.', pattern: 'Z[^ ]{2}',
+      validators: [{ name: 'entropy', min: 1.55 }],
+      mask: { type: 'fixed', text: '[E]' }, default: true, risk: 'low', confidence: 0.5,
+    }],
+  };
+  assert.equal(redact('see Z\u{1F600}a now', { detectors: loadPack(document).detectors }), 'see [E] now');
 });

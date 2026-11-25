@@ -3,7 +3,7 @@
 Hide secrets and PII before they reach a log, a model, or a vendor.
 
 Standard library only, and the same [FRS-1 detector spec](../../spec/SPEC.md) as
-the JavaScript, Python and Rust engines — so a policy written once behaves
+the JavaScript, Python, Rust, Java and .NET engines, so a policy written once behaves
 identically in every service you own. The [shared conformance corpus](../../spec/conformance/)
 runs in `go test`, so "identically" is a test, not a claim.
 

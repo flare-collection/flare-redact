@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.12.0</Version>
+    <Authors>Umud Hasanli</Authors>
+    <Copyright>Copyright (c) 2026 Umud Hasanli</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://flare-collection.github.io/flare-redact/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/flare-collection/flare-redact</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>redaction;pii;secrets;privacy;logging;llm;gdpr;dlp</PackageTags>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>

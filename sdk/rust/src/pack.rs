@@ -14,6 +14,7 @@ use regex::Regex;
 use serde::Deserialize;
 
 use crate::checksums;
+use crate::fold::{compile_prefilter, expand_dotted_i};
 use crate::ml::ConfidenceModel;
 use crate::Error;
 
@@ -115,7 +116,7 @@ pub(crate) enum Mask {
     KeepThroughSeparator { separator: String, count: usize },
     Replace { pattern: Regex, replacement: String },
     /// Per-term replacements for the caller-supplied terms detector.
-    Terms { replacements: HashMap<String, String>, case_sensitive: bool },
+    Terms(std::sync::Arc<TermsMatcher>),
 }
 
 impl Mask {
@@ -163,10 +164,7 @@ impl Mask {
                 Some(captures) => expand_replacement(replacement, &captures),
                 None => value.to_string(),
             },
-            Mask::Terms { replacements, case_sensitive } => {
-                let key = if *case_sensitive { value.to_string() } else { value.to_lowercase() };
-                replacements.get(&key).cloned().unwrap_or_else(|| "***".to_string())
-            }
+            Mask::Terms(matcher) => matcher.replacement_for(value),
         }
     }
 }
@@ -246,12 +244,14 @@ pub struct Detector {
     /// Whether the learned classifier may adjust this detector's confidence.
     pub refine: bool,
 
-    pub(crate) prefilter: Vec<String>,
+    pub(crate) prefilter: Option<Regex>,
     pub(crate) regex: Regex,
     pub(crate) capture: usize,
     pub(crate) before: Option<CharClass>,
     pub(crate) after: Option<CharClass>,
-    pub(crate) unicode_boundary: bool,
+    /// Replaces `regex` for the caller-supplied terms detector, whose boundaries
+    /// are Unicode-aware and need a lookaround the `regex` crate does not have.
+    pub(crate) terms: Option<std::sync::Arc<TermsMatcher>>,
     pub(crate) reject: Vec<Regex>,
     pub(crate) validators: Vec<Validator>,
     pub(crate) mask: Mask,
@@ -391,7 +391,59 @@ const TOKEN_ANY: &str = "(?s:.)";
 const TOKEN_LETTER: &str = r"\p{L}";
 
 fn expand_tokens(pattern: &str) -> String {
-    pattern.replace("{{ANY}}", TOKEN_ANY).replace("{{L}}", TOKEN_LETTER)
+    expand_dots(pattern).replace("{{ANY}}", TOKEN_ANY).replace("{{L}}", TOKEN_LETTER)
+}
+
+/// The set JavaScript's `.` matches: every character except the line
+/// terminators `\n`, `\r`, U+2028 and U+2029. The `regex` crate's `.` excludes
+/// only `\n`.
+const TOKEN_DOT: &str = r"[^\n\r\x{2028}\x{2029}]";
+
+/// Spell out every `.` outside a character class as [`TOKEN_DOT`].
+fn expand_dots(pattern: &str) -> String {
+    if !pattern.contains('.') {
+        return pattern.to_string();
+    }
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut out = String::with_capacity(pattern.len() + 16);
+    let mut index = 0usize;
+    let mut in_class = false;
+    while index < chars.len() {
+        let ch = chars[index];
+        if ch == '\\' {
+            out.push(ch);
+            if let Some(next) = chars.get(index + 1) {
+                out.push(*next);
+            }
+            index += 2;
+            continue;
+        }
+        if in_class {
+            if ch == ']' {
+                in_class = false;
+            }
+        } else if ch == '[' {
+            in_class = true;
+            out.push(ch);
+            index += 1;
+            if chars.get(index) == Some(&'^') {
+                out.push('^');
+                index += 1;
+            }
+            if chars.get(index) == Some(&']') {
+                out.push(']');
+                index += 1;
+            }
+            continue;
+        } else if ch == '.' {
+            out.push_str(TOKEN_DOT);
+            index += 1;
+            continue;
+        }
+        out.push(ch);
+        index += 1;
+    }
+    out
 }
 
 const FORBIDDEN_ESCAPES: &str = "bBdDwWsSpP123456789AZzGkK";
@@ -467,13 +519,14 @@ fn compile(pattern: &str, flags: &str, context: &str, portable: bool, anchor: An
     if portable {
         assert_portable(pattern, context)?;
     }
-    let expanded = expand_tokens(pattern);
+    let insensitive = flags.contains('i');
+    let expanded = if insensitive { expand_tokens(&expand_dotted_i(pattern)) } else { expand_tokens(pattern) };
     let body = match anchor {
         Anchor::None => expanded,
         Anchor::Prefix => format!("^(?:{expanded})"),
         Anchor::Full => format!("^(?:{expanded})$"),
     };
-    let source = if flags.contains('i') { format!("(?i){body}") } else { body };
+    let source = if insensitive { format!("(?i){body}") } else { body };
     Regex::new(&source).map_err(|error| Error::Pack(format!("{context}: invalid pattern ({error})")))
 }
 
@@ -618,12 +671,13 @@ fn compile_detector(document: DetectorDocument) -> Result<Detector, Error> {
         default_on: document.default,
         tags: document.tags,
         refine: document.refine,
-        prefilter: document.prefilter.iter().map(|literal| literal.to_lowercase()).collect(),
+        prefilter: compile_prefilter(&document.prefilter)
+            .map_err(|error| Error::Pack(format!("{context}: invalid prefilter ({error})")))?,
         regex,
         capture: document.capture,
         before,
         after,
-        unicode_boundary: false,
+        terms: None,
         reject,
         validators,
         mask: build_mask(&document.mask, &context)?,
@@ -689,27 +743,29 @@ pub(crate) fn make_terms_detector(
     if ordered.is_empty() {
         return Ok(None);
     }
-    // Longest first, so "api_key" wins over any prefix of it.
-    ordered.sort_by_key(|term| std::cmp::Reverse(term.term.len()));
+    // Longest first in characters, so "api_key" wins over any prefix of it; the
+    // sort is stable, so equal lengths keep the caller's order (SPEC §9).
+    ordered.sort_by_key(|term| std::cmp::Reverse(term.term.chars().count()));
 
-    let alternation = ordered
-        .iter()
-        .map(|term| regex::escape(&term.term))
-        .collect::<Vec<_>>()
-        .join("|");
-    let source = if case_sensitive {
-        format!("(?:{alternation})")
-    } else {
-        format!("(?i)(?:{alternation})")
+    let flags = if case_sensitive { "" } else { "(?i)" };
+    let source = |term: &str| {
+        let escaped = regex::escape(term);
+        if case_sensitive {
+            escaped
+        } else {
+            expand_dotted_i(&escaped)
+        }
     };
-    let regex = Regex::new(&source).map_err(|error| Error::Pack(format!("invalid term list: {error}")))?;
-
-    let mut replacements: HashMap<String, String> = HashMap::new();
-    for term in &ordered {
-        let key = if case_sensitive { term.term.clone() } else { term.term.to_lowercase() };
-        let replacement = if term.replace.is_empty() { "***".to_string() } else { term.replace.clone() };
-        replacements.insert(key, replacement);
+    let invalid = |error: regex::Error| Error::Pack(format!("invalid term list: {error}"));
+    let parts: Vec<String> = ordered.iter().map(|term| source(&term.term)).collect();
+    let mut each = Vec::with_capacity(parts.len());
+    let mut replace = Vec::with_capacity(parts.len());
+    for (part, term) in parts.iter().zip(&ordered) {
+        each.push(Regex::new(&format!("{flags}^(?:{part})")).map_err(invalid)?);
+        replace.push(if term.replace.is_empty() { "***".to_string() } else { term.replace.clone() });
     }
+    let regex = Regex::new(&format!("{flags}(?:{})", parts.join("|"))).map_err(invalid)?;
+    let matcher = std::sync::Arc::new(TermsMatcher { any: regex.clone(), each, replace });
 
     Ok(Some(Detector {
         id: "custom_term".into(),
@@ -721,17 +777,75 @@ pub(crate) fn make_terms_detector(
         default_on: true,
         tags: vec!["custom".into()],
         refine: false,
-        prefilter: Vec::new(),
+        prefilter: None,
         regex,
         capture: 0,
         before: None,
         after: None,
-        unicode_boundary: true,
+        terms: Some(std::sync::Arc::clone(&matcher)),
         reject: Vec::new(),
         validators: Vec::new(),
-        mask: Mask::Terms { replacements, case_sensitive },
+        mask: Mask::Terms(matcher),
         context_positive: None,
         context_negative: None,
         context_window: 80,
     }))
+}
+
+/// The terms scan without lookaround (SPEC §9). A candidate position is one where
+/// some term matches; it is kept when the character before it is not a word
+/// character and, trying the terms in order, one of them ends before a non-word
+/// character. Otherwise the scan moves on by one character.
+#[derive(Debug)]
+pub(crate) struct TermsMatcher {
+    any: Regex,
+    each: Vec<Regex>,
+    replace: Vec<String>,
+}
+
+/// The boundary class of SPEC §9: letters, combining marks, numbers and `_`.
+fn is_term_word_char(ch: char) -> bool {
+    static WORD: OnceLock<Regex> = OnceLock::new();
+    let word = WORD.get_or_init(|| Regex::new(r"^[\p{L}\p{M}\p{N}_]$").expect("static pattern"));
+    let mut buffer = [0u8; 4];
+    word.is_match(ch.encode_utf8(&mut buffer))
+}
+
+impl TermsMatcher {
+    pub(crate) fn find_all(&self, subject: &str) -> Vec<(usize, usize)> {
+        let mut out = Vec::new();
+        let mut position = 0usize;
+        while position < subject.len() {
+            let Some(found) = self.any.find_at(subject, position) else { break };
+            let start = found.start();
+            let width = subject[start..].chars().next().map_or(1, char::len_utf8);
+            if subject[..start].chars().next_back().is_some_and(is_term_word_char) {
+                position = start + width;
+                continue;
+            }
+            let end = self.each.iter().find_map(|each| {
+                let end = start + each.find(&subject[start..])?.end();
+                let blocked = end == start || subject[end..].chars().next().is_some_and(is_term_word_char);
+                (!blocked).then_some(end)
+            });
+            match end {
+                Some(end) => {
+                    out.push((start, end));
+                    position = end;
+                }
+                None => position = start + width,
+            }
+        }
+        out
+    }
+
+    /// The replacement of the first term, in matching order, that matches
+    /// `value` exactly: the alternative the scan took.
+    fn replacement_for(&self, value: &str) -> String {
+        self.each
+            .iter()
+            .zip(&self.replace)
+            .find(|(each, _)| each.find(value).is_some_and(|found| found.end() == value.len()))
+            .map_or_else(|| "***".to_string(), |(_, replace)| replace.clone())
+    }
 }

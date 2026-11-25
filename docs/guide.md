@@ -10,7 +10,7 @@ version. Coding assistants can read the same API in condensed form at
 - [Install](#install)
 - [Practical guides](https://flare-collection.github.io/flare-redact/guides/)
 - [Runnable examples](#runnable-examples)
-- [Python, Go, and Rust](#python-go-and-rust)
+- [Python, Go, Rust, Java and .NET](#python-go-rust-java-and-net)
 - [Fluent Bit](#fluent-bit)
 - [The sidecar gateway](#the-sidecar-gateway)
 - [Redact anything](#redact-anything)
@@ -160,21 +160,25 @@ Clone the repository and run these small applications locally:
 
 Run `npm run build` and install an example's dependencies before its first run.
 
-## Python, Go, and Rust
+## Python, Go, Rust, Java and .NET
+
+<a id="python-go-and-rust"></a>
 
 The people who most need to keep data out of a prompt are usually not writing
-JavaScript. There are now four engines, and they are not four ports: they all
+JavaScript. There are now six engines, and they are not six ports: they all
 execute the same [FRS-1 detector specification](../spec/SPEC.md) and are held to the
 same [conformance corpus](../spec/conformance/), so a policy written once produces
 identical output in every one of them.
 
 Each engine is its own package. Installing `flare-redact` from npm gives you the
-JavaScript engine and nothing else: no Python, no Go, no Rust, and no
-dependencies of any kind.
+JavaScript engine and nothing else: no Python, no Go, no Rust, no JVM, no .NET,
+and no dependencies of any kind.
 
 | | Install | Docs |
 |---|---|---|
 | **Go** | `go get github.com/flare-collection/flare-redact/sdk/go` | [`sdk/go`](../sdk/go) |
+| **Java** | `io.github.flare-collection:flare-redact` on Maven Central | [`sdk/java`](../sdk/java) |
+| **.NET** | `dotnet add package FlareRedact` | [`sdk/dotnet`](../sdk/dotnet) |
 | **Python** | `pip install flare-redact` | [`sdk/python`](../sdk/python) |
 | **Rust** | `cargo add flare-redact` | [`sdk/rust`](../sdk/rust) |
 
@@ -183,11 +187,11 @@ first release after 1.9.1. Until it lands, or to pin a tag, install them from
 this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.11.0#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.12.0#subdirectory=sdk/python"
 ```
 
 ```toml
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.11.0" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.12.0" }
 ```
 
 ```python
@@ -208,19 +212,33 @@ let policy = Policy::compile(Options::new().enable(["pii"]))?;
 let safe = policy.redact_str("contact ada@example.com")?;
 ```
 
-Each SDK is dependency-light on purpose (Python is standard library only, Go is
-standard library only, Rust is `regex` plus `serde`) because a redaction library
+```java
+Policy policy = Policy.compile(RedactOptions.builder().enable("pii").build());
+String safe = policy.redactString("contact ada@example.com");
+```
+
+```csharp
+builder.Logging.AddConsole().AddFlareRedact(new RedactOptions { Enable = { "pii" } });
+```
+
+The Java and .NET packages are published to Maven Central and NuGet starting
+with 1.12.0.
+
+Each SDK is dependency-light on purpose (Python and Go use the standard library
+only, the Java and .NET cores have no dependencies at all, Rust is `regex` plus
+`serde`) because a redaction library
 that expands your dependency tree is a security library that widened your attack
 surface. Each also ships the integrations its ecosystem actually uses: a
 `logging` filter and formatter, OpenAI/Anthropic client wrappers and
 [pandas, Polars and DuckDB](#clean-data-frames-and-sql-tables) helpers in
-Python, an `slog.Handler` and an `http.RoundTripper` in Go.
+Python, an `slog.Handler` and an `http.RoundTripper` in Go, Logback and Log4j 2
+in Java, and Serilog and `Microsoft.Extensions.Logging` in .NET.
 
-Drift is the reason this is a specification and not three ports. Detection logic
-maintained in four hand-written copies diverges within a release or two, and a
+Drift is the reason this is a specification and not six ports. Detection logic
+maintained in six hand-written copies diverges within a release or two, and a
 redactor that behaves differently per language is worse than none, because the
 team stops being able to reason about what leaves the process. The corpus runs in
-all four test suites; a change that makes them disagree fails CI.
+all six test suites; a change that makes them disagree fails CI.
 
 Detectors themselves are data. Write an [FRS-1 pack](../spec/SPEC.md) once and every
 engine loads the same file:
@@ -1310,7 +1328,7 @@ not, as long as Node 20 or newer is on the PATH:
 ```yaml
 repos:
   - repo: https://github.com/flare-collection/flare-redact
-    rev: v1.11.0
+    rev: v1.12.0
     hooks:
       - id: flare-redact        # only the lines being added, like --staged
 ```
@@ -1375,7 +1393,7 @@ reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.11.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.12.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and

@@ -12,9 +12,16 @@ names, and the left-hand side of an assignment.
 
 from __future__ import annotations
 
+import re
 from typing import FrozenSet, Tuple
 
-__all__ = ["SECRET_KEYWORDS", "MULTILANG_KEY_SET", "SENSITIVE_KEY_PATTERN"]
+__all__ = [
+    "SECRET_KEYWORDS",
+    "MULTILANG_KEY_SET",
+    "SENSITIVE_KEY_PATTERN",
+    "normalize_key_name",
+    "is_sensitive_key_name",
+]
 
 _RAW: Tuple[str, ...] = (
     # 1. English
@@ -81,3 +88,32 @@ SENSITIVE_KEY_PATTERN = (
     r"|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token"
     r"|credit[_-]?card|card[_-]?number|cvv|ssn)"
 )
+
+
+def normalize_key_name(name: str) -> str:
+    """The form a key name is compared in (FRS-1 §9).
+
+    İ and ı become i, every character takes its simple lowercase mapping, then
+    final sigma and long s fold to σ and s. ``str.lower`` differs from simple
+    lowercasing only in İ and the final-sigma rule, both of which this erases, so
+    ``ŞİFRE``, ``GİZLİ`` and ``ΚΩΔΙΚΌΣ`` compare equal to their keywords in every
+    FRS-1 engine.
+    """
+    return (
+        name.replace("\u0130", "i")
+        .replace("\u0131", "i")
+        .lower()
+        .replace("\u03c2", "\u03c3")
+        .replace("\u017f", "s")
+    )
+
+
+_NORMALIZED_KEYWORDS: FrozenSet[str] = frozenset(normalize_key_name(word) for word in SECRET_KEYWORDS)
+_SENSITIVE_KEY_NAME = re.compile(SENSITIVE_KEY_PATTERN)
+
+
+def is_sensitive_key_name(name: str) -> bool:
+    """Whether a key is sensitive by name: its normalised form is one of the
+    English names or one of the multilingual keywords."""
+    normal = normalize_key_name(name)
+    return _SENSITIVE_KEY_NAME.fullmatch(normal) is not None or normal in _NORMALIZED_KEYWORDS

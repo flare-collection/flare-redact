@@ -60,7 +60,7 @@ fn secret_context() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"(?i)\b(secret|api[_-]?key|apikey|token|password|passwd|pwd|auth|authorization|bearer|access[_-]?key|private[_-]?key|client[_-]?secret|credential|signing[_-]?key)\b",
+            r"(?-u:\b)(secret|api[_-]?key|apikey|token|password|passwd|pwd|auth|authorization|bearer|access[_-]?key|private[_-]?key|client[_-]?secret|credential|signing[_-]?key)(?-u:\b)",
         )
         .expect("static pattern")
     })
@@ -70,7 +70,7 @@ fn benign_context() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"(?i)\b(uuid|guid|sha1|sha256|sha512|md5|hash|digest|etag|checksum|commit|revision|request[_-]?id|trace[_-]?id|correlation[_-]?id|span[_-]?id|object[_-]?id|content[_-]?id|version|colou?r|slug|filename)\b",
+            r"(?-u:\b)(uuid|guid|sha1|sha256|sha512|md5|hash|digest|etag|checksum|commit|revision|request[_-]?id|trace[_-]?id|correlation[_-]?id|span[_-]?id|object[_-]?id|content[_-]?id|version|colou?r|slug|filename)(?-u:\b)",
         )
         .expect("static pattern")
     })
@@ -138,6 +138,9 @@ pub fn extract_features(value: &str, context: &str) -> Vec<f64> {
 
     let total = length as f64;
     let boolean = |ok: bool| if ok { 1.0 } else { 0.0 };
+    // Context words use ASCII-only case folding and ASCII word boundaries
+    // (SPEC §6), so the patterns are case-sensitive over an ASCII-lowered copy.
+    let folded = context.to_ascii_lowercase();
 
     vec![
         total.log2(),
@@ -152,8 +155,8 @@ pub fn extract_features(value: &str, context: &str) -> Vec<f64> {
         boolean(lower > 0 && upper > 0 && digit > 0),
         max_run as f64 / total,
         boolean(structured_hex().is_match(value)),
-        boolean(secret_context().is_match(context)),
-        boolean(benign_context().is_match(context)),
+        boolean(secret_context().is_match(&folded)),
+        boolean(benign_context().is_match(&folded)),
     ]
 }
 

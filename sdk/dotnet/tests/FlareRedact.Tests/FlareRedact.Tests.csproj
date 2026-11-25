@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/FlareRedact.Serilog/FlareRedact.Serilog.csproj" />
+    <ProjectReference Include="../../src/FlareRedact.Extensions.Logging/FlareRedact.Extensions.Logging.csproj" />
+  </ItemGroup>
+  <!-- FlareTarget=netstandard2.0 runs the tests against the netstandard2.0 build. -->
+  <ItemGroup Condition="'$(FlareTarget)' == ''">
+    <ProjectReference Include="../../src/FlareRedact/FlareRedact.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(FlareTarget)' != ''">
+    <ProjectReference Include="../../src/FlareRedact/FlareRedact.csproj" SetTargetFramework="TargetFramework=$(FlareTarget)" />
+  </ItemGroup>
+</Project>

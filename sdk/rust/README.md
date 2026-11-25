@@ -3,8 +3,8 @@
 Hide secrets and PII before they reach a log, a model, or a vendor.
 
 Three dependencies — `regex`, `serde`, `serde_json` — and the same
-[FRS-1 detector spec](https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md) as the JavaScript, Python and Go
-engines, so a policy written once behaves identically in every service you own.
+[FRS-1 detector spec](https://github.com/flare-collection/flare-redact/blob/main/spec/SPEC.md) as the JavaScript, Python, Go,
+Java and .NET engines, so a policy written once behaves identically in every service you own.
 The [shared conformance corpus](https://github.com/flare-collection/flare-redact/tree/main/spec/conformance/) runs in `cargo test`, so
 "identically" is a test rather than a claim.
 
@@ -17,7 +17,7 @@ to pin a tag, depend on the repository:
 
 ```toml
 [dependencies]
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.11.0" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.12.0" }
 ```
 
 ```rust

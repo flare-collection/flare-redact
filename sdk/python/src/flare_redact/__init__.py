@@ -1,7 +1,7 @@
 """flare-redact — hide secrets and PII before they reach a log, a model, or a vendor.
 
 Zero-dependency secret and PII redaction for Python, implementing the same
-FRS-1 detector spec as the JavaScript, Go and Rust engines. The same pack, the
+FRS-1 detector spec as the JavaScript, Go, Rust, Java and .NET engines. The same pack, the
 same options and the same input produce the same output in every one of them, so
 a policy written once holds across a polyglot system.
 
@@ -52,7 +52,7 @@ from .pack import Detector, Pack, PackError, core_pack, load_pack
 from .transforms import pseudonymize, surrogate
 from .vault import Session, StreamRestorer, Vault, build_restore, restore
 
-__version__ = "1.11.0"
+__version__ = "1.12.0"
 
 #: The FRS-1 revision this engine implements.
 SPEC_REVISION = "FRS-1"

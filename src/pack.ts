@@ -2,8 +2,8 @@
  * FRS-1 detector packs.
  *
  * A pack is a JSON description of a detector set, written in a restricted
- * pattern subset that compiles to the same automaton in JavaScript, Python, Go
- * and Rust. Loading one here turns it into ordinary `Detector` objects, so a
+ * pattern subset that compiles to the same automaton in JavaScript, Python, Go,
+ * Rust, Java and .NET. Loading one here turns it into ordinary `Detector` objects, so a
  * pack behaves exactly like a built-in detector — including in overlap
  * resolution, `enable`/`disable`, vaults and every adapter.
  *
@@ -60,6 +60,7 @@ import {
   ninoValid,
 } from './checksums.js';
 import { FlareRedactError, type Risk } from './engine.js';
+import { expandDottedI } from './fold.js';
 
 export const SPEC_REVISION = 'FRS-1';
 
@@ -209,12 +210,13 @@ interface CompileOptions {
 
 function compile(pattern: string, { flags = '', where, portable = true, anchor }: CompileOptions): RegExp {
   if (portable) assertPortable(pattern, where);
-  const expanded = expandTokens(pattern);
+  const expanded = expandTokens(flags.includes('i') ? expandDottedI(pattern) : pattern);
   const body = anchor === 'prefix' ? `^(?:${expanded})` : anchor === 'full' ? `^(?:${expanded})$` : expanded;
-  // `u` is only added when the pattern needs it: it also tightens escape rules,
-  // and a pack author should not have to satisfy them for patterns that never
-  // mention a Unicode property.
-  const jsFlags = (flags.includes('i') ? 'i' : '') + (expanded.includes('\\p{') ? 'u' : '') + (anchor ? '' : 'g');
+  // Always `u` (FRS-1 §2): without it, `i` folds case by toUpperCase and skips
+  // every mapping into ASCII, so `PAſſWORD` would pass a pattern for `password`
+  // here while the other engines catch it. expandDottedI above adds
+  // the one merge simple folding lacks: i, I, İ and ı.
+  const jsFlags = (flags.includes('i') ? 'i' : '') + 'u' + (anchor ? '' : 'g');
   try {
     return new RegExp(body, jsFlags);
   } catch (error) {

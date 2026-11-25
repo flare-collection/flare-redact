@@ -28,16 +28,19 @@ FEATURES = (
     "maxRunFrac", "structuredHexId", "ctxSecret", "ctxBenign",
 )
 
+# Context words are matched with ASCII case folding and ASCII word boundaries
+# (FRS-1 §6): `ſecret` and `étoken`-style neighbours must score the same in
+# every engine, and only re.ASCII gives Python those rules.
 _SECRET_CTX = re.compile(
     r"\b(secret|api[_-]?key|apikey|token|password|passwd|pwd|auth|authorization|bearer"
     r"|access[_-]?key|private[_-]?key|client[_-]?secret|credential|signing[_-]?key)\b",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 _BENIGN_CTX = re.compile(
     r"\b(uuid|guid|sha1|sha256|sha512|md5|hash|digest|etag|checksum|commit|revision"
     r"|request[_-]?id|trace[_-]?id|correlation[_-]?id|span[_-]?id|object[_-]?id"
     r"|content[_-]?id|version|colou?r|slug|filename)\b",
-    re.IGNORECASE,
+    re.IGNORECASE | re.ASCII,
 )
 _STRUCTURED_HEX = re.compile(
     r"(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"

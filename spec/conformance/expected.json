@@ -83,6 +83,20 @@
     ],
     "redact": "密码: ***"
   },
+  "assignment/dotless-i": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 21,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "şıfre: ***"
+  },
   "assignment/english": {
     "findings": [
       {
@@ -96,6 +110,48 @@
       }
     ],
     "redact": "password=***"
+  },
+  "assignment/greek-final-sigma": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 21,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "ΚΩΔΙΚΌΣ: ***"
+  },
+  "assignment/kelvin-sign": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 24,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "API_KEY=***"
+  },
+  "assignment/long-s": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 23,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "PAſſWORD=***"
   },
   "assignment/quoted": {
     "findings": [
@@ -142,6 +198,66 @@
       }
     ],
     "redact": "parola=***"
+  },
+  "assignment/turkish-locale-identifier": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 24,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      }
+    ],
+    "redact": "APİ_KEY=***"
+  },
+  "assignment/turkish-uppercase": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 21,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      },
+      {
+        "column": 23,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 38,
+        "line": 1,
+        "risk": "critical",
+        "start": 22
+      }
+    ],
+    "redact": "ŞİFRE: *** MƏXFİ=***"
+  },
+  "assignment/value-holding-separators": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 21,
+        "line": 1,
+        "risk": "critical",
+        "start": 0
+      },
+      {
+        "column": 23,
+        "confidence": 0.92,
+        "detector": "generic_assignment",
+        "end": 37,
+        "line": 1,
+        "risk": "critical",
+        "start": 22
+      }
+    ],
+    "redact": "secret=*** pwd=***"
   },
   "atlassian/token": {
     "findings": [
@@ -555,6 +671,48 @@
     ],
     "redact": "value Zm9v*** stored"
   },
+  "entropy/refine-context-ascii-boundary": {
+    "findings": [
+      {
+        "column": 8,
+        "confidence": 0.799992,
+        "detector": "high_entropy",
+        "end": 39,
+        "line": 1,
+        "risk": "critical",
+        "start": 7
+      }
+    ],
+    "redact": "çtoken GkL3***"
+  },
+  "entropy/refine-context-ascii-case": {
+    "findings": [
+      {
+        "column": 8,
+        "confidence": 0.797759,
+        "detector": "high_entropy",
+        "end": 39,
+        "line": 1,
+        "risk": "critical",
+        "start": 7
+      }
+    ],
+    "redact": "ſecret GkL3***"
+  },
+  "entropy/refine-window-in-characters": {
+    "findings": [
+      {
+        "column": 64,
+        "confidence": 0.799992,
+        "detector": "high_entropy",
+        "end": 95,
+        "line": 1,
+        "risk": "critical",
+        "start": 63
+      }
+    ],
+    "redact": "token яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя GkL3***"
+  },
   "entropy/refined-secret": {
     "findings": [
       {
@@ -572,6 +730,20 @@
   "entropy/refined-uuid": {
     "findings": [],
     "redact": "commit 9f8b7a6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f00"
+  },
+  "evasion/prefilter-folds-case": {
+    "findings": [
+      {
+        "column": 25,
+        "confidence": 0.92,
+        "detector": "aws_secret_key",
+        "end": 64,
+        "line": 1,
+        "risk": "critical",
+        "start": 24
+      }
+    ],
+    "redact": "aws_ſecret_access_key = ***"
   },
   "evasion/zero-width-assignment": {
     "findings": [
@@ -766,6 +938,29 @@
       }
     ],
     "redact": "hf_***"
+  },
+  "iban/bic-needs-a-country": {
+    "findings": [
+      {
+        "column": 22,
+        "confidence": 0.92,
+        "detector": "swift_bic",
+        "end": 29,
+        "line": 1,
+        "risk": "high",
+        "start": 21
+      },
+      {
+        "column": 31,
+        "confidence": 0.92,
+        "detector": "swift_bic",
+        "end": 38,
+        "line": 1,
+        "risk": "high",
+        "start": 30
+      }
+    ],
+    "redact": "PASSWORD QWERTY12345 DEUT*** NWBK***"
   },
   "iban/de": {
     "findings": [
@@ -1479,6 +1674,19 @@
       "password": "hunter2"
     }
   },
+  "keys/greek-final-sigma": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "ΚΩΔΙΚΌΣ",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "ΚΩΔΙΚΌΣ": "***"
+    }
+  },
   "keys/multilingual-object": {
     "findings": [
       {
@@ -1504,6 +1712,23 @@
       "wachtwoord": "***",
       "şifrə": "***",
       "密码": "***"
+    }
+  },
+  "keys/names-are-not-redacted": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "email",
+        "end": 17,
+        "line": 1,
+        "path": "ada@example.com",
+        "risk": "high",
+        "start": 0
+      }
+    ],
+    "redact": {
+      "ada@example.com": "g***@***"
     }
   },
   "keys/nested-structure": {
@@ -1548,6 +1773,27 @@
       ]
     }
   },
+  "keys/redact-keys-normalised": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "Şifre",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "ŞİFRE",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "other": "z",
+      "Şifre": "***",
+      "ŞİFRE": "***"
+    }
+  },
   "keys/sensitive-object": {
     "findings": [
       {
@@ -1567,6 +1813,27 @@
       "apiKey": "***",
       "note": "safe",
       "password": "***"
+    }
+  },
+  "keys/turkish-uppercase": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "GİZLİ",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "ŞİFRE",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "GİZLİ": "***",
+      "note": "ok",
+      "ŞİFRE": "***"
     }
   },
   "langsmith/key": {
@@ -1933,6 +2200,20 @@
       }
     ],
     "redact": "api_key=***"
+  },
+  "phone/context-window-in-characters": {
+    "findings": [
+      {
+        "column": 77,
+        "confidence": 0.86,
+        "detector": "phone",
+        "end": 93,
+        "line": 1,
+        "risk": "high",
+        "start": 76
+      }
+    ],
+    "redact": "call яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя +99***"
   },
   "phone/e164": {
     "findings": [
@@ -2401,6 +2682,20 @@
     ],
     "redact": "[REDACTED TELEGRAM TOKEN]"
   },
+  "terms/boundary-failure-moves-one-character": {
+    "findings": [
+      {
+        "column": 8,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 14,
+        "line": 1,
+        "risk": "high",
+        "start": 7
+      }
+    ],
+    "redact": "say 76 *** now"
+  },
   "terms/case-sensitive": {
     "findings": [
       {
@@ -2414,6 +2709,66 @@
       }
     ],
     "redact": "bluebird and ***"
+  },
+  "terms/combining-mark-boundary": {
+    "findings": [
+      {
+        "column": 6,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 8,
+        "line": 1,
+        "risk": "high",
+        "start": 5
+      }
+    ],
+    "redact": "राजा *** राजकुमार"
+  },
+  "terms/dotted-i": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 5,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 11,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 15,
+        "line": 1,
+        "risk": "high",
+        "start": 10
+      }
+    ],
+    "redact": "<G> and <G>"
+  },
+  "terms/equal-length-keeps-order": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 3,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 9,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 11,
+        "line": 1,
+        "risk": "high",
+        "start": 8
+      }
+    ],
+    "redact": "<1> and <1>"
   },
   "terms/plain": {
     "findings": [
@@ -2442,6 +2797,29 @@
       }
     ],
     "redact": "project [PROJECT] ships in Q3"
+  },
+  "terms/shorter-term-at-same-position": {
+    "findings": [
+      {
+        "column": 1,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 3,
+        "line": 1,
+        "risk": "high",
+        "start": 0
+      },
+      {
+        "column": 14,
+        "confidence": 0.92,
+        "detector": "custom_term",
+        "end": 16,
+        "line": 1,
+        "risk": "high",
+        "start": 13
+      }
+    ],
+    "redact": "*** defx and ***"
   },
   "terms/word-boundary": {
     "findings": [

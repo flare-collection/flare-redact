@@ -3,7 +3,7 @@ import { LOCALE_DETECTORS } from './locales.js';
 import { EXTRA_DETECTORS } from './extra.js';
 import { ENTITY_DETECTORS } from './entities.js';
 
-export { SECRET_KEYWORDS, MULTILANG_KEY_SET } from './i18n.js';
+export { SECRET_KEYWORDS, MULTILANG_KEY_SET, SENSITIVE_KEY_RE, isSensitiveKeyName } from './i18n.js';
 
 export interface Detector {
   id: string;
@@ -90,11 +90,17 @@ export function luhn(value: string): boolean {
 }
 
 export function entropy(s: string): number {
+  // Counted over code points, frequencies and total alike (SPEC §3.3): dividing
+  // by s.length would count an emoji twice in the total and once in its bucket.
   const freq = new Map<string, number>();
-  for (const ch of s) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  let total = 0;
+  for (const ch of s) {
+    freq.set(ch, (freq.get(ch) ?? 0) + 1);
+    total++;
+  }
   let e = 0;
   for (const n of freq.values()) {
-    const p = n / s.length;
+    const p = n / total;
     e -= p * Math.log2(p);
   }
   return e;
@@ -125,8 +131,6 @@ export function phoneValid(value: string): boolean {
   return true;
 }
 
-export const SENSITIVE_KEY_RE =
-  /^(?:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn)$/i;
 
 export const SENSITIVE_KEY_DETECTOR: Detector = {
   id: 'sensitive_key',

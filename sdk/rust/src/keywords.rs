@@ -8,6 +8,8 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+use crate::fold::normalize_key_name;
+
 const RAW: &[&str] = &[
     // 1. English
     "password", "passwd", "pwd", "secret", "token", "apikey", "api_key", "api-key",
@@ -66,6 +68,12 @@ fn keyword_set() -> &'static HashSet<String> {
     SET.get_or_init(|| RAW.iter().map(|word| word.to_lowercase()).collect())
 }
 
+/// The vocabulary in the form key names are compared in.
+fn normalized_keyword_set() -> &'static HashSet<String> {
+    static SET: OnceLock<HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| RAW.iter().map(|word| normalize_key_name(word)).collect())
+}
+
 /// The multilingual key-name vocabulary, sorted.
 pub fn secret_keywords() -> Vec<String> {
     let mut out: Vec<String> = keyword_set().iter().cloned().collect();
@@ -83,8 +91,9 @@ const ENGLISH_KEYS: &[&str] = &[
     "cvv", "ssn",
 ];
 
-/// Whether a field name is sensitive by convention, in any supported language.
+/// Whether a field name is sensitive by convention, in any supported language:
+/// its normalised form (SPEC §9) is a conventional English name or a keyword.
 pub fn is_sensitive_key_name(name: &str) -> bool {
-    let lowered = name.to_lowercase();
-    ENGLISH_KEYS.contains(&lowered.as_str()) || keyword_set().contains(&lowered)
+    let normalized = normalize_key_name(name);
+    ENGLISH_KEYS.contains(&normalized.as_str()) || normalized_keyword_set().contains(&normalized)
 }

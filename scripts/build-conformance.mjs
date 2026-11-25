@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Regenerate spec/conformance/expected.json from this engine.
 //
-// The expectations are whatever a conforming engine produces, so any of the four
-// can generate them — and all four must then agree. Regenerate after an
+// The expectations are whatever a conforming engine produces, so any of the six
+// can generate them, and all six must then agree. Regenerate after an
 // intentional behaviour change and *read the diff*: an unexplained line in it is
 // a bug report.
 //

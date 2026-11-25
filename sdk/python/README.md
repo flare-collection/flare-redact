@@ -3,7 +3,7 @@
 Hide secrets and PII before they reach a log, a model, or a vendor.
 
 Zero dependencies, one file to read, and the same detector spec as the
-JavaScript, Go and Rust engines — so a policy written once behaves identically
+JavaScript, Go, Rust, Java and .NET engines, so a policy written once behaves identically
 in every service you own. Every claim below is covered by the
 [shared conformance corpus](https://github.com/flare-collection/flare-redact/tree/main/spec/conformance/).
 
@@ -15,7 +15,7 @@ PyPI releases start with the first release after 1.9.1. Until it lands, or to
 pin a tag, install from the repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.11.0#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.12.0#subdirectory=sdk/python"
 ```
 
 ```python

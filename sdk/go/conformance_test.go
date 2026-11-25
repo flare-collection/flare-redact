@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// The Go engine must agree with the JavaScript, Python and Rust engines, case
+// The Go engine must agree with the JavaScript, Python, Rust, Java and .NET engines, case
 // for case. See spec/SPEC.md §13 — this file is the Go half of that promise.
 
 type conformanceCase struct {

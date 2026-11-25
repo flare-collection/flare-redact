@@ -63,6 +63,16 @@ class PackLoadingTest(unittest.TestCase):
         with self.assertRaises(PackError):
             load_pack(_with_detector(pattern="^TICKET-[0-9]{4}"))
 
+    def test_dot_excludes_the_javascript_line_terminators(self) -> None:
+        # Python's `.` excludes only \n; the spec's `.` is JavaScript's.
+        pack = load_pack(_with_detector(pattern="k.y[0-9]+"))
+        text = "k\ry1 k\u2028y2 k\u2029y3 k\ny4 k\u0085y5 k.y6 k[y7"
+        self.assertEqual(
+            fr.redact(text, pack=pack),
+            "k\ry1 k\u2028y2 k\u2029y3 k\ny4 [TICKET] [TICKET] [TICKET]",
+        )
+        self.assertEqual(fr.redact("k.y1 kxy2", pack=load_pack(_with_detector(pattern=r"k[.]y[0-9]"))), "[TICKET] kxy2")
+
     def test_rejects_an_empty_match(self) -> None:
         with self.assertRaises(PackError):
             load_pack(_with_detector(pattern="[0-9]*"))

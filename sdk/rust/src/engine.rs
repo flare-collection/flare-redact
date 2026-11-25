@@ -13,13 +13,14 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::fold::normalize_key_name;
 use crate::keywords::is_sensitive_key_name;
 use crate::ml::secret_probability;
 use crate::pack::{core_pack, make_terms_detector, Detector, Pack};
 use crate::transforms::{pseudonymize, surrogate};
 use crate::{Error, Finding, Mode, Options};
 
-/// Maximum bytes in a single scanned string, unless overridden.
+/// Maximum UTF-16 code units in a single scanned string, unless overridden.
 pub const DEFAULT_MAX_INPUT_LENGTH: usize = 16 * 1024 * 1024;
 /// Maximum findings per scanned string, unless overridden.
 pub const DEFAULT_MAX_FINDINGS: usize = 50_000;
@@ -52,7 +53,6 @@ pub struct Policy {
     pack: Arc<Pack>,
     terms: Option<Detector>,
     selected: Vec<usize>,
-    has_prefilter: bool,
     allow: HashSet<String>,
     key_names: Option<HashSet<String>>,
     max_input_length: usize,
@@ -91,15 +91,12 @@ impl Policy {
             _ => {}
         }
 
-        let has_prefilter = terms.as_ref().is_some_and(|t| !t.prefilter.is_empty())
-            || selected.iter().any(|index| !pack.detectors[*index].prefilter.is_empty());
-
         Ok(Policy {
             allow: options.allow.iter().cloned().collect(),
             key_names: if options.key_names.is_empty() {
                 None
             } else {
-                Some(options.key_names.iter().map(|name| name.to_lowercase()).collect())
+                Some(options.key_names.iter().map(|name| normalize_key_name(name)).collect())
             },
             max_input_length: if options.max_input_length > 0 {
                 options.max_input_length
@@ -111,7 +108,6 @@ impl Policy {
             pack,
             terms,
             selected,
-            has_prefilter,
         })
     }
 
@@ -140,7 +136,7 @@ impl Policy {
             return false;
         }
         match &self.key_names {
-            Some(names) => names.contains(&name.to_lowercase()),
+            Some(names) => names.contains(&normalize_key_name(name)),
             None => is_sensitive_key_name(name),
         }
     }
@@ -205,31 +201,29 @@ impl Policy {
     }
 
     pub(crate) fn scan_hits<'a>(&'a self, text: &str) -> Result<Vec<Hit<'a>>, Error> {
+        // Every character takes at least as many UTF-8 bytes as UTF-16 units, so
+        // only a string longer in bytes than the limit needs counting.
         if text.len() > self.max_input_length {
-            return Err(Error::Limit(format!(
-                "input length {} exceeds the configured limit of {}",
-                text.len(),
-                self.max_input_length
-            )));
+            let length: usize = text.chars().map(char::len_utf16).sum();
+            if length > self.max_input_length {
+                return Err(Error::Limit(format!(
+                    "input length {length} exceeds the configured limit of {}",
+                    self.max_input_length
+                )));
+            }
         }
 
         let (normalised, source) = normalised_view(text);
         let subject: &str = normalised.as_ref();
-        let lowered = if self.has_prefilter { Some(subject.to_lowercase()) } else { None };
 
         let detectors = self.detectors();
         let mut hits: Vec<Hit<'a>> = Vec::new();
         for detector in detectors {
-            if !detector.prefilter.is_empty() {
-                let lowered = lowered.as_deref().unwrap_or("");
-                if !detector.prefilter.iter().any(|literal| lowered.contains(literal.as_str())) {
-                    continue;
-                }
+            if detector.prefilter.as_ref().is_some_and(|prefilter| !prefilter.is_match(subject)) {
+                continue;
             }
 
-            for captures in detector.regex.captures_iter(subject) {
-                let Some(matched) = captures.get(detector.capture) else { continue };
-                let (ns, ne) = (matched.start(), matched.end());
+            for (ns, ne) in spans(detector, subject) {
                 if ne <= ns {
                     continue;
                 }
@@ -336,24 +330,19 @@ impl std::fmt::Debug for Policy {
     }
 }
 
-fn boundary_ok(detector: &Detector, subject: &str, start: usize, end: usize) -> bool {
-    if detector.unicode_boundary {
-        if start > 0 {
-            if let Some(previous) = subject[..start].chars().next_back() {
-                if previous == '_' || previous.is_alphabetic() || previous.is_numeric() {
-                    return false;
-                }
-            }
-        }
-        if end < subject.len() {
-            if let Some(next) = subject[end..].chars().next() {
-                if next == '_' || next.is_alphabetic() || next.is_numeric() {
-                    return false;
-                }
-            }
-        }
-        return true;
+/// The byte spans of the captured group of every match in `subject`.
+fn spans(detector: &Detector, subject: &str) -> Vec<(usize, usize)> {
+    if let Some(terms) = &detector.terms {
+        return terms.find_all(subject);
     }
+    detector
+        .regex
+        .captures_iter(subject)
+        .filter_map(|captures| captures.get(detector.capture).map(|matched| (matched.start(), matched.end())))
+        .collect()
+}
+
+fn boundary_ok(detector: &Detector, subject: &str, start: usize, end: usize) -> bool {
     let bytes = subject.as_bytes();
     if let Some(before) = &detector.before {
         if start > 0 && before.contains(bytes[start - 1]) {
@@ -389,16 +378,11 @@ fn normalised_view(text: &str) -> (std::borrow::Cow<'_, str>, Option<Vec<usize>>
     (std::borrow::Cow::Owned(stripped), Some(source))
 }
 
-/// A window of `radius` bytes either side of a span, snapped to char boundaries.
+/// A window of `radius` characters either side of a span, clipped at the ends of
+/// the input (SPEC §6).
 fn slice_around(text: &str, start: usize, end: usize, radius: usize) -> &str {
-    let mut low = start.saturating_sub(radius);
-    while low > 0 && !text.is_char_boundary(low) {
-        low -= 1;
-    }
-    let mut high = (end + radius).min(text.len());
-    while high < text.len() && !text.is_char_boundary(high) {
-        high += 1;
-    }
+    let low = text[..start].char_indices().rev().take(radius).last().map_or(start, |(index, _)| index);
+    let high = text[end..].char_indices().nth(radius).map_or(text.len(), |(index, _)| end + index);
     &text[low..high]
 }
 

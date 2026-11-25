@@ -66,7 +66,7 @@ about an upstream you did not configure.
 
 ## Other language engines
 
-The Python, Go and Rust engines implement the FRS-1 subset, which is deliberately
+The Python, Go, Rust, Java and .NET engines implement the FRS-1 subset, which is deliberately
 narrower than the Node detector set — `spec/SPEC.md` §14 lists every difference.
 A pack that uses a construct an engine cannot execute exactly fails to load
 rather than loading with the check skipped. Report a divergence between engines
