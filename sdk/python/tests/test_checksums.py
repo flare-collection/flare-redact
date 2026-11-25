@@ -3,7 +3,7 @@
 Every valid sample was generated for these tests and cross-checked with an
 independent implementation; none belongs to a person. Each near-miss breaks one
 rule: the check digit, a date, a prefix or a reserved letter. The same table runs
-in the JavaScript, Go and Rust test suites.
+in the other engines' test suites.
 """
 
 from __future__ import annotations

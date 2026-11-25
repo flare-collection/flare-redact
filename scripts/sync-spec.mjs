@@ -3,7 +3,8 @@
 //
 // The pack has to sit next to the code that embeds it — Go needs it in the
 // module directory for `go:embed`, Rust for `include_str!`, Python for package
-// data. One canonical file plus a sync step beats four files that drift.
+// data, Java on the classpath, .NET as an embedded resource. One canonical file
+// plus a sync step beats six files that drift.
 //
 //   node scripts/sync-spec.mjs           # write the copies
 //   node scripts/sync-spec.mjs --check   # fail if a copy is stale (CI)
@@ -19,12 +20,14 @@ const targets = [
   join(root, 'sdk', 'python', 'src', 'flare_redact', 'detectors.json'),
   join(root, 'sdk', 'go', 'detectors.json'),
   join(root, 'sdk', 'rust', 'src', 'detectors.json'),
+  join(root, 'sdk', 'java', 'core', 'src', 'main', 'resources', 'io', 'github', 'flarecollection', 'redact', 'detectors.json'),
+  join(root, 'sdk', 'dotnet', 'src', 'FlareRedact', 'Resources', 'detectors.json'),
 ];
 
 const check = process.argv.includes('--check');
 const canonical = readFileSync(source, 'utf8');
 
-// Parse once so a malformed pack fails here rather than in three test suites.
+// Parse once so a malformed pack fails here rather than in every test suite.
 JSON.parse(canonical);
 
 let stale = 0;

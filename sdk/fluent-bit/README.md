@@ -3,7 +3,7 @@
 A Fluent Bit [WASM filter](https://docs.fluentbit.io/manual/pipeline/filters/wasm)
 that redacts secrets and personal data from every record before it leaves the
 node. It is the flare-redact Rust engine compiled to WebAssembly, so it catches
-exactly what the JavaScript, Python, Go and Rust engines catch.
+exactly what every other flare-redact engine catches.
 
 ## Use it
 

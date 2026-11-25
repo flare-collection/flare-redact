@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <RootNamespace>FlareRedact</RootNamespace>
+    <PackageId>FlareRedact</PackageId>
+    <Description>Redact secrets and personal data from logs, prompts and payloads. No dependencies; passes the FRS-1 conformance corpus shared with the JavaScript, Python, Go, Rust and Java engines.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/detectors.json" LogicalName="FlareRedact.detectors.json" />
+    <EmbeddedResource Include="Resources/case-orbits.txt" LogicalName="FlareRedact.case-orbits.txt" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlareRedact.Tests" />
+  </ItemGroup>
+</Project>

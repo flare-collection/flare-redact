@@ -1,3 +1,5 @@
+import { expandDottedI, normalizeKeyName } from './fold.js';
+
 /**
  * Words that name a secret, across languages. Used to catch `password=…` style
  * assignments and sensitive object keys in non-English codebases. Every entry is
@@ -74,8 +76,28 @@ function keywordAlternation(): string {
 
 /** `password = value` / `密码: value` in any listed language. Unicode-aware. */
 export function assignmentPattern(): RegExp {
-  return new RegExp(`(?:${keywordAlternation()})["'\\s]*[:=]\\s*["']?([^\\s"',;]{4,})["']?`, 'giu');
+  const source = `(?:${keywordAlternation()})["'\\s]*[:=]\\s*["']?([^\\s"',;]{4,})["']?`;
+  return new RegExp(expandDottedI(source), 'giu');
 }
 
 /** Object keys that are sensitive by name, in any listed language. */
 export const MULTILANG_KEY_SET: ReadonlySet<string> = new Set(SECRET_KEYWORDS);
+
+/** The keywords in the form normalizeKeyName produces, so `ŞİFRE` and `ΚΩΔΙΚΌΣ` hit. */
+const NORMALIZED_KEYWORDS: ReadonlySet<string> = new Set(SECRET_KEYWORDS.map(normalizeKeyName));
+
+/**
+ * English names a field is sensitive under, compared against the normalised key.
+ * Kept here rather than next to the detectors so key matching has one home.
+ */
+export const SENSITIVE_KEY_RE =
+  /^(?:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn)$/i;
+
+/**
+ * Whether a key is sensitive by name (SPEC §9): its normalised form is one of the
+ * English names or one of the multilingual keywords.
+ */
+export function isSensitiveKeyName(key: string): boolean {
+  const name = normalizeKeyName(key);
+  return SENSITIVE_KEY_RE.test(name) || NORMALIZED_KEYWORDS.has(name);
+}

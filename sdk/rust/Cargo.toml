@@ -1,6 +1,6 @@
 [package]
 name = "flare-redact"
-version = "1.11.0"
+version = "1.12.0"
 edition = "2021"
 rust-version = "1.70"
 description = "Secret and PII redaction for logs, prompts and any JSON value, implementing the portable FRS-1 detector specification."
@@ -19,5 +19,7 @@ exclude = ["/tests/fixtures"]
 # crate redacts; its default Map is a BTreeMap, so traversal order is sorted and
 # therefore identical to the other FRS-1 engines.
 regex = "1.10"
+# The operating system's CSPRNG, for opaque vault placeholders (SPEC §11).
+getrandom = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

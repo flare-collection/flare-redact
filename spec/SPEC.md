@@ -3,13 +3,13 @@
 **Status:** stable · **Revision:** FRS-1 · **Reference pack:** [`detectors.json`](./detectors.json) · **Schema:** [`detectors.schema.json`](./detectors.schema.json)
 
 FRS-1 defines how a *detector pack* is written and how an engine must execute it,
-in enough detail that four independent implementations — JavaScript/TypeScript,
-Python, Go and Rust — produce **byte-identical output** for the same input,
-options and pack. The [conformance corpus](./conformance/) is the executable form
+in enough detail that six independent implementations (JavaScript/TypeScript,
+Python, Go, Rust, Java and C#/.NET) produce **byte-identical output** for the
+same input, options and pack. The [conformance corpus](./conformance/) is the executable form
 of this document; a change that breaks it breaks the spec.
 
-The reason for a spec rather than four ports is drift. Detection logic that lives
-in four hand-maintained copies diverges within a release or two, and a redactor
+The reason for a spec rather than six ports is drift. Detection logic that lives
+in six hand-maintained copies diverges within a release or two, and a redactor
 that behaves differently per language is worse than no redactor, because the team
 stops being able to reason about what leaves the process.
 
@@ -34,19 +34,20 @@ stops being able to reason about what leaves the process.
 
 ## 1. Why a restricted regular-expression subset
 
-The four target engines do not agree on the syntax or the semantics of a "normal"
+The target engines do not agree on the syntax or the semantics of a "normal"
 regular expression:
 
-| Construct | JavaScript | Python `re` | Go `regexp` (RE2) | Rust `regex` |
-|---|---|---|---|---|
-| Lookahead / lookbehind | yes | yes | **no** | **no** |
-| Backreferences | yes | yes | **no** | **no** |
-| `\b` | ASCII | **Unicode** | ASCII | **Unicode** |
-| `\d`, `\w` | ASCII | **Unicode** | ASCII | **Unicode** |
-| `\s` | +Unicode spaces | Unicode | **ASCII, no `\v`** | Unicode |
-| `\p{L}` | with `u` flag | **unsupported** | yes | yes |
-| `(?s:…)` scoped flags | **no** | yes | yes | yes |
-| `$` without multiline | end of input | **also before a final newline** | end of input | end of input |
+| Construct | JavaScript | Python `re` | Go `regexp` (RE2) | Rust `regex` | Java `java.util.regex` | .NET `Regex` |
+|---|---|---|---|---|---|---|
+| Lookahead / lookbehind | yes | yes | **no** | **no** | yes | yes |
+| Backreferences | yes | yes | **no** | **no** | yes | yes |
+| `\b` | ASCII | **Unicode** | ASCII | **Unicode** | ASCII | **Unicode** |
+| `\d`, `\w` | ASCII | **Unicode** | ASCII | **Unicode** | ASCII | **Unicode** |
+| `\s` | +Unicode spaces | Unicode | **ASCII, no `\v`** | Unicode | **ASCII** | Unicode |
+| `\p{L}` | with `u` flag | **unsupported** | yes | yes | yes | **BMP only** |
+| `(?s:…)` scoped flags | **no** | yes | yes | yes | yes | yes |
+| `.` | not `\n \r U+2028 U+2029` | not `\n` | not `\n` | not `\n` | **also not U+0085** | not `\n`, **one UTF-16 unit** |
+| `$` without multiline | end of input | **also before a final newline** | end of input | end of input | **also before a final line break** | **also before a final newline** |
 
 Every one of those rows is a silent behaviour difference — the kind that makes a
 secret redacted on the Node service and passed through on the Python worker. FRS-1
@@ -60,7 +61,9 @@ catastrophic backtracking, so a pack cannot introduce a ReDoS into a host proces
 
 A pattern **may** use:
 
-- literals, and `.` (which never matches a line terminator)
+- literals, and `.`, which matches any character except the four JavaScript line
+  terminators `\n`, `\r`, U+2028 and U+2029 (an engine whose `.` differs spells
+  the set out, for example `[^\n\r\x{2028}\x{2029}]`)
 - character classes `[…]`, `[^…]`, ranges, and the escapes `\t \n \r \f \x0B \xHH \\ \. \* \+ \? \( \) \[ \] \{ \} \| \^ \$ \/ \-`
 - groups `(…)` (capturing) and `(?:…)` (non-capturing)
 - alternation `|`
@@ -82,26 +85,57 @@ A pattern **must not** use:
 Engines textually replace these **before** compiling, so the compiled automaton is
 native and fast:
 
-| Token | Meaning | JavaScript | Python | Go | Rust |
-|---|---|---|---|---|---|
-| `{{ANY}}` | any single character, including line terminators | `[\s\S]` | `[\s\S]` | `(?s:.)` | `(?s:.)` |
-| `{{L}}` | any single Unicode letter | `\p{L}` | `[^\W\d_]` | `\p{L}` | `\p{L}` |
+| Token | Meaning | JavaScript | Python | Go | Rust | Java | .NET |
+|---|---|---|---|---|---|---|---|
+| `{{ANY}}` | any single character, including line terminators | `[\s\S]` | `[\s\S]` | `(?s:.)` | `(?s:.)` | `(?s:.)` | a surrogate pair, or one unit that does not start a pair |
+| `{{L}}` | any single Unicode letter | `\p{L}` | `[^\W\d_]` | `\p{L}` | `\p{L}` | `\p{L}` | `\p{L}`, or a surrogate pair from the astral letters |
 
 `{{L}}` must not appear inside a character class — write `(?:{{L}}|[0-9.-])`
 instead of `[{{L}}0-9.-]`. This is what lets the Python engine expand it to the
 `[^\W\d_]` idiom, which is a complete class and cannot be nested.
 
+.NET regular expressions match UTF-16 code units, where every other engine
+matches code points. The .NET engine therefore translates the whole pattern:
+an astral literal becomes its surrogate pair as one group, a class that holds
+astral code points gains pair alternatives, and `.`, `{{ANY}}` and a negated
+class consume a whole pair or none of it, so no match can start or end inside a
+character.
+
 ### Flags
 
-`flags` is `""` or `"i"`. Case-insensitive matching is Unicode simple case folding.
-Engines compile with:
+`flags` is `""` or `"i"`. Case-insensitive matching is Unicode simple case folding
+(`CaseFolding.txt`, statuses C and S) with one addition: **i, I, İ (U+0130) and
+ı (U+0131) are one class.** Simple folding keeps the two Turkish letters apart
+from i, which would let `ŞİFRE`, `GİZLİ`, `MƏXFİ` and identifiers upper-cased
+under a Turkish locale (`APİ_KEY`) past every keyword.
 
-| | |
-|---|---|
-| JavaScript | `new RegExp(pattern, "gu")` / `"giu"` |
-| Python | `re.compile(pattern)` / `re.IGNORECASE` (never `re.ASCII`) |
-| Go | `regexp.MustCompile(pattern)` / `"(?i)" + pattern` |
-| Rust | `RegexBuilder::new(pattern).case_insensitive(flag)` |
+An engine whose regular expressions fold exactly rewrites a case-insensitive
+pattern before compiling it: a literal i, I, İ or ı (also when written `\x49` or
+`\x69`) becomes `[iIİı]`, and a character class that holds any of the four,
+directly or inside a range, gains the other three, which for a negated class
+keeps all four out. Python's `re.IGNORECASE` already treats the four as one class
+and compiles the pattern unchanged.
+
+| | case-sensitive | case-insensitive |
+|---|---|---|
+| JavaScript | `new RegExp(pattern, "gu")` | `new RegExp(rewritten, "giu")` |
+| Python | `re.compile(pattern)` | `re.compile(pattern, re.IGNORECASE)` (never `re.ASCII`) |
+| Go | `regexp.MustCompile(pattern)` | `regexp.MustCompile("(?i)" + rewritten)` |
+| Rust | `RegexBuilder::new(pattern)` | `RegexBuilder::new(rewritten).case_insensitive(true)` |
+| Java | `Pattern.compile(translated)` | `Pattern.compile(translated)`, the pattern spelled out with whole case classes |
+| .NET | `new Regex(translated)` | `new Regex(translated)`, the pattern spelled out with whole case classes |
+
+Java and .NET do not use their own case-insensitive flag, whose folding differs
+from the spec's and changes with the runtime's Unicode version. Each ships the
+closure of simple case folding (Unicode 17, plus the i class above) as a table
+and translates a case-insensitive pattern into a case-sensitive one: every
+literal becomes the class of characters that fold together with it, and every
+class gains the members that fold into it.
+
+These rules hold everywhere this document says *case-insensitive*: the pattern
+and `reject` patterns of an `"i"` detector, a mask pattern with its own
+`"flags": "i"`, `context` words, the `prefilter` test and `terms`. Validator
+patterns are always case-sensitive.
 
 ### Anchored sub-patterns
 
@@ -117,6 +151,8 @@ Implementations wrap these themselves (`^(?:…)` and `^(?:…)$`, or `re.match`
 `re.fullmatch`). Because the wrapping is applied by the engine and never by the
 pack author, Python's "`$` also matches before a trailing newline" behaviour is
 avoided: Python engines use `re.match` / `re.fullmatch`, which do not have it.
+Java and .NET have the same `$` behaviour as Python and write the full-match
+anchor as `\z`, which is the end of input only.
 
 ## 3. Detector fields
 
@@ -140,8 +176,9 @@ the input always satisfy a boundary.
 | `base64url` | `[A-Za-z0-9_+/=-]` |
 | `word_dash` | `[A-Za-z0-9_-]` |
 
-Membership is tested on UTF-16 code units in JavaScript, Unicode scalar values
-elsewhere; every class is ASCII-only, so the two agree.
+Membership is tested on UTF-16 code units in JavaScript, Java and .NET, and on
+Unicode scalar values in Python, Go and Rust; every class is ASCII-only, so the
+two agree.
 
 `{"before": "word", "after": "word"}` is the portable spelling of `\b…\b` for a
 pattern that starts and ends with a word character.
@@ -222,7 +259,9 @@ For a subject string *S* and a resolved, ordered detector list *D*:
    `p a s​s w o r d` is caught and the original characters are what get
    replaced.
 2. For each detector *d* in *D*, **in pack order**:
-   1. If `prefilter` is set and no literal occurs in *S′* (case-insensitive), skip *d*.
+   1. If `prefilter` is set and none of its literals occurs in *S′*, compared
+      case-insensitively ([§2](#flags)), skip *d*. A prefilter only saves work: it
+      must never skip a detector whose pattern would match.
    2. Scan *S′* left to right for successive non-overlapping matches of `pattern`.
    3. For each match:
       1. Take the span of capture group `capture` (0 = whole match). If the group
@@ -267,9 +306,9 @@ The algorithm:
 4. Walk back from the end, taking *i* when `weight(i) + best[p[i]+1] > best[i−1]`.
 
 Every step is integer/IEEE-754 double arithmetic with a fixed evaluation order, so
-all four engines compute the same sums. Sort stability is guaranteed by the
-language in all four cases (`Array.prototype.sort`, `sorted`, `sort.SliceStable`,
-`slice::sort_by`).
+all six engines compute the same sums. Sort stability is guaranteed by the
+library in all six cases (`Array.prototype.sort`, `sorted`, `sort.SliceStable`,
+`slice::sort_by`, `List.sort`, LINQ `OrderBy`).
 
 A single candidate short-circuits: with fewer than two candidates the list is
 returned unchanged.
@@ -285,18 +324,34 @@ score = clamp(score, 0, 1)
 ```
 
 `P(secret)` comes from the logistic model carried in the pack's `confidenceModel`.
-Its 14 features are computed over the captured value plus a ±64-character window:
+Its 14 features are computed over the captured value plus a window of 64
+characters on each side of it:
 
 `log2Len`, `entropy`, `fracLower`, `fracUpper`, `fracDigit`, `fracSymbol`,
 `fracHex`, `vowelFrac`, `classTransitionRate`, `hasMixedClasses`, `maxRunFrac`,
 `structuredHexId`, `ctxSecret`, `ctxBenign`.
 
-Feature extraction is defined over UTF-16 code units in JavaScript and over
-Unicode scalar values elsewhere; the features are ASCII-classifying, and `entropy`
+Feature extraction is defined over UTF-16 code units in JavaScript, Java and
+.NET, and over Unicode scalar values in Python, Go and Rust; the features are ASCII-classifying, and `entropy`
 is defined over code points in every engine, so the vectors agree for any input.
 The model only ever moves a score that a detector opted into with `refine: true`,
 and only when the host passes `refineConfidence`. Checksum-validated detectors
 never opt in — they are already certain.
+
+The value and the windows are taken from the input *S* around the reported span
+(so a zero-width character inside them counts), measured in the unit of offsets
+(UTF-16 code units in JavaScript, Java and .NET, characters in Python, Go and
+Rust) and clipped at the ends of
+the input; a detector's `context.window` (80 when absent) is measured the same
+way.
+`ctxSecret` and `ctxBenign` are 1 when the window contains one of these words
+with neither neighbour in `[A-Za-z0-9_]`, compared with ASCII-only case folding
+(A-Z against a-z and nothing else, so `ſecret` does not count):
+
+| Feature | Words |
+|---|---|
+| `ctxSecret` | `secret`, `api[_-]?key`, `apikey`, `token`, `password`, `passwd`, `pwd`, `auth`, `authorization`, `bearer`, `access[_-]?key`, `private[_-]?key`, `client[_-]?secret`, `credential`, `signing[_-]?key` |
+| `ctxBenign` | `uuid`, `guid`, `sha1`, `sha256`, `sha512`, `md5`, `hash`, `digest`, `etag`, `checksum`, `commit`, `revision`, `request[_-]?id`, `trace[_-]?id`, `correlation[_-]?id`, `span[_-]?id`, `object[_-]?id`, `content[_-]?id`, `version`, `colou?r`, `slug`, `filename` |
 
 ## 7. Replacement modes
 
@@ -351,35 +406,56 @@ deriveBytes(secret, context, n):
   `<number> <street> Street`; anything else falls back to `pseudonym`.
 
 Indexing is by **Unicode scalar value** in Python, Go and Rust, and by UTF-16 code
-unit in JavaScript. Because the alphabets are ASCII and non-ASCII characters are
+unit in JavaScript, Java and .NET. Because the alphabets are ASCII and non-ASCII characters are
 passed through unchanged, the outputs agree for all inputs. The `deriveBytes`
 length is the length in the engine's own unit; a pack that needs cross-language
 identical pseudonyms for astral-plane input should mask those detectors instead.
 
 ## 9. Sensitive keys, allowlists and terms
 
-- **`redactKeys`** — when a structured input has a string value under a key that is
-  sensitive by name, the value is replaced without pattern matching. The default
-  key test is `SENSITIVE_KEY_RE` (`password`, `secret`, `token`, `api_key`,
-  `authorization`, `cookie`, `session_id`, `credit_card`, `cvv`, `ssn`, …) **or**
-  membership in the multilingual keyword set. The finding is reported as detector
-  `sensitive_key`, risk `critical`, confidence `0.98`.
+- **`redactKeys`**: when a structured input has a string value under a key that is
+  sensitive by name, the value is replaced without pattern matching. Keys are
+  compared in a **normalised form**: İ and ı become i, every character takes its
+  simple lowercase mapping (`UnicodeData.txt`), then ς becomes σ and ſ becomes s.
+  A locale-free full lowercase (`toLowerCase`, `str.lower`) differs from simple
+  lowercasing only in İ and the final-sigma rule, both of which this form erases,
+  so `ŞİFRE`, `GİZLİ`, `ΚΩΔΙΚΌΣ` and `APİ_KEY` are recognised by every engine.
+  The default test is that the normalised key fully matches `SENSITIVE_KEY_RE`
+  (`password`, `secret`, `token`, `api_key`, `authorization`, `cookie`,
+  `session_id`, `credit_card`, `cvv`, `ssn`, …) or equals a multilingual keyword
+  in normalised form. A host-supplied list of key names is compared the same way.
+  The finding is reported as detector `sensitive_key`, risk `critical`,
+  confidence `0.98`.
 - **`allow`** — exact values (or a host regular expression) that are never
   redacted. Tested against the raw slice *and* against the zero-width-normalised
   slice, so `​`-padded look-alikes cannot slip past an allowlist entry.
-- **`terms`** — host-supplied literals, matched longest-first with Unicode letter/
-  digit boundaries, reported as detector `custom_term`. Terms are prepended to the
-  detector list, so they take part in overlap resolution like any other candidate.
+- **`terms`**: host-supplied literals, reported as detector `custom_term` and
+  prepended to the detector list, so they take part in overlap resolution like any
+  other candidate. They are ordered longest first by character count, equal
+  lengths keeping the caller's order. Scanning *S′* left to right, at each
+  position the first term in that order that matches there (case-insensitively
+  per [§2](#flags) unless `termsCaseSensitive` is set) and whose neighbours are
+  not a letter, a combining mark, a number (general categories L, M and N) or `_`
+  is taken, and the scan resumes after it; when none is, the scan moves on one
+  character. That is what a backtracking engine does with
+  `(?<![\p{L}\p{M}\p{N}_])(?:t1|t2|…)(?![\p{L}\p{M}\p{N}_])`. An engine without
+  lookaround checks the neighbours itself and, when they fail, tries the
+  remaining terms at the same position before moving on. Marks belong to the
+  word, so `राज` does not match inside `राजा`. A match is replaced by its own
+  term's `replace` text, or `***`.
 
 ## 10. Structured data
 
 Redacting a structure is defined as redacting every string reachable from it:
 
-- object/dict values, array/list elements, map keys and values, set members
+- values of objects, dicts and maps, array/list elements, set members
+- the keys of a host map type other than the JSON object model (a JavaScript `Map`)
 - error/exception messages
 - the string form of URLs and query strings
 
-Cycles are visited once. Non-string leaves (numbers, booleans, null, binary
+The member names of a JSON object are field names and are never redacted, in
+whatever type an engine uses for one: a JavaScript object, a Python `dict`, a Go
+`map[string]any`, a `serde_json::Map`. Cycles are visited once. Non-string leaves (numbers, booleans, null, binary
 buffers, dates) are returned as-is; a redactor that stringifies numbers changes
 meaning, and a redactor that walks binary blobs wastes the caller's CPU.
 
@@ -402,7 +478,8 @@ mapping, so the same secret gets the same placeholder everywhere in a session an
 `restore` puts the originals back — the round trip that makes "send a prompt to a
 model without sending the data" work.
 
-- Default placeholders are **opaque**: `[FR_<DETECTOR_ID>_<12 random bytes, hex>]`.
+- Default placeholders are **opaque**: `[FR_<DETECTOR_ID>_<12 random bytes, hex>]`,
+  the bytes drawn from a cryptographically secure generator.
   They carry no counter, so an observer cannot tell how many distinct values a
   session has seen or which appeared first.
 - `readable` placeholders (`[EMAIL_1]`) are predictable and are for local
@@ -458,6 +535,10 @@ partial tool input, and output the request asked to be JSON.
 | `maxInputLength` | 16 MiB per scanned string | error |
 | `maxFindings` | 50 000 per scanned string | error |
 
+`maxInputLength` counts UTF-16 code units, the unit JavaScript measures strings
+in; the other engines compute the same count (a character above U+FFFF counts
+twice), so an input is accepted or refused identically everywhere.
+
 Both fail **closed** — an error, never a truncated or partially-redacted result.
 A caller who receives a partially-redacted string has no way to know it, which is
 exactly the failure mode a redactor must not have.
@@ -478,6 +559,8 @@ output for each. Every implementation ships a test that runs the whole corpus:
 | Python | `python -m unittest discover sdk/python/tests` |
 | Go | `go test ./...` in `sdk/go` |
 | Rust | `cargo test` in `sdk/rust` |
+| Java | `mvn verify` in `sdk/java` |
+| .NET | `dotnet test sdk/dotnet/FlareRedact.sln` |
 
 The corpus covers each detector's positive and negative cases, overlap resolution,
 zero-width evasion, every replacement mode, keyed transform vectors, structured
@@ -517,6 +600,14 @@ purpose and listed here.
    cue lists, name lists and context, not a set of patterns, so it does not fit a
    detector pack. Node runs it; other runtimes reach it through the gateway with
    `enable: ["entities"]`.
+8. **Detector `context` words match anywhere in the window.** Node's built-in
+   `phone` detector wraps its words in `\b`, so `xcall me at` raises a phone
+   number's confidence by 0.06 under the pack and not in Node.
+9. **A `boundary` checks the neighbours of a span; it never moves the span.**
+   JavaScript's `\b` in front of a pattern that may start with `-`, `.` or `/`
+   moves the start past those characters (`-ada@example.com` reports
+   `ada@example.com`); FRS-1 keeps them. The difference is punctuation at the edge
+   of a match that is redacted either way.
 
 ---
 

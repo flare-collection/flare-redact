@@ -44,26 +44,26 @@ pub struct Vault {
     counts: HashMap<String, usize>,
 }
 
-/// Best-effort opaque token.
-///
-/// `std` ships no random number generator, and pulling one in for placeholder
-/// minting would double this crate's dependency list. `RandomState` is seeded
-/// from the operating system at process start, which makes tokens unique and
-/// unpredictable in practice — but it is not a CSPRNG. If your threat model
-/// needs one, supply [`Vault::with_placeholder`].
+/// An opaque token: 12 bytes from the operating system's CSPRNG, in hex (SPEC
+/// §11), so a placeholder says nothing about the value or the order it was seen
+/// in. Should the system generator ever fail, the token falls back to a hash
+/// keyed by `RandomState` and the counter, which is still unpredictable in practice.
 fn opaque_token(counter: usize) -> String {
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
-
-    let state = RandomState::new();
-    let mut first = state.build_hasher();
-    first.write_usize(counter);
-    let high = first.finish();
-    let mut second = state.build_hasher();
-    second.write_u64(high);
-    second.write_usize(counter.wrapping_add(0x9e37_79b9));
-    let low = second.finish();
-    format!("{high:016x}{:08x}", low as u32)
+    let mut bytes = [0u8; 12];
+    if getrandom::getrandom(&mut bytes).is_err() {
+        use std::collections::hash_map::RandomState;
+        use std::hash::{BuildHasher, Hasher};
+        let state = RandomState::new();
+        let mut first = state.build_hasher();
+        first.write_usize(counter);
+        let high = first.finish();
+        let mut second = state.build_hasher();
+        second.write_u64(high);
+        second.write_usize(counter.wrapping_add(0x9e37_79b9));
+        bytes[..8].copy_from_slice(&high.to_be_bytes());
+        bytes[8..].copy_from_slice(&(second.finish() as u32).to_be_bytes());
+    }
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 impl Vault {

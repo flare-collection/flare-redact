@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <RootNamespace>FlareRedact.Extensions.Logging</RootNamespace>
+    <PackageId>FlareRedact.Extensions.Logging</PackageId>
+    <Description>Microsoft.Extensions.Logging integration for FlareRedact: wraps every registered logger provider so messages, structured state, scopes and exceptions are redacted before any provider sees them.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>$(PackageTags);logging;aspnetcore</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlareRedact.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FlareRedact/FlareRedact.csproj" />
+  </ItemGroup>
+</Project>

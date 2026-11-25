@@ -152,6 +152,39 @@ func TestLimitsFailClosed(t *testing.T) {
 	}
 }
 
+func TestInputLimitCountsUTF16Units(t *testing.T) {
+	// 6 characters, 8 UTF-16 code units, 16 UTF-8 bytes: the limit is in UTF-16
+	// units in every engine (SPEC §12).
+	text := "üüüü\U0001F600\U0001F600"
+	if _, err := mustCompile(t, Options{MaxInputLength: 8}).RedactString(text); err != nil {
+		t.Errorf("8 units within a limit of 8: %v", err)
+	}
+	if _, err := mustCompile(t, Options{MaxInputLength: 7}).RedactString(text); err == nil {
+		t.Error("8 units past a limit of 7 must fail closed")
+	}
+}
+
+func TestExpandDottedI(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"api", "ap[iI\U00000130\U00000131]"},
+		{`\x49d`, "[iI\U00000130\U00000131]d"},
+		{"[a-z]", "[a-ziI\U00000130\U00000131]"},
+		{"[a-z-]", "[a-ziI\U00000130\U00000131-]"},
+		{"[^a-h]", "[^a-h]"},
+		{"{{ANY}}i", "{{ANY}}[iI\U00000130\U00000131]"},
+		{"[abc", "[abc"},
+	} {
+		if got := expandDottedI(tc.in); got != tc.want {
+			t.Errorf("expandDottedI(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	for in, want := range map[string]string{"APİ_KEY": "api_key", "ΚΩΔΙΚΟΣ": "κωδικοσ", "ſecret": "secret"} {
+		if got := normalizeKeyName(in); got != want {
+			t.Errorf("normalizeKeyName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestScanReportsLocations(t *testing.T) {
 	policy := mustCompile(t, Options{})
 	findings, err := policy.Scan(map[string]any{"note": "line one\nwrite to ada@example.com"})
@@ -393,6 +426,31 @@ func TestGatewayAgentFlowDenialCarriesSafeDecision(t *testing.T) {
 	}
 	if gatewayErr.Status != http.StatusForbidden || !bytes.Contains(gatewayErr.Details, []byte("capability_denied")) {
 		t.Fatalf("GatewayError = %#v", gatewayErr)
+	}
+}
+
+func TestPackDotExcludesJavaScriptLineTerminators(t *testing.T) {
+	// RE2's '.' excludes only \n; the spec's '.' is JavaScript's.
+	const template = `{"spec":"FRS-1","id":"t","version":"1","detectors":[` +
+		`{"id":"a","label":"A","why":"w.","pattern":%q,"mask":{"type":"fixed","text":"[T]"},` +
+		`"default":true,"risk":"low","confidence":0.5}]}`
+	cases := []struct{ pattern, input, want string }{
+		{`k.y[0-9]+`, "k\ry1 k\u2028y2 k\u2029y3 k\ny4 k\u0085y5 k.y6 k[y7", "k\ry1 k\u2028y2 k\u2029y3 k\ny4 [T] [T] [T]"},
+		{`k[.]y[0-9]`, "k.y1 kxy2", "[T] kxy2"},
+		{`k\.y[0-9]`, "k.y1 kxy2", "[T] kxy2"},
+	}
+	for _, c := range cases {
+		pack, err := LoadPack([]byte(fmt.Sprintf(template, c.pattern)))
+		if err != nil {
+			t.Fatalf("pattern %q: %v", c.pattern, err)
+		}
+		got, err := Compile(Options{Pack: pack})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out, err := got.RedactString(c.input); err != nil || out != c.want {
+			t.Errorf("pattern %q: got %q, %v; want %q", c.pattern, out, err, c.want)
+		}
 	}
 }
 

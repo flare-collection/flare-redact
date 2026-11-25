@@ -43,13 +43,13 @@ const (
 // Every class is ASCII, so testing the adjacent byte is enough: the bytes of a
 // multi-byte rune are all ≥ 0x80 and can never be members.
 var boundarySets = map[string]string{
-	"word":       lowerAlphabet + upperAlphabet + digitAlphabet + "_",
-	"alnum":      lowerAlphabet + upperAlphabet + digitAlphabet,
-	"digit":      digitAlphabet,
-	"hex":        digitAlphabet + "abcdefABCDEF",
-	"base64":     lowerAlphabet + upperAlphabet + digitAlphabet + "+/=",
-	"base64url":  lowerAlphabet + upperAlphabet + digitAlphabet + "_+/=-",
-	"word_dash":  lowerAlphabet + upperAlphabet + digitAlphabet + "_-",
+	"word":      lowerAlphabet + upperAlphabet + digitAlphabet + "_",
+	"alnum":     lowerAlphabet + upperAlphabet + digitAlphabet,
+	"digit":     digitAlphabet,
+	"hex":       digitAlphabet + "abcdefABCDEF",
+	"base64":    lowerAlphabet + upperAlphabet + digitAlphabet + "+/=",
+	"base64url": lowerAlphabet + upperAlphabet + digitAlphabet + "_+/=-",
+	"word_dash": lowerAlphabet + upperAlphabet + digitAlphabet + "_-",
 }
 
 type byteSet [256]bool
@@ -78,14 +78,14 @@ type Detector struct {
 	Refine     bool
 	Prefilter  []string
 
-	regex   *regexp.Regexp
-	capture int
-	before  *byteSet
-	after   *byteSet
-	// unicodeBoundary is used by the caller-supplied terms detector, whose
-	// boundaries must be Unicode-aware rather than ASCII: "Ünvan" should not
-	// match inside "Ünvanlar".
-	unicodeBoundary bool
+	regex     *regexp.Regexp
+	prefilter *regexp.Regexp
+	capture   int
+	before    *byteSet
+	after     *byteSet
+	// terms replaces regex for the caller-supplied terms detector, whose
+	// boundaries are Unicode-aware and need a lookaround RE2 does not have.
+	terms       *termsMatcher
 	reject      []*regexp.Regexp
 	validators  []func(string) bool
 	mask        func(string) string
@@ -125,11 +125,11 @@ func (p *Pack) Detector(id string) (*Detector, bool) {
 }
 
 type packDocument struct {
-	Spec            string           `json:"spec"`
-	ID              string           `json:"id"`
-	Version         string           `json:"version"`
-	Title           string           `json:"title"`
-	ConfidenceModel *modelDocument   `json:"confidenceModel"`
+	Spec            string            `json:"spec"`
+	ID              string            `json:"id"`
+	Version         string            `json:"version"`
+	Title           string            `json:"title"`
+	ConfidenceModel *modelDocument    `json:"confidenceModel"`
 	Detectors       []packDetectorDoc `json:"detectors"`
 }
 
@@ -173,7 +173,51 @@ type contextDoc struct {
 }
 
 func expandTokens(pattern string) string {
-	return strings.NewReplacer("{{ANY}}", tokenAny, "{{L}}", tokenLetter).Replace(pattern)
+	return strings.NewReplacer("{{ANY}}", tokenAny, "{{L}}", tokenLetter).Replace(expandDots(pattern))
+}
+
+// tokenDot is the set JavaScript's '.' matches: every character except the
+// line terminators \n, \r, U+2028 and U+2029. RE2's '.' excludes only \n.
+const tokenDot = `[^\n\r\x{2028}\x{2029}]`
+
+// expandDots spells out every '.' outside a character class as tokenDot.
+func expandDots(pattern string) string {
+	if !strings.Contains(pattern, ".") {
+		return pattern
+	}
+	var out strings.Builder
+	inClass := false
+	for i := 0; i < len(pattern); i++ {
+		ch := pattern[i]
+		switch {
+		case ch == '\\' && i+1 < len(pattern):
+			out.WriteByte(ch)
+			out.WriteByte(pattern[i+1])
+			i++
+			continue
+		case inClass:
+			if ch == ']' {
+				inClass = false
+			}
+		case ch == '[':
+			inClass = true
+			out.WriteByte(ch)
+			if i+1 < len(pattern) && pattern[i+1] == '^' {
+				i++
+				out.WriteByte('^')
+			}
+			if i+1 < len(pattern) && pattern[i+1] == ']' {
+				i++
+				out.WriteByte(']')
+			}
+			continue
+		case ch == '.':
+			out.WriteString(tokenDot)
+			continue
+		}
+		out.WriteByte(ch)
+	}
+	return out.String()
 }
 
 const forbiddenEscapes = "bBdDwWsSpP123456789AZzGkK"
@@ -246,6 +290,10 @@ func compilePattern(pattern, flags, where string, portable bool, anchor anchorKi
 			return nil, err
 		}
 	}
+	insensitive := strings.Contains(flags, "i")
+	if insensitive {
+		pattern = expandDottedI(pattern)
+	}
 	body := expandTokens(pattern)
 	switch anchor {
 	case anchorPrefix:
@@ -253,7 +301,7 @@ func compilePattern(pattern, flags, where string, portable bool, anchor anchorKi
 	case anchorFull:
 		body = "^(?:" + body + ")$"
 	}
-	if strings.Contains(flags, "i") {
+	if insensitive {
 		body = "(?i)" + body
 	}
 	compiled, err := regexp.Compile(body)
@@ -470,8 +518,9 @@ func compileDetector(doc packDetectorDoc) (*Detector, error) {
 		ctxWindow:  80,
 	}
 
-	for _, literal := range doc.Prefilter {
-		detector.Prefilter = append(detector.Prefilter, strings.ToLower(literal))
+	detector.Prefilter = append(detector.Prefilter, doc.Prefilter...)
+	if detector.prefilter, err = compilePrefilter(doc.Prefilter); err != nil {
+		return nil, fmt.Errorf("%s: invalid prefilter (%w)", where, err)
 	}
 
 	if doc.Boundary != nil {

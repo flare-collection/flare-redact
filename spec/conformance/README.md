@@ -1,6 +1,6 @@
 # The conformance corpus
 
-Four engines, one answer. `cases.json` holds inputs and options; `expected.json`
+Six engines, one answer. `cases.json` holds inputs and options; `expected.json`
 holds the output every FRS-1 implementation must produce for them.
 
 | File | What it is |
@@ -16,6 +16,8 @@ holds the output every FRS-1 implementation must produce for them.
 | Python | `python -m unittest discover -s sdk/python/tests -t sdk/python` |
 | Go | `cd sdk/go && go test ./...` |
 | Rust | `cd sdk/rust && cargo test` |
+| Java | `cd sdk/java && mvn verify` |
+| .NET | `dotnet test sdk/dotnet/FlareRedact.sln` |
 
 ## Regenerating expectations
 
@@ -36,7 +38,7 @@ formatting change.
 - `name` is unique and reads as `area/behaviour`.
 - `input` is any JSON value. Objects must have their keys in sorted order — see
   [SPEC.md §10](../SPEC.md#10-structured-data) for why traversal order is
-  observable and how the corpus keeps the four engines in agreement.
+  observable and how the corpus keeps the engines in agreement.
 - `options` uses the JSON wire names (camelCase), the same ones the gateway
   accepts.
 - `checks` defaults to `["redact", "scan"]`; add `"vault"` for a round trip, and
@@ -54,7 +56,8 @@ gets turned off.
 ## Ground rules
 
 - **No astral-plane characters.** Offsets are reported in the host language's
-  natural string unit: UTF-16 code units in JavaScript, scalar values elsewhere.
+  natural string unit: UTF-16 code units in JavaScript, Java and .NET, scalar
+  values in Python, Go and Rust.
   These coincide for everything below U+10000, and the corpus stays there.
 - **No complete credential in the raw file.** A case that holds a whole token
   writes one character of its prefix as a `\uXXXX` escape (`glpat\u002d…`).
@@ -63,5 +66,5 @@ gets turned off.
 - **No wall-clock or randomness.** Vault cases use readable placeholders; keyed
   transforms use a fixed `transformSecret`.
 - **Confidence is compared at six decimal places**, which is finer than any
-  decision the library makes with the value and coarse enough that four
+  decision the library makes with the value and coarse enough that six
   languages' floating-point formatting cannot disagree about the text.

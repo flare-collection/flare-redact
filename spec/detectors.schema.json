@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://flare-collection.github.io/flare-redact/spec/detectors.schema.json",
   "title": "FRS-1 detector pack",
-  "description": "A portable, language-neutral description of a set of secret and PII detectors. Any FRS-1 engine (JavaScript, Python, Go, Rust) loading the same pack must produce identical findings. The normative prose lives in spec/SPEC.md.",
+  "description": "A portable, language-neutral description of a set of secret and PII detectors. Any FRS-1 engine (JavaScript, Python, Go, Rust, Java, .NET) loading the same pack must produce identical findings. The normative prose lives in spec/SPEC.md.",
   "type": "object",
   "required": ["spec", "id", "version", "detectors"],
   "additionalProperties": false,

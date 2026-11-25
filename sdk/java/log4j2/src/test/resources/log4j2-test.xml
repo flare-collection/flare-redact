@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Appenders>
+    <Memory name="Pattern">
+      <PatternLayout pattern="%redact{%msg}{{&quot;mode&quot;:&quot;label&quot;}}"/>
+    </Memory>
+    <Memory name="Plain">
+      <PatternLayout pattern="%msg|%X{password}|%X{note}"/>
+    </Memory>
+    <Rewrite name="Redacted">
+      <FlareRedact/>
+      <AppenderRef ref="Plain"/>
+    </Rewrite>
+  </Appenders>
+  <Loggers>
+    <Logger name="pattern" level="info" additivity="false">
+      <AppenderRef ref="Pattern"/>
+    </Logger>
+    <Logger name="rewrite" level="info" additivity="false">
+      <AppenderRef ref="Redacted"/>
+    </Logger>
+    <Root level="off"/>
+  </Loggers>
+</Configuration>

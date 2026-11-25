@@ -50,8 +50,8 @@ func newConfidenceModel(version int, features []string, weights []float64, bias 
 }
 
 var (
-	secretContext = regexp.MustCompile(`(?i)\b(secret|api[_-]?key|apikey|token|password|passwd|pwd|auth|authorization|bearer|access[_-]?key|private[_-]?key|client[_-]?secret|credential|signing[_-]?key)\b`)
-	benignContext = regexp.MustCompile(`(?i)\b(uuid|guid|sha1|sha256|sha512|md5|hash|digest|etag|checksum|commit|revision|request[_-]?id|trace[_-]?id|correlation[_-]?id|span[_-]?id|object[_-]?id|content[_-]?id|version|colou?r|slug|filename)\b`)
+	secretContext = regexp.MustCompile(`\b(secret|api[_-]?key|apikey|token|password|passwd|pwd|auth|authorization|bearer|access[_-]?key|private[_-]?key|client[_-]?secret|credential|signing[_-]?key)\b`)
+	benignContext = regexp.MustCompile(`\b(uuid|guid|sha1|sha256|sha512|md5|hash|digest|etag|checksum|commit|revision|request[_-]?id|trace[_-]?id|correlation[_-]?id|span[_-]?id|object[_-]?id|content[_-]?id|version|colou?r|slug|filename)\b`)
 	structuredHex = regexp.MustCompile(`(?i)^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{24}|[0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64})$`)
 )
 
@@ -136,6 +136,10 @@ func extractFeatures(value, context string) []float64 {
 		return 0
 	}
 
+	// Context words use ASCII-only case folding and ASCII word boundaries
+	// (SPEC §6), so the patterns are case-sensitive over an ASCII-lowered copy.
+	folded := asciiLower(context)
+
 	return []float64{
 		math.Log2(total),
 		ShannonEntropy(value),
@@ -149,8 +153,8 @@ func extractFeatures(value, context string) []float64 {
 		mixed,
 		float64(maxRun) / total,
 		boolFeature(structuredHex.MatchString(value)),
-		boolFeature(secretContext.MatchString(context)),
-		boolFeature(benignContext.MatchString(context)),
+		boolFeature(secretContext.MatchString(folded)),
+		boolFeature(benignContext.MatchString(folded)),
 	}
 }
 

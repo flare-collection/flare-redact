@@ -120,6 +120,20 @@ fn limits_fail_closed() {
 }
 
 #[test]
+fn input_limit_counts_utf16_units() {
+    // 6 characters, 8 UTF-16 code units, 16 UTF-8 bytes: the limit is in UTF-16
+    // units in every engine (SPEC §12).
+    let text = "üüüü\u{1F600}\u{1F600}";
+    let compile = |limit: usize| {
+        let mut options = Options::new();
+        options.max_input_length = limit;
+        Policy::compile(options).unwrap()
+    };
+    assert!(compile(8).redact_str(text).is_ok(), "8 units fit a limit of 8");
+    assert!(matches!(compile(7).redact_str(text), Err(Error::Limit(_))), "8 units exceed a limit of 7");
+}
+
+#[test]
 fn scan_reports_locations_and_paths() {
     let policy = Policy::compile(Options::new()).unwrap();
     let findings = policy.scan(&json!({"note": "line one\nwrite to ada@example.com"})).unwrap();
@@ -172,6 +186,27 @@ fn packs_reject_non_portable_patterns() {
         assert!(load_pack(&template(pattern)).is_err(), "pattern {pattern:?} should not load");
     }
     assert!(load_pack(r#"{"spec":"FRS-2","id":"t","version":"1","detectors":[]}"#).is_err());
+}
+
+#[test]
+fn pack_dot_excludes_the_javascript_line_terminators() {
+    // The regex crate's `.` excludes only \n; the spec's `.` is JavaScript's.
+    let template = |pattern: &str| {
+        format!(
+            r#"{{"spec":"FRS-1","id":"t","version":"1","detectors":[{{"id":"a","label":"A","why":"w.","pattern":{},"mask":{{"type":"fixed","text":"[T]"}},"default":true,"risk":"low","confidence":0.5}}]}}"#,
+            serde_json::to_string(pattern).unwrap()
+        )
+    };
+    let cases = [
+        ("k.y[0-9]+", "k\ry1 k\u{2028}y2 k\u{2029}y3 k\ny4 k\u{85}y5 k.y6 k[y7", "k\ry1 k\u{2028}y2 k\u{2029}y3 k\ny4 [T] [T] [T]"),
+        ("k[.]y[0-9]", "k.y1 kxy2", "[T] kxy2"),
+        (r"k\.y[0-9]", "k.y1 kxy2", "[T] kxy2"),
+    ];
+    for (pattern, input, want) in cases {
+        let pack = std::sync::Arc::new(load_pack(&template(pattern)).unwrap());
+        let policy = Policy::compile(Options::new().pack(pack)).unwrap();
+        assert_eq!(policy.redact_str(input).unwrap(), want, "pattern {pattern:?}");
+    }
 }
 
 #[test]

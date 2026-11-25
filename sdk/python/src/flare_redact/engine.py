@@ -25,9 +25,9 @@ from typing import (
 )
 
 from .crypto import hmac_fingerprint
-from .keywords import MULTILANG_KEY_SET, SENSITIVE_KEY_PATTERN
+from .keywords import SENSITIVE_KEY_PATTERN, is_sensitive_key_name, normalize_key_name
 from .ml import secret_probability
-from .pack import Detector, Pack, core_pack, is_unicode_word_char
+from .pack import Detector, Pack, core_pack, term_boundary_class
 from .transforms import pseudonymize, surrogate
 
 __all__ = [
@@ -197,25 +197,37 @@ def build_terms_detector(
     if not pairs:
         return None
 
-    alternation = "|".join(re.escape(term) for term, _ in sorted(pairs, key=lambda p: -len(p[0])))
-    regex = re.compile(f"(?:{alternation})", 0 if case_sensitive else re.IGNORECASE)
+    # Longest first in characters; sorted() is stable, so ties keep the caller's order.
+    ordered = sorted(pairs, key=lambda p: -len(p[0]))
+    flags = 0 if case_sensitive else re.IGNORECASE
+    word = term_boundary_class()
+    alternation = "|".join(re.escape(term) for term, _ in ordered)
+    # The neighbours are part of the pattern (FRS-1 §9), so on a failed boundary
+    # the regex engine itself tries the shorter terms and the next position.
+    regex = re.compile(f"(?<!{word})(?:{alternation})(?!{word})", flags)
 
-    def key(text: str) -> str:
-        return text if case_sensitive else text.lower()
+    # The replacement is that of the first term, in matching order, that matches
+    # the text exactly: the alternative the scan took.
+    exact = [
+        (re.compile(re.escape(term), flags), replacement if replacement is not None else "***")
+        for term, replacement in ordered
+    ]
 
-    replacements = {key(term): (replacement if replacement is not None else "***") for term, replacement in pairs}
+    def mask(value: str) -> str:
+        for pattern, replacement in exact:
+            if pattern.fullmatch(value):
+                return replacement
+        return "***"
 
     return Detector(
         id="custom_term",
         label="Custom term",
         why="A term you configured as sensitive.",
         regex=regex,
-        mask=lambda value: replacements.get(key(value), "***"),
+        mask=mask,
         risk="high",
         confidence=0.92,
         default=True,
-        before=is_unicode_word_char,
-        after=is_unicode_word_char,
         tags=("custom",),
     )
 
@@ -244,11 +256,11 @@ def key_matcher(options: Options) -> Callable[[str], bool]:
     if rule is False:
         return lambda _key: False
     if rule is True or rule is None:
-        return lambda name: bool(_SENSITIVE_KEY_RE.fullmatch(name)) or name.lower() in MULTILANG_KEY_SET
+        return is_sensitive_key_name
     if isinstance(rule, re.Pattern):
         return lambda name: rule.search(name) is not None
-    names = frozenset(str(name).lower() for name in rule)
-    return lambda name: name.lower() in names
+    names = frozenset(normalize_key_name(str(name)) for name in rule)
+    return lambda name: normalize_key_name(name) in names
 
 
 def allow_matcher(options: Options) -> Callable[[str], bool]:
@@ -343,6 +355,18 @@ def _score_confidence(detector: Detector, text: str, start: int, end: int, optio
     return max(0.0, min(1.0, score))
 
 
+def _utf16_length(text: str, limit: int) -> int:
+    """The length of ``text`` in UTF-16 code units, the unit FRS-1 limits count in.
+
+    A character above U+FFFF counts twice. Counting is skipped while even that
+    doubling could not cross ``limit``.
+    """
+    length = len(text)
+    if length * 2 <= limit:
+        return length
+    return length + sum(1 for ch in text if ord(ch) > 0xFFFF)
+
+
 def scan_string(
     text: str,
     detectors: Sequence[Detector],
@@ -350,22 +374,19 @@ def scan_string(
     options: Options,
 ) -> List[Hit]:
     """Every span in ``text`` that survives filtering and overlap resolution."""
-    if len(text) > options.max_input_length:
+    length = _utf16_length(text, options.max_input_length)
+    if length > options.max_input_length:
         raise RedactionLimitError(
-            f"Input length {len(text)} exceeds the configured limit of {options.max_input_length}."
+            f"Input length {length} exceeds the configured limit of {options.max_input_length}."
         )
 
     pack = options.pack or core_pack()
     subject, index_map = _normalized_view(text)
-    lowered: Optional[str] = None
     hits: List[Hit] = []
 
     for detector in detectors:
-        if detector.prefilter:
-            if lowered is None:
-                lowered = subject.lower()
-            if not any(literal in lowered for literal in detector.prefilter):
-                continue
+        if detector.prefilter_regex is not None and detector.prefilter_regex.search(subject) is None:
+            continue
 
         for match in detector.regex.finditer(subject):
             span_start, span_end = match.span(detector.capture)
@@ -494,12 +515,13 @@ def map_graph(
         if isinstance(node, Mapping):
             out: Dict[Any, Any] = {}
             seen[identity] = out
+            # Keys are field names and stay as they are (FRS-1 §10); only the
+            # values are redacted, which is also all that scan() reports on.
             for key, item in node.items():
-                mapped_key = walk(key) if isinstance(key, str) else key
                 if map_sensitive is not None and isinstance(key, str) and isinstance(item, str):
-                    out[mapped_key] = map_sensitive(key, item)
+                    out[key] = map_sensitive(key, item)
                 else:
-                    out[mapped_key] = walk(item)
+                    out[key] = walk(item)
             return out
 
         if isinstance(node, list):

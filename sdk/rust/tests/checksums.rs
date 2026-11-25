@@ -1,7 +1,7 @@
 //! Known-answer tests for the national ID validators added with 14 more
 //! countries. Every valid sample was generated for these tests and cross-checked
 //! with an independent implementation; none belongs to a person. The same table
-//! runs in the JavaScript, Python and Go test suites.
+//! runs in the other engines' test suites.
 
 use flare_redact::checksums::named;
 

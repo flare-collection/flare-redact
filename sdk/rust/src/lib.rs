@@ -1,7 +1,7 @@
 //! Hide secrets and PII before they reach a log, a model, or a vendor.
 //!
-//! `flare-redact` implements the FRS-1 detector specification — the same one the
-//! JavaScript, Python and Go engines implement — so a policy written once
+//! `flare-redact` implements the FRS-1 detector specification, the same one the
+//! JavaScript, Python, Go, Java and .NET engines implement, so a policy written once
 //! behaves identically everywhere in a polyglot system. The shared conformance
 //! corpus is run by every engine's test suite; a change that makes them disagree
 //! fails CI.
@@ -58,6 +58,7 @@ use std::sync::Arc;
 pub mod checksums;
 pub mod crypto;
 mod engine;
+mod fold;
 mod keywords;
 pub mod ml;
 mod pack;

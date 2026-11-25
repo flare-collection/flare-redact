@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <RootNamespace>FlareRedact.Serilog</RootNamespace>
+    <PackageId>FlareRedact.Serilog</PackageId>
+    <Description>Serilog integration for FlareRedact: an enricher that redacts event properties and a wrapping sink that also redacts message template text and exceptions.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>$(PackageTags);serilog</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog" Version="3.1.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FlareRedact/FlareRedact.csproj" />
+  </ItemGroup>
+</Project>

@@ -9,6 +9,11 @@ npm-debug.log*
 # SDK build output
 sdk/rust/target/
 sdk/fluent-bit/target/
+sdk/java/**/target/
+sdk/dotnet/**/bin/
+sdk/dotnet/**/obj/
+sdk/dotnet/**/TestResults/
+sdk/dotnet/artifacts/
 sdk/python/dist/
 sdk/python/build/
 __pycache__/

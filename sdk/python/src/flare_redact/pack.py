@@ -14,7 +14,9 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
+import sys
+import unicodedata
+from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from .checksums import VALIDATORS, luhn, shannon_entropy
 from .ml import ConfidenceModel
@@ -51,8 +53,48 @@ class PackError(ValueError):
     """Raised when a pack is malformed or uses a construct this engine cannot honour."""
 
 
+# JavaScript's `.` excludes exactly these four line terminators; Python's
+# excludes only \n, so a bare `.` is spelled out as the JavaScript set.
+_DOT = r"[^\n\r\u2028\u2029]"
+
+
+def _expand_dots(pattern: str) -> str:
+    if "." not in pattern:
+        return pattern
+    out: List[str] = []
+    index = 0
+    length = len(pattern)
+    in_class = False
+    while index < length:
+        ch = pattern[index]
+        if ch == "\\":
+            out.append(pattern[index : index + 2])
+            index += 2
+            continue
+        if in_class:
+            if ch == "]":
+                in_class = False
+        elif ch == "[":
+            start = index
+            in_class = True
+            index += 1
+            if index < length and pattern[index] == "^":
+                index += 1
+            if index < length and pattern[index] == "]":
+                index += 1
+            out.append(pattern[start:index])
+            continue
+        elif ch == ".":
+            out.append(_DOT)
+            index += 1
+            continue
+        out.append(ch)
+        index += 1
+    return "".join(out)
+
+
 def _expand_tokens(pattern: str) -> str:
-    return pattern.replace("{{ANY}}", _ANY).replace("{{L}}", _LETTER)
+    return _expand_dots(pattern).replace("{{ANY}}", _ANY).replace("{{L}}", _LETTER)
 
 
 _FORBIDDEN_ESCAPES = frozenset("bBdDwWsSpP123456789AZzGkK")
@@ -220,14 +262,49 @@ def _build_validator(spec: Mapping[str, Any], where: str) -> Callable[[str], boo
     return validator
 
 
-def is_unicode_word_char(ch: str) -> bool:
-    """Boundary test used by host-supplied terms: any letter, digit or underscore.
+_TERM_BOUNDARY: Optional[str] = None
 
-    Terms are words in a natural language, not tokens, so ``Ünvan`` must not match
-    inside ``Ünvanlar``. That needs a Unicode-aware boundary, which the ASCII
-    classes in :data:`BOUNDARY_CLASSES` deliberately are not.
+
+def term_boundary_class() -> str:
+    """The regex class of characters a term must not touch (FRS-1 §9).
+
+    Letters, combining marks, numbers and ``_``. Python's ``\\w`` is letters,
+    numbers and ``_``; the marks (general category M) are added from
+    :mod:`unicodedata` the first time terms are used, so ``राज`` does not match
+    inside ``राजा``.
     """
-    return ch == "_" or ch.isalpha() or ch.isdigit()
+    global _TERM_BOUNDARY
+    if _TERM_BOUNDARY is None:
+        ranges: List[str] = []
+        start = previous = -2
+        for code in _codes_that_may_be_marks():
+            if unicodedata.category(chr(code))[0] != "M":
+                continue
+            if code != previous + 1:
+                if start >= 0:
+                    ranges.append(_class_range(start, previous))
+                start = code
+            previous = code
+        if start >= 0:
+            ranges.append(_class_range(start, previous))
+        _TERM_BOUNDARY = "[\\w" + "".join(ranges) + "]"
+    return _TERM_BOUNDARY
+
+
+def _codes_that_may_be_marks() -> Iterator[int]:
+    """The code points outside the blocks that hold no combining marks by design:
+    CJK ideographs (planes 2 and 3 included), Hangul syllables, surrogates,
+    private use and the unassigned planes 4 to 13. Plane 14 keeps its variation
+    selectors. Skipping the rest makes building the class fifteen times faster."""
+    for low, high in (
+        (0x0300, 0x3400), (0x4DC0, 0x4E00), (0xA000, 0xAC00), (0xD7A4, 0xD800),
+        (0xF900, 0x20000), (0xE0000, 0xE1000),
+    ):
+        yield from range(low, high)
+
+
+def _class_range(first: int, last: int) -> str:
+    return f"\\U{first:08x}" if first == last else f"\\U{first:08x}-\\U{last:08x}"
 
 
 BoundaryTest = Callable[[str], bool]
@@ -239,7 +316,8 @@ class Detector:
     __slots__ = (
         "id", "label", "why", "regex", "capture", "before", "after", "reject",
         "validators", "mask", "default", "tags", "risk", "priority", "confidence",
-        "refine", "prefilter", "context_positive", "context_negative", "context_window",
+        "refine", "prefilter", "prefilter_regex", "context_positive", "context_negative",
+        "context_window",
     )
 
     def __init__(
@@ -283,6 +361,13 @@ class Detector:
         self.priority = priority
         self.refine = refine
         self.prefilter = tuple(prefilter)
+        # One case-insensitive search with the pattern's own case rules (FRS-1 §4),
+        # so a prefilter can never skip a detector that would match.
+        self.prefilter_regex = (
+            re.compile("|".join(re.escape(literal) for literal in self.prefilter), re.IGNORECASE)
+            if self.prefilter
+            else None
+        )
         self.context_positive = context_positive
         self.context_negative = context_negative
         self.context_window = context_window
@@ -340,7 +425,7 @@ class Detector:
             tags=[str(t) for t in spec.get("tags", ())],
             priority=int(spec.get("priority", 0)),
             refine=bool(spec.get("refine", False)),
-            prefilter=[str(p).lower() for p in spec.get("prefilter", ())],
+            prefilter=[str(p) for p in spec.get("prefilter", ())],
             context_positive=(
                 _compile(str(context["positive"]), "i", f"{where} context", portable=False)
                 if context.get("positive")

@@ -239,12 +239,10 @@ func resolveDetectors(pack *Pack, options Options) ([]*Detector, error) {
 	return chosen, nil
 }
 
-// buildTermsDetector matches caller-supplied words longest-first on Unicode word
-// boundaries, so "Bluebird" does not fire inside "Bluebirds".
+// buildTermsDetector matches caller-supplied words and phrases literally,
+// longest first (in characters; ties keep the caller's order), on Unicode word
+// boundaries, so "Bluebird" does not fire inside "Bluebirds" (SPEC §9).
 func buildTermsDetector(terms []Term, caseSensitive bool) (*Detector, error) {
-	if len(terms) == 0 {
-		return nil, nil
-	}
 	ordered := make([]Term, 0, len(terms))
 	for _, term := range terms {
 		if term.Term != "" {
@@ -254,35 +252,41 @@ func buildTermsDetector(terms []Term, caseSensitive bool) (*Detector, error) {
 	if len(ordered) == 0 {
 		return nil, nil
 	}
-	sort.SliceStable(ordered, func(i, j int) bool { return len(ordered[i].Term) > len(ordered[j].Term) })
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return utf8.RuneCountInString(ordered[i].Term) > utf8.RuneCountInString(ordered[j].Term)
+	})
 
+	flags := ""
+	if !caseSensitive {
+		flags = "(?i)"
+	}
+	source := func(term string) string {
+		quoted := regexp.QuoteMeta(term)
+		if caseSensitive {
+			return quoted
+		}
+		return expandDottedI(quoted)
+	}
+	matcher := &termsMatcher{}
 	parts := make([]string, len(ordered))
 	for i, term := range ordered {
-		parts[i] = regexp.QuoteMeta(term.Term)
-	}
-	body := "(?:" + strings.Join(parts, "|") + ")"
-	if !caseSensitive {
-		body = "(?i)" + body
-	}
-	regex, err := regexp.Compile(body)
-	if err != nil {
-		return nil, fmt.Errorf("flareredact: invalid term list: %w", err)
-	}
-
-	key := func(text string) string {
-		if caseSensitive {
-			return text
+		parts[i] = source(term.Term)
+		each, err := regexp.Compile(flags + "^(?:" + parts[i] + ")")
+		if err != nil {
+			return nil, fmt.Errorf("flareredact: invalid term %q: %w", term.Term, err)
 		}
-		return strings.ToLower(text)
-	}
-	replacements := make(map[string]string, len(ordered))
-	for _, term := range ordered {
 		replacement := term.Replace
 		if replacement == "" {
 			replacement = "***"
 		}
-		replacements[key(term.Term)] = replacement
+		matcher.each = append(matcher.each, each)
+		matcher.replace = append(matcher.replace, replacement)
 	}
+	anyTerm, err := regexp.Compile(flags + "(?:" + strings.Join(parts, "|") + ")")
+	if err != nil {
+		return nil, fmt.Errorf("flareredact: invalid term list: %w", err)
+	}
+	matcher.any = anyTerm
 
 	return &Detector{
 		ID:         "custom_term",
@@ -292,15 +296,77 @@ func buildTermsDetector(terms []Term, caseSensitive bool) (*Detector, error) {
 		Confidence: 0.92,
 		Default:    true,
 		Tags:       []string{"custom"},
-		regex:      regex,
-		unicodeBoundary: true,
-		mask: func(value string) string {
-			if replacement, ok := replacements[key(value)]; ok {
-				return replacement
-			}
-			return "***"
-		},
+		regex:      anyTerm,
+		terms:      matcher,
+		mask:       matcher.replacementFor,
 	}, nil
+}
+
+// termsMatcher runs the terms scan without lookaround: a candidate position is
+// one where some term matches; it is kept when the character before it is not
+// a word character and, trying the terms in order, one of them ends before a
+// non-word character. Otherwise the scan moves on by one character.
+type termsMatcher struct {
+	any     *regexp.Regexp
+	each    []*regexp.Regexp
+	replace []string
+}
+
+// isTermWordRune is the boundary class of SPEC §9: letters, combining marks,
+// numbers and '_'.
+func isTermWordRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsMark(r) || unicode.IsNumber(r)
+}
+
+func (m *termsMatcher) findAll(subject string) [][2]int {
+	var out [][2]int
+	for pos := 0; pos < len(subject); {
+		loc := m.any.FindStringIndex(subject[pos:])
+		if loc == nil {
+			break
+		}
+		start := pos + loc[0]
+		_, size := utf8.DecodeRuneInString(subject[start:])
+		if start > 0 {
+			if r, _ := utf8.DecodeLastRuneInString(subject[:start]); isTermWordRune(r) {
+				pos = start + size
+				continue
+			}
+		}
+		end := -1
+		for _, each := range m.each {
+			found := each.FindStringIndex(subject[start:])
+			if found == nil || found[1] == 0 {
+				continue
+			}
+			candidate := start + found[1]
+			if candidate < len(subject) {
+				if r, _ := utf8.DecodeRuneInString(subject[candidate:]); isTermWordRune(r) {
+					continue
+				}
+			}
+			end = candidate
+			break
+		}
+		if end < 0 {
+			pos = start + size
+			continue
+		}
+		out = append(out, [2]int{start, end})
+		pos = end
+	}
+	return out
+}
+
+// replacementFor returns the replacement of the first term, in matching order,
+// that matches value exactly: the alternative the scan took.
+func (m *termsMatcher) replacementFor(value string) string {
+	for i, each := range m.each {
+		if found := each.FindStringIndex(value); found != nil && found[1] == len(value) {
+			return m.replace[i]
+		}
+	}
+	return "***"
 }
 
 func makeAllow(options Options) func(string) bool {
@@ -327,10 +393,10 @@ func makeKeyMatcher(options Options) func(string) bool {
 	if len(options.KeyNames) > 0 {
 		names := make(map[string]struct{}, len(options.KeyNames))
 		for _, name := range options.KeyNames {
-			names[strings.ToLower(name)] = struct{}{}
+			names[normalizeKeyName(name)] = struct{}{}
 		}
 		return func(name string) bool {
-			_, ok := names[strings.ToLower(name)]
+			_, ok := names[normalizeKeyName(name)]
 			return ok
 		}
 	}
@@ -436,23 +502,47 @@ func runeOffsets(text string) []int {
 	return out
 }
 
-func clampToRuneStart(text string, offset int) int {
-	for offset > 0 && offset < len(text) && !utf8.RuneStart(text[offset]) {
-		offset--
+// stepBack and stepForward move offset by up to n characters, stopping at the
+// ends of text: the windows of SPEC §6 are measured in characters.
+func stepBack(text string, offset, n int) int {
+	for ; n > 0 && offset > 0; n-- {
+		_, size := utf8.DecodeLastRuneInString(text[:offset])
+		offset -= size
 	}
 	return offset
+}
+
+func stepForward(text string, offset, n int) int {
+	for ; n > 0 && offset < len(text); n-- {
+		_, size := utf8.DecodeRuneInString(text[offset:])
+		offset += size
+	}
+	return offset
+}
+
+// utf16Length counts text in UTF-16 code units, the unit of maxInputLength
+// (SPEC §12), stopping early once the count passes limit.
+func utf16Length(text string, limit int) int {
+	if len(text) <= limit {
+		// Every character takes at least as many UTF-8 bytes as UTF-16 units.
+		return len(text)
+	}
+	units := 0
+	for _, r := range text {
+		if r >= 0x10000 {
+			units += 2
+		} else {
+			units++
+		}
+	}
+	return units
 }
 
 func (p *Policy) scoreConfidence(detector *Detector, text string, start, end int) float64 {
 	score := detector.Confidence
 	if detector.ctxPositive != nil || detector.ctxNegative != nil {
 		radius := detector.ctxWindow
-		lo := clampToRuneStart(text, max(0, start-radius))
-		hi := min(len(text), end+radius)
-		if hi < len(text) {
-			hi = clampToRuneStart(text, hi)
-		}
-		nearby := text[lo:hi]
+		nearby := text[stepBack(text, start, radius):stepForward(text, end, radius)]
 		if detector.ctxPositive != nil && detector.ctxPositive.MatchString(nearby) {
 			score += 0.06
 		}
@@ -461,12 +551,8 @@ func (p *Policy) scoreConfidence(detector *Detector, text string, start, end int
 		}
 	}
 	if p.options.RefineConfidence && detector.Refine && p.pack.Model != nil {
-		lo := clampToRuneStart(text, max(0, start-64))
-		hi := min(len(text), end+64)
-		if hi < len(text) {
-			hi = clampToRuneStart(text, hi)
-		}
-		score += (SecretProbability(text[start:end], text[lo:hi], p.pack.Model) - 0.5) * refineStrength
+		window := text[stepBack(text, start, 64):stepForward(text, end, 64)]
+		score += (SecretProbability(text[start:end], window, p.pack.Model) - 0.5) * refineStrength
 	}
 	if score < 0 {
 		return 0
@@ -478,34 +564,19 @@ func (p *Policy) scoreConfidence(detector *Detector, text string, start, end int
 }
 
 func (p *Policy) scanString(text string) ([]hit, error) {
-	if len(text) > p.maxInputLength {
-		return nil, &LimitError{Reason: fmt.Sprintf("input length %d exceeds the configured limit of %d", len(text), p.maxInputLength)}
+	if length := utf16Length(text, p.maxInputLength); length > p.maxInputLength {
+		return nil, &LimitError{Reason: fmt.Sprintf("input length %d exceeds the configured limit of %d", length, p.maxInputLength)}
 	}
 	subject, source := normalisedView(text)
-	lowered := ""
-	loweredReady := false
 	var hits []hit
 
 	for _, detector := range p.detectors {
-		if len(detector.Prefilter) > 0 {
-			if !loweredReady {
-				lowered = strings.ToLower(subject)
-				loweredReady = true
-			}
-			found := false
-			for _, literal := range detector.Prefilter {
-				if strings.Contains(lowered, literal) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
+		if detector.prefilter != nil && !detector.prefilter.MatchString(subject) {
+			continue
 		}
 
-		for _, match := range detector.regex.FindAllStringSubmatchIndex(subject, -1) {
-			ns, ne := match[2*detector.capture], match[2*detector.capture+1]
+		for _, span := range detector.spans(subject) {
+			ns, ne := span[0], span[1]
 			if ns < 0 || ne <= ns {
 				continue
 			}
@@ -555,22 +626,20 @@ func (p *Policy) scanString(text string) ([]hit, error) {
 	return selectNonOverlapping(hits), nil
 }
 
-func (d *Detector) boundaryOK(subject string, start, end int) bool {
-	if d.unicodeBoundary {
-		if start > 0 {
-			r, _ := utf8.DecodeLastRuneInString(subject[:start])
-			if isUnicodeWordRune(r) {
-				return false
-			}
-		}
-		if end < len(subject) {
-			r, _ := utf8.DecodeRuneInString(subject[end:])
-			if isUnicodeWordRune(r) {
-				return false
-			}
-		}
-		return true
+// spans returns the byte spans of the captured group of every match in subject.
+func (d *Detector) spans(subject string) [][2]int {
+	if d.terms != nil {
+		return d.terms.findAll(subject)
 	}
+	matches := d.regex.FindAllStringSubmatchIndex(subject, -1)
+	out := make([][2]int, len(matches))
+	for i, match := range matches {
+		out[i] = [2]int{match[2*d.capture], match[2*d.capture+1]}
+	}
+	return out
+}
+
+func (d *Detector) boundaryOK(subject string, start, end int) bool {
 	if d.before != nil && start > 0 && d.before.has(subject[start-1]) {
 		return false
 	}
@@ -718,8 +787,4 @@ func locate(text string, offset int) (int, int) {
 	line := 1 + strings.Count(head, "\n")
 	lineStart := strings.LastIndex(head, "\n") + 1
 	return line, utf8.RuneCountInString(text[lineStart:offset]) + 1
-}
-
-func isUnicodeWordRune(r rune) bool {
-	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }

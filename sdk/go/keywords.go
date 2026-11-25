@@ -89,10 +89,23 @@ func SecretKeywords() []string {
 // convention, including their punctuated spellings.
 var sensitiveKeyPattern = regexp.MustCompile(`^(?i:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn)$`)
 
+// normalizedKeywords holds secretKeywords in the form key names are compared in.
+var normalizedKeywords = func() map[string]struct{} {
+	out := make(map[string]struct{}, len(secretKeywords))
+	for word := range secretKeywords {
+		out[normalizeKeyName(word)] = struct{}{}
+	}
+	return out
+}()
+
+// isSensitiveKeyName reports whether a key is sensitive by name (SPEC §9): its
+// normalised form is one of the conventional English names or a multilingual
+// keyword.
 func isSensitiveKeyName(name string) bool {
-	if sensitiveKeyPattern.MatchString(name) {
+	normalized := normalizeKeyName(name)
+	if sensitiveKeyPattern.MatchString(normalized) {
 		return true
 	}
-	_, ok := secretKeywords[strings.ToLower(name)]
+	_, ok := normalizedKeywords[normalized]
 	return ok
 }
