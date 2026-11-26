@@ -1,6 +1,6 @@
 [package]
 name = "flare-redact-fluent-bit"
-version = "1.12.0"
+version = "1.12.1"
 edition = "2021"
 rust-version = "1.70"
 description = "A Fluent Bit WASM filter that redacts secrets and PII from every record, built on the flare-redact Rust engine."

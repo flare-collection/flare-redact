@@ -273,3 +273,16 @@ test('wrapConsole redacts every argument then restores', () => {
   fake.log('again', gh);
   assert.deepEqual(seen[1], ['again', gh]);
 });
+
+test('wrapConsole calls a user toString that %s would call after redaction', () => {
+  const seen = [];
+  const fake = { log: (...a) => seen.push(a), info() {}, warn() {}, error() {}, debug() {} };
+  const target = { toString: () => `token ${gh}` };
+  const plain = { note: 'kept as an object' };
+  const restore = wrapConsole({}, fake);
+  fake.log('%d%% %s and %o', 5, target, plain);
+  fake.log('no specifier', target);
+  restore();
+  assert.deepEqual(seen[0], ['%d%% %s and %o', 5, 'token ghp_***', plain]);
+  assert.equal(typeof seen[1][1], 'object'); // only a %s argument is turned into text
+});

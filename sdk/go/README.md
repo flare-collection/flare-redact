@@ -72,11 +72,13 @@ slog.Info("charge failed", "email", "ada@example.com", "password", pw)
 // {"level":"INFO","msg":"charge failed","email":"a***@***","password":"***"}
 ```
 
-The handler redacts the message, every attribute and every group. Attributes
-bound with `WithAttrs` are redacted once, when they are bound, rather than on
-every record. If redaction itself fails — an oversized value, say — the field
-becomes `[REDACTION FAILED]`; emitting the original is the one outcome this
-package exists to prevent.
+The handler redacts the message, every attribute and every group. An `error`,
+a `*url.URL` or any other Stringer is redacted as the text a handler prints for
+it, and a struct, typed slice or typed map as its JSON, so a `Password` field
+is masked whole. Attributes bound with `WithAttrs` are redacted once, when they
+are bound, rather than on every record. If redaction itself fails, on an
+oversized value for example, the field becomes `[REDACTION FAILED]`; emitting
+the original is the one outcome this package exists to prevent.
 
 ## Outbound HTTP
 

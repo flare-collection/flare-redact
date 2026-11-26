@@ -14,6 +14,7 @@
  *   audit.report();                                          // counts only, safe to log
  */
 import { compilePolicy, type RedactOptions } from './index.js';
+import { printfStrings } from './printf.js';
 import type { Finding } from './engine.js';
 
 /** The parts of an OpenTelemetry `Meter` an audit uses. */
@@ -193,10 +194,10 @@ export function shadowConsole(
     original.set(name, fn);
     const source = `console.${name}`;
     sink[name] = enforce
-      ? (...args: unknown[]) => fn(...args.map((arg) => audit.redact(arg, source)))
+      ? (...args: unknown[]) => fn(...printfStrings(args).map((arg) => audit.redact(arg, source)))
       : (...args: unknown[]) => {
           try {
-            for (const arg of args) audit.observe(arg, source);
+            for (const arg of printfStrings(args)) audit.observe(arg, source);
           } catch {
             // Counting must never break logging.
           }

@@ -30,3 +30,25 @@ try {
 } finally {
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
+
+// Direct calls. pino never hands the message to formatters.log, and it skips
+// formatters.bindings for child loggers, so each of these needs its own hook.
+const direct = new PassThrough();
+let directText = '';
+direct.on('data', (chunk) => { directText += chunk; });
+const log = pino(pinoRedact(), direct);
+const dsn = 'postgres://admin:s3cr3tPassw0rd@db.internal:5432/app';
+log.info('literal alice@example.com');
+log.info('dsn %s', dsn);
+log.info('json %j', { dsn });
+log.error(new Error(`db down: ${dsn}`));
+log.child({ user: 'alice@example.com' }).info('child');
+log.child({ requestId: 'r1' }).info({ n: 1 }, 'plain child');
+await new Promise((resolve) => setImmediate(resolve));
+const lines = directText.trim().split('\n');
+assert.equal(lines.length, 6);
+for (const line of lines) JSON.parse(line);
+assert.doesNotMatch(directText, /alice@example\.com|s3cr3tPassw0rd/);
+assert.match(directText, /"msg":"dsn postgres:\/\/admin:\*\*\*@db\.internal:5432\/app"/);
+assert.match(directText, /"user":"a\*\*\*@\*\*\*"/);
+console.log('Pino messages, printf arguments, errors and child bindings contain no original secret.');

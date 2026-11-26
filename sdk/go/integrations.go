@@ -3,9 +3,13 @@ package flareredact
 import (
 	"bytes"
 	"context"
+	"encoding"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -15,7 +19,9 @@ import (
 
 // SlogHandler wraps another slog.Handler and redacts every record before it is
 // written. Attach it once at the root and every log line in the process is
-// covered, including the ones in libraries you do not control.
+// covered, including the ones in libraries you do not control. Errors,
+// Stringers, TextMarshalers and byte slices are redacted as the text a handler
+// would print for them; structs, typed slices and typed maps as their JSON.
 //
 //	logger := slog.New(flareredact.NewSlogHandler(
 //	    slog.NewJSONHandler(os.Stdout, nil),
@@ -76,12 +82,21 @@ func (h *SlogHandler) text(value string) string {
 }
 
 func (h *SlogHandler) attr(attr slog.Attr) slog.Attr {
-	// A sensitive key name is decided by the attribute key, exactly as it is
-	// for a map entry: logger.Info("x", "password", pw) must not print pw.
-	if attr.Value.Kind() == slog.KindString && h.policy.matchKey(attr.Key) && !h.policy.allow(attr.Value.String()) {
-		return slog.String(attr.Key, h.policy.replace(attr.Value.String(), sensitiveKeyDetector))
+	value := attr.Value.Resolve()
+	text, isText := value.String(), value.Kind() == slog.KindString
+	if value.Kind() == slog.KindAny {
+		text, isText = printedText(value.Any())
 	}
-	return slog.Attr{Key: attr.Key, Value: h.value(attr.Value)}
+	if !isText {
+		return slog.Attr{Key: attr.Key, Value: h.value(value)}
+	}
+	// A sensitive key name is decided by the attribute key, exactly as it is
+	// for a map entry: logger.Info("x", "password", pw) must not print pw, and
+	// neither may logger.Info("x", "dsn", err) when the key is sensitive.
+	if h.policy.matchKey(attr.Key) && !h.policy.allow(text) {
+		return slog.String(attr.Key, h.policy.replace(text, sensitiveKeyDetector))
+	}
+	return slog.String(attr.Key, h.text(text))
 }
 
 func (h *SlogHandler) value(value slog.Value) slog.Value {
@@ -98,14 +113,79 @@ func (h *SlogHandler) value(value slog.Value) slog.Value {
 	case slog.KindLogValuer:
 		return h.value(value.Resolve())
 	case slog.KindAny:
-		redacted, err := h.policy.Redact(value.Any())
-		if err != nil {
-			return slog.StringValue(redactionFailed)
-		}
-		return slog.AnyValue(redacted)
+		return h.anyValue(value.Any())
 	default:
 		return value
 	}
+}
+
+// anyValue redacts a value slog carries as KindAny. Policy.Redact only knows
+// the JSON shapes and returns anything else unchanged, but the standard
+// handlers still print it: TextHandler through MarshalText, Error or %+v
+// (which calls String), JSONHandler through Error or json.Marshal. So the
+// value is first turned into what a handler would print, and that is redacted.
+func (h *SlogHandler) anyValue(value any) slog.Value {
+	if text, ok := printedText(value); ok {
+		return slog.StringValue(h.text(text))
+	}
+	switch value.(type) {
+	case nil, map[string]any, map[string]string, []any, []string:
+		return h.structured(value)
+	}
+	// Structs, typed slices and maps, and pointers to them. JSON is what the
+	// JSON handler prints, and as JSON the field names reach the key rules, so
+	// a Password field is masked whole.
+	document, err := json.Marshal(value)
+	if err != nil {
+		// A channel, a func or a cycle: print it as TextHandler would.
+		return slog.StringValue(h.text(fmt.Sprintf("%+v", value)))
+	}
+	decoder := json.NewDecoder(bytes.NewReader(document))
+	decoder.UseNumber() // keep int64 ids exact instead of rounding them through float64
+	var decoded any
+	if err := decoder.Decode(&decoded); err != nil {
+		return slog.StringValue(redactionFailed)
+	}
+	return h.structured(decoded)
+}
+
+func (h *SlogHandler) structured(value any) slog.Value {
+	redacted, err := h.policy.Redact(value)
+	if err != nil {
+		return slog.StringValue(redactionFailed)
+	}
+	return slog.AnyValue(redacted)
+}
+
+// printedText returns the text a standard handler prints for value when it
+// prints it as text: an error's message, a TextMarshaler's text, a Stringer's
+// string or the bytes of a byte slice. ok is false for everything else.
+func printedText(value any) (text string, ok bool) {
+	defer func() {
+		if recover() != nil {
+			// slog prints a method that panics on a nil receiver as <nil>; any
+			// other panic must not let the original value through either.
+			text, ok = redactionFailed, true
+			if reflected := reflect.ValueOf(value); reflected.Kind() == reflect.Pointer && reflected.IsNil() {
+				text = "<nil>"
+			}
+		}
+	}()
+	switch typed := value.(type) {
+	case error:
+		return typed.Error(), true
+	case encoding.TextMarshaler:
+		data, err := typed.MarshalText()
+		if err != nil {
+			return redactionFailed, true
+		}
+		return string(data), true
+	case fmt.Stringer:
+		return typed.String(), true
+	case []byte:
+		return string(typed), true
+	}
+	return "", false
 }
 
 // Transport wraps an http.RoundTripper and redacts request bodies before they

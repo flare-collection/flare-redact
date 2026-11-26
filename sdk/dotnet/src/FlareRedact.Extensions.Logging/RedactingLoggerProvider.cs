@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Logging;
 
@@ -146,13 +147,30 @@ namespace FlareRedact.Extensions.Logging
                 default:
                     try
                     {
-                        return policy.Redact(pair.Value);
+                        object? redacted = policy.Redact(pair.Value);
+                        if (!PrintedAsText(pair.Value, redacted)) return redacted;
+                        // A Uri, a class with its own ToString, a struct: the walker
+                        // returns it unchanged, but the message and most providers print
+                        // its ToString, so that text is what gets redacted.
+                        return policy.RedactField(pair.Key, Convert.ToString(pair.Value, CultureInfo.InvariantCulture) ?? "");
                     }
                     catch (FlareRedactException)
                     {
                         return RedactedException.Withheld;
                     }
             }
+        }
+
+        /// <summary>
+        /// True when <paramref name="value"/> is printed with its <c>ToString</c> and the walker
+        /// left it as it was: anything but numbers, dates, ids, booleans, characters, byte arrays
+        /// and the maps, sequences and JSON values the walker rebuilds.
+        /// </summary>
+        internal static bool PrintedAsText(object value, object? redacted)
+        {
+            Type type = value.GetType();
+            if (type.IsValueType) return !(value is IFormattable || value is bool || value is char);
+            return ReferenceEquals(value, redacted) && !(value is byte[]);
         }
 
         internal static object RedactScope<TState>(TState state, Policy policy) where TState : notnull
@@ -164,7 +182,10 @@ namespace FlareRedact.Extensions.Logging
                 case IEnumerable<KeyValuePair<string, object?>> _:
                     return new RedactedLogState(RedactedException.Safe(policy, state.ToString() ?? ""), RedactValues(state, policy));
                 default:
-                    return state;
+                    // BeginScope(new { Dsn = dsn }): providers print the scope's ToString.
+                    return PrintedAsText(state, state)
+                        ? RedactedException.Safe(policy, Convert.ToString(state, CultureInfo.InvariantCulture) ?? "")
+                        : state;
             }
         }
 

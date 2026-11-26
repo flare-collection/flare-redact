@@ -65,6 +65,24 @@ namespace FlareRedact.Tests
         }
 
         [Fact]
+        public void ScalarObjectsAreRedactedAsText()
+        {
+            const string dsn = "postgres://admin:s3cr3tPassw0rd@db.internal:5432/app";
+            var collector = new Collector();
+            using (Logger log = new LoggerConfiguration()
+                .WriteTo.FlareRedact(wt => wt.Sink(collector))
+                .CreateLogger())
+            {
+                // Serilog keeps a Uri as a scalar, so it is rendered with ToString.
+                log.Information("db {Url}, {Count} tries", new Uri(dsn), 3);
+            }
+            LogEvent logEvent = collector.Events.Single();
+            Assert.DoesNotContain("s3cr3tPassw0rd", Render(logEvent));
+            Assert.DoesNotContain("s3cr3tPassw0rd", logEvent.Properties["Url"].ToString());
+            Assert.Equal("3", logEvent.Properties["Count"].ToString());
+        }
+
+        [Fact]
         public void EnricherRedactsPropertiesWithWireOptions()
         {
             var collector = new Collector();
@@ -159,6 +177,41 @@ namespace FlareRedact.Tests
             Assert.IsType<RedactedException>(second.Exception);
             Assert.DoesNotContain("ghp_abcdefghijklmnopqrstuvwxyz0123456789", second.Exception!.ToString());
             Assert.DoesNotContain("grace@", second.Message);
+        }
+
+        private sealed class ConnectionInfo
+        {
+            public override string ToString() => "conn " + Dsn;
+        }
+
+        private const string Dsn = "postgres://admin:s3cr3tPassw0rd@db.internal:5432/app";
+
+        // Values the walker does not know (a Uri, a class with its own ToString)
+        // used to reach providers as they were, and the message was rendered
+        // from them with ToString.
+        [Fact]
+        public void ObjectsTheWalkerDoesNotKnowAreRedactedAsText()
+        {
+            lock (CollectorProvider.Entries) CollectorProvider.Entries.Clear();
+            using ServiceProvider services = new ServiceCollection()
+                .AddLogging(b => b.AddProvider(new CollectorProvider()).AddFlareRedact())
+                .BuildServiceProvider();
+            ILogger log = services.GetRequiredService<ILoggerFactory>().CreateLogger("objects");
+            using (log.BeginScope(new { Dsn }))
+            {
+                log.LogError("db {Url} via {Connection}, {Count} tries, id {Id}", new Uri(Dsn), new ConnectionInfo(), 3, Guid.Empty);
+            }
+
+            Entry entry = CollectorProvider.Entries.Single();
+            Assert.DoesNotContain("s3cr3tPassw0rd", entry.Message);
+            Assert.Contains("conn postgres://admin:***@db.internal:5432/app", entry.Message);
+            Assert.Contains("3 tries", entry.Message);
+            Dictionary<string, object?> state = entry.State.ToDictionary(p => p.Key, p => p.Value);
+            Assert.DoesNotContain("s3cr3tPassw0rd", Convert.ToString(state["Url"]));
+            Assert.DoesNotContain("s3cr3tPassw0rd", Convert.ToString(state["Connection"]));
+            Assert.Equal(3, state["Count"]);
+            Assert.Equal(Guid.Empty, state["Id"]);
+            Assert.DoesNotContain("s3cr3tPassw0rd", Convert.ToString(entry.Scopes.Single()));
         }
 
         [Fact]

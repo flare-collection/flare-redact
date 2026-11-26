@@ -30,6 +30,11 @@ class RedactingFilter(logging.Filter):
     logged — with the secret gone. Attach it to a *logger* (not a handler) so
     every handler downstream is covered.
 
+    When an argument is something the engine does not walk (a dataclass, an
+    exception, bytes, an object with its own ``__str__``), the message is
+    rendered first and the text redacted, since that object only becomes text
+    when the record is formatted.
+
         logging.getLogger().addFilter(RedactingFilter(enable=["pii"]))
     """
 
@@ -47,13 +52,20 @@ class RedactingFilter(logging.Filter):
         self.extra_attributes = tuple(extra_attributes)
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = self.policy.redact_str(record.msg)
-        elif record.msg is not None:
-            record.msg = self.policy.redact(record.msg)
-
-        if record.args:
-            record.args = self.policy.redact(record.args)
+        if _walkable(record.msg) and _walkable(record.args):
+            if isinstance(record.msg, str):
+                record.msg = self.policy.redact_str(record.msg)
+            elif record.msg is not None:
+                record.msg = self.policy.redact(record.msg)
+            if record.args:
+                record.args = self.policy.redact(record.args)
+        else:
+            # A dataclass, an exception, a URL, bytes: anything the engine does
+            # not walk is only turned into text when the record is formatted,
+            # after this filter has run. Render the message now, exactly as a
+            # formatter would, and redact that text.
+            record.msg = self.policy.redact_str(_render(record))
+            record.args = ()
 
         if getattr(record, "exc_text", None):
             record.exc_text = self.policy.redact_str(record.exc_text)
@@ -64,6 +76,36 @@ class RedactingFilter(logging.Filter):
                 setattr(record, name, self.policy.redact(value))
 
         return True
+
+
+_SCALARS = (bool, int, float, complex, type(None))
+
+
+def _walkable(value: Any, seen: Optional[set] = None) -> bool:
+    """True when ``Policy.redact`` rewrites every string ``value`` prints."""
+    if isinstance(value, (str, _SCALARS)):
+        return True
+    if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+        seen = set() if seen is None else seen
+        if id(value) in seen:
+            return True
+        seen.add(id(value))
+        if isinstance(value, Mapping):
+            return all(_walkable(key, seen) and _walkable(item, seen) for key, item in value.items())
+        return all(_walkable(item, seen) for item in value)
+    return False
+
+
+def _render(record: logging.LogRecord) -> str:
+    try:
+        return record.getMessage()
+    except Exception:
+        # The format string and the arguments do not match. logging would print
+        # both raw from handleError, so put them into one string to redact.
+        try:
+            return f"{record.msg} {record.args!r}"
+        except Exception:
+            return "[REDACTION FAILED]"
 
 
 class RedactingFormatter(logging.Formatter):

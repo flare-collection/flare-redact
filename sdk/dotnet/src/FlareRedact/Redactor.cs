@@ -11,7 +11,7 @@ namespace FlareRedact
     public static class Redactor
     {
         /// <summary>The library version.</summary>
-        public const string Version = "1.12.0";
+        public const string Version = "1.12.1";
 
         private static readonly Lazy<Policy> Defaults = new Lazy<Policy>(() => Policy.Compile());
 
