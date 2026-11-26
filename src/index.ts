@@ -1,6 +1,7 @@
 import { SENSITIVE_KEY_DETECTOR } from './detectors.js';
 import { createVault } from './vault.js';
 import { errorChain, mapGraph } from './graph.js';
+import { printfStrings } from './printf.js';
 import {
   resolveDetectors,
   keyMatcher,
@@ -465,7 +466,7 @@ export function wrapConsole(opts: RedactOptions = {}, target: Console = console)
   for (const name of methods) {
     const fn = sink[name].bind(target) as LogFn;
     original.set(name, fn);
-    sink[name] = (...args: unknown[]) => fn(...args.map((a) => redact(a, opts)));
+    sink[name] = (...args: unknown[]) => fn(...printfStrings(args).map((a) => redact(a, opts)));
   }
   return () => {
     for (const [name, fn] of original) sink[name] = fn;

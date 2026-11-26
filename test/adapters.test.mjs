@@ -14,6 +14,50 @@ test('pinoRedact returns a formatters.log that masks the log object', () => {
   assert.match(out.msg, /\*\*\*\* 4242$/);
 });
 
+// Real pino (examples/express-pino smoke) never passes the message to
+// formatters.log; these pin the hooks that cover it.
+test('pinoRedact redacts the message, printf arguments and an Error passed first', () => {
+  const { hooks } = pinoRedact();
+  const calls = [];
+  const logger = { bindings: () => ({}) };
+  const method = function (...args) { calls.push({ self: this, args }); };
+  const merging = { user: 'bob@corp.com' };
+  hooks.logMethod.call(logger, [merging, 'login %s', 'ada@example.com'], method);
+  hooks.logMethod.call(logger, [new Error('db postgres://admin:s3cr3tPassw0rd@db/app')], method);
+  assert.equal(calls[0].self, logger);
+  assert.equal(calls[0].args[0], merging); // left to formatters.log, not scanned twice
+  assert.deepEqual(calls[0].args.slice(1), ['login %s', 'a***@***']);
+  assert.ok(calls[1].args[0] instanceof Error);
+  assert.equal(calls[1].args[0].message, 'db postgres://admin:***@db/app');
+});
+
+test('pinoRedact redacts whole lines only for loggers with sensitive bindings', () => {
+  const { hooks, formatters } = pinoRedact();
+  const line = '{"level":30,"user":"ada@example.com","msg":"x"}\n';
+  const written = [];
+  const writeFor = (logger) => hooks.logMethod.call(logger, ['x'], () => written.push(hooks.streamWrite(line)));
+  writeFor({ bindings: () => ({ user: 'ada@example.com' }) });
+  writeFor({ bindings: () => ({ requestId: 'r1' }) });
+  assert.equal(written[0], '{"level":30,"user":"a***@***","msg":"x"}\n');
+  assert.equal(written[1], line); // nothing sensitive bound: the line is not parsed
+  assert.equal(hooks.streamWrite(line), line); // outside a log call
+  assert.equal(formatters.bindings({ dsn: 'postgres://admin:s3cr3tPassw0rd@db/app' }).dsn, 'postgres://admin:***@db/app');
+});
+
+test('winstonRedact covers what format.splat() and format.errors() read later', () => {
+  const SPLAT = Symbol.for('splat');
+  const transform = winstonRedact();
+  const info = { level: 'info', message: 'dsn %s', [SPLAT]: ['postgres://admin:s3cr3tPassw0rd@db/app', { email: 'ada@example.com' }] };
+  transform(info);
+  assert.deepEqual(info[SPLAT], ['postgres://admin:***@db/app', { email: 'a***@***' }]);
+
+  const error = Object.assign(new Error('db postgres://admin:s3cr3tPassw0rd@db/app'), { level: 'error' });
+  transform(error);
+  assert.equal(error.message, 'db postgres://admin:***@db/app');
+  assert.doesNotMatch(error.stack, /s3cr3t/);
+  assert.equal(Object.keys(error).includes('message'), false); // still non-enumerable
+});
+
 test('winstonRedact mutates in place and preserves symbol keys', () => {
   const transform = winstonRedact();
   const LEVEL = Symbol.for('level');

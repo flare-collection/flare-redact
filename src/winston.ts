@@ -18,6 +18,19 @@ export function winstonRedact(opts: RedactOptions = {}) {
     for (const key of Object.keys(info)) {
       info[key] = redact(info[key], opts);
     }
+    // Formats placed after this one read two more things: format.splat()
+    // interpolates and merges the raw arguments kept under Symbol.for('splat'),
+    // and format.errors() reads the message and stack an Error keeps as
+    // non-enumerable properties.
+    const meta = info as Record<symbol, unknown>;
+    if (Array.isArray(meta[SPLAT])) meta[SPLAT] = redact(meta[SPLAT], opts);
+    if (info instanceof Error) {
+      for (const key of ['message', 'stack'] as const) {
+        if (typeof info[key] === 'string') info[key] = redact(info[key], opts);
+      }
+    }
     return info;
   };
 }
+
+const SPLAT = Symbol.for('splat');

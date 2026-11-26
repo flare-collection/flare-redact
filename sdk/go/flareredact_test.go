@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -274,6 +275,74 @@ func TestSlogHandlerRedactsRecords(t *testing.T) {
 	}
 	if !strings.Contains(line, "a***@***") || !strings.Contains(line, `"ok":true`) {
 		t.Errorf("log line lost information: %s", line)
+	}
+}
+
+type slogConfig struct {
+	Name     string
+	Password string
+	DSN      string
+	ID       int64
+}
+
+type slogToken string
+
+type slogNilStringer struct{ label string }
+
+func (s *slogNilStringer) String() string { return s.label }
+
+type slogValuer struct{ dsn string }
+
+func (v slogValuer) LogValue() slog.Value { return slog.AnyValue(slogConfig{Name: "valuer", DSN: v.dsn}) }
+
+// Values slog carries as KindAny used to reach the inner handler unredacted,
+// because Policy.Redact returns types it does not know unchanged.
+func TestSlogHandlerRedactsErrorsStructsAndTypedValues(t *testing.T) {
+	const dsn = "postgres://admin:s3cr3tPassw0rd@db.internal:5432/app"
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbErr := errors.New("db down: " + dsn)
+	secrets := []string{"s3cr3tPassw0rd", "hunter2", "ada@example.com", "AKIAIOSFODNN7EXAMPLE"}
+
+	handlers := map[string]func(io.Writer) slog.Handler{
+		"json": func(w io.Writer) slog.Handler { return slog.NewJSONHandler(w, nil) },
+		"text": func(w io.Writer) slog.Handler { return slog.NewTextHandler(w, nil) },
+	}
+	for name, newHandler := range handlers {
+		t.Run(name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			logger := slog.New(NewSlogHandler(newHandler(&buffer), mustCompile(t, Options{})))
+
+			logger.Error("query failed",
+				"err", dbErr,
+				"wrapped", fmt.Errorf("connect: %w", dbErr),
+				"config", slogConfig{Name: "api", Password: "hunter2", DSN: dsn, ID: 9007199254740993},
+				"configPtr", &slogConfig{Name: "ptr", Password: "hunter2"},
+				"rows", []map[string]any{{"email": "ada@example.com"}},
+				"url", parsed,
+				"raw", []byte("key AKIAIOSFODNN7EXAMPLE"),
+				"token", slogToken("AKIAIOSFODNN7EXAMPLE"),
+				"password", errors.New("hunter2"),
+				"nilStringer", (*slogNilStringer)(nil),
+				"valuer", slogValuer{dsn: dsn},
+				slog.Group("db", "err", dbErr),
+			)
+			logger.With("bound", dbErr).Info("child logger")
+
+			out := buffer.String()
+			for _, secret := range secrets {
+				if strings.Contains(out, secret) {
+					t.Errorf("%q reached the %s log:\n%s", secret, name, out)
+				}
+			}
+			for _, kept := range []string{"api", "ptr", "valuer", "9007199254740993", "AKIA***", "db.internal", "<nil>", "child logger"} {
+				if !strings.Contains(out, kept) {
+					t.Errorf("the %s log lost %q:\n%s", name, kept, out)
+				}
+			}
+		})
 	}
 }
 

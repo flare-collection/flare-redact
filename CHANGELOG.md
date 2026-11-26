@@ -1,5 +1,58 @@
 # Changelog
 
+## 1.12.1 (2026-11-26)
+
+### Fixed: logging integrations redact every value they are given
+
+Loggers turn some values into text after the integration has redacted what
+it was given: pino builds the message itself, `%s` calls `toString()`, and the
+Go, Python, .NET and Java engines pass objects they do not walk through
+unchanged. That text was printed unredacted. Each integration now redacts the
+text that will actually be printed.
+
+- **pino** (`flare-redact/pino`): pino never passes the message to
+  `formatters.log`, so `log.info('dsn %s', dsn)`, a message string and
+  `log.error(err)` were written unredacted. `pinoRedact()` now adds
+  `hooks.logMethod` (message, printf arguments, an Error passed first) and
+  `formatters.bindings`. pino also skips that formatter for `child()`
+  bindings, so a child logger whose bindings hold something sensitive has its
+  whole line redacted in `hooks.streamWrite` (in pino versions that have
+  that hook); other loggers pay nothing for this. Spread the returned object into your options
+  as before.
+- **winston** (`flare-redact/winston`): placed before `format.splat()` or
+  `format.errors()`, the transform missed the splat arguments and an Error's
+  message and stack. Both are redacted now, in any order.
+- **console** (`wrapConsole()`, `--import flare-redact/register`): an object
+  with its own `toString()` printed through `%s` is turned into text first.
+- **Go slog** (`NewSlogHandler`): an `error`, a struct, a `*url.URL` or a
+  typed slice such as `[]map[string]any` reached the inner handler as it was,
+  so `slog.Error("db down", "err", err)` could print a database password.
+  Errors, Stringers, TextMarshalers and byte slices are redacted as their
+  text, and the key rule applies to them (`"password", err` is masked whole).
+  Structs, typed slices and typed maps are redacted as their JSON, so a
+  `Password` field is masked whole and large integers stay exact. With
+  `slog.TextHandler` such a struct now prints as a map of its JSON fields.
+- **Python** (`RedactingFilter`): an argument the engine does not walk (a
+  dataclass, an exception, bytes, an object with its own `__str__`) makes the
+  filter render the message first and redact that text. When every argument
+  is a string, number, dict or list, the template and arguments stay separate
+  as before. Tracebacks still need `RedactingFormatter`, which `install()`
+  adds.
+- **.NET** (`FlareRedact.Extensions.Logging`, `FlareRedact.Serilog`): a
+  `Uri`, a class with its own `ToString` or a struct passed as a structured
+  value or a scope is redacted as its text. Numbers, dates, ids, booleans and
+  byte arrays keep their type.
+- **Java** (`<FlareRedact/>` rewrite policy for Log4j2): object values in a
+  `MapMessage` are redacted as their text. The Logback and Log4j2 pattern
+  converters already redacted the formatted text.
+- The Rust engine and the Fluent Bit filter only see JSON and msgpack values,
+  so they were not affected.
+
+Each fix has a test that fails on 1.12.0. The pino one runs against real pino
+in the `express-pino` example. Maven Central and NuGet packages for Java and
+.NET are not published yet; the guide now says how to build them from source
+until they are.
+
 ## 1.12.0 (2026-11-25)
 
 ### Added: Java and .NET engines

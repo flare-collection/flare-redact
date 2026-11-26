@@ -187,11 +187,11 @@ first release after 1.9.1. Until it lands, or to pin a tag, install them from
 this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.12.0#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.12.1#subdirectory=sdk/python"
 ```
 
 ```toml
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.12.0" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.12.1" }
 ```
 
 ```python
@@ -221,8 +221,9 @@ String safe = policy.redactString("contact ada@example.com");
 builder.Logging.AddConsole().AddFlareRedact(new RedactOptions { Enable = { "pii" } });
 ```
 
-The Java and .NET packages are published to Maven Central and NuGet starting
-with 1.12.0.
+Maven Central and NuGet packages for Java and .NET are on the way. Until they
+are published, build `sdk/java` with `mvn install` and `sdk/dotnet` with
+`dotnet pack`.
 
 Each SDK is dependency-light on purpose (Python and Go use the standard library
 only, the Java and .NET cores have no dependencies at all, Rust is `regex` plus
@@ -1013,7 +1014,12 @@ import { pinoRedact } from 'flare-redact/pino';
 
 const log = pino(pinoRedact(policy));
 log.info({ user: 'bob@corp.com' }); // → {"user":"b***@***"}
+log.info('dsn %s', process.env.DATABASE_URL); // the message and its arguments too
 ```
+
+It covers the merging object, the message and its printf arguments, an Error
+logged on its own, and `child()` bindings. If you build pino's options
+yourself, spread the result in: `pino({ ...pinoRedact(policy), level: 'debug' })`.
 
 **winston**: a format that redacts every field, symbol metadata left intact:
 
@@ -1023,6 +1029,9 @@ import { winstonRedact } from 'flare-redact/winston';
 
 winston.format.combine(winston.format(winstonRedact(policy))(), winston.format.json());
 ```
+
+It also redacts what `format.splat()` and `format.errors()` read, so it can sit
+before or after them.
 
 **HTTP**: a safe-to-log snapshot of a request; the live request is untouched.
 The URL string, query object, params, headers, and body are all sanitized:
@@ -1328,7 +1337,7 @@ not, as long as Node 20 or newer is on the PATH:
 ```yaml
 repos:
   - repo: https://github.com/flare-collection/flare-redact
-    rev: v1.12.0
+    rev: v1.12.1
     hooks:
       - id: flare-redact        # only the lines being added, like --staged
 ```
@@ -1393,7 +1402,7 @@ reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.12.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.12.1 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -1610,7 +1619,7 @@ sealVault(vaultOrEntries, password): Promise<SealedVaultV1>
 openVault(envelope, password): Promise<Array<[placeholder, original]>>
 
 // adapters, each takes the same options object
-pinoRedact(opts?)        // 'flare-redact/pino'    → { formatters: { log } }
+pinoRedact(opts?)        // 'flare-redact/pino'    → { hooks, formatters } pino options
 winstonRedact(opts?)     // 'flare-redact/winston' → a format transform
 sentryRedact(opts?)      // 'flare-redact/sentry'  → { beforeSend, beforeSendTransaction, beforeSendSpan, beforeSendLog, beforeBreadcrumb }
 redactSentryEvent(e, opts?) // 'flare-redact/sentry' → one redacted error event or transaction

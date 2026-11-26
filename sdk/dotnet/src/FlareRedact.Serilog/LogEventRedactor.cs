@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using Serilog.Events;
@@ -56,6 +57,13 @@ namespace FlareRedact.Serilog
             {
                 case ScalarValue scalar when scalar.Value is string text:
                     return new ScalarValue(key == null ? RedactedException.Safe(policy, text) : SafeField(policy, key, text));
+                case ScalarValue scalar when scalar.Value != null && PrintedAsText(scalar.Value):
+                {
+                    // Serilog keeps a Uri (and anything a policy turns into a scalar) as the
+                    // object, then renders it with ToString: redact that text.
+                    string text = Convert.ToString(scalar.Value, CultureInfo.InvariantCulture) ?? "";
+                    return new ScalarValue(key == null ? RedactedException.Safe(policy, text) : SafeField(policy, key, text));
+                }
                 case SequenceValue sequence:
                     return new SequenceValue(sequence.Elements.Select(e => RedactValue(e, null, policy)));
                 case StructureValue structure:
@@ -69,6 +77,13 @@ namespace FlareRedact.Serilog
                     return value;
             }
         }
+
+        /// <summary>
+        /// True for a scalar printed with its <c>ToString</c>: anything but numbers, dates, ids,
+        /// booleans, characters and byte arrays.
+        /// </summary>
+        private static bool PrintedAsText(object value) =>
+            value.GetType().IsValueType ? !(value is IFormattable || value is bool || value is char) : !(value is byte[]);
 
         private static string SafeField(Policy policy, string key, string text)
         {
