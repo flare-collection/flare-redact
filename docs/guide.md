@@ -202,11 +202,11 @@ first release after 1.9.1. Until it lands, or to pin a tag, install them from
 this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.13.0#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.13.1#subdirectory=sdk/python"
 ```
 
 ```toml
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.13.0" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.13.1" }
 ```
 
 ```python
@@ -365,6 +365,12 @@ redact({
 //   note:     'my aws key is AKIA***',    // found inside free text
 // }
 ```
+
+Everything under a sensitive field name is masked, whatever its type: numbers
+(`cvv: 123`), binary data, and every string or number inside an object or
+array at any depth (`cookie: { name, value }`). Booleans, `null` and dates stay
+as they are, so `hasPassword: true` is still readable. A masked number becomes
+a string; a vault restores it as its decimal text.
 
 ## Redact by path
 
@@ -1401,7 +1407,7 @@ not, as long as Node 20 or newer is on the PATH:
 ```yaml
 repos:
   - repo: https://github.com/flare-collection/flare-redact
-    rev: v1.13.0
+    rev: v1.13.1
     hooks:
       - id: flare-redact        # only the lines being added, like --staged
 ```
@@ -1466,7 +1472,7 @@ reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.13.0 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.13.1 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and

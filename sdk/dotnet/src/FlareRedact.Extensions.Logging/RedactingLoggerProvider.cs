@@ -147,7 +147,11 @@ namespace FlareRedact.Extensions.Logging
                 default:
                     try
                     {
-                        object? redacted = policy.Redact(pair.Value);
+                        // Under a sensitive key everything is masked, numbers and nested
+                        // values included, as it would be under that key in a dictionary.
+                        object? redacted = policy.IsSensitiveKey(pair.Key)
+                            ? ((IDictionary)policy.Redact(new Dictionary<string, object?>(StringComparer.Ordinal) { [pair.Key] = pair.Value })!)[pair.Key]
+                            : policy.Redact(pair.Value);
                         if (!PrintedAsText(pair.Value, redacted)) return redacted;
                         // A Uri, a class with its own ToString, a struct: the walker
                         // returns it unchanged, but the message and most providers print

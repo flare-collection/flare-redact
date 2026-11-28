@@ -19,7 +19,7 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "flare-redact"
-version = "1.13.0"
+version = "1.13.1"
 dependencies = [
  "getrandom",
  "regex",
@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "flare-redact-fluent-bit"
-version = "1.13.0"
+version = "1.13.1"
 dependencies = [
  "flare-redact",
  "serde",

@@ -96,16 +96,15 @@ public final class Vault {
 
     /**
      * Replace every secret reachable from {@code value} with a stable placeholder,
-     * preserving its shape (see {@link Policy#redact(Object)}).
+     * preserving its shape (see {@link Policy#redact(Object)}). Every string and
+     * number under a sensitive key gets one; a number restores as its text.
      *
      * @param value a string, map, collection, array or scalar
      * @return the redacted copy
      */
     public synchronized Object redact(Object value) {
-        return new Policy.Walker(this::redactString,
-            (key, text) -> policy.isSensitiveKey(key) && !policy.allows(text)
-                ? mint(text, Detector.SENSITIVE_KEY.id)
-                : redactString(text)).walk(value, 0);
+        return new Policy.Walker(this::redactString, policy::isSensitiveKey,
+            text -> policy.allows(text) ? null : mint(text, Detector.SENSITIVE_KEY.id)).walk(value, 0);
     }
 
     /** @return placeholder, original pairs in the order they were minted */
@@ -140,7 +139,7 @@ public final class Vault {
      * @return the restored copy
      */
     public Object restore(Object value) {
-        return new Policy.Walker(Restorers.jsonAware(entries()), null).walk(value, 0);
+        return new Policy.Walker(Restorers.jsonAware(entries()), null, null).walk(value, 0);
     }
 
     /** @return a restorer for streamed output, safe across chunk boundaries */

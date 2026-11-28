@@ -63,6 +63,18 @@ class PandasTests(unittest.TestCase):
         self.assertEqual(out["email"][0], out["email"][2])
         self.assertNotEqual(out["email"][0], out["email"][1])
 
+    def test_number_columns_with_a_sensitive_name(self):
+        df = self.pd.DataFrame({"cvv": [123, None, 456], "pin": [1234, 1234, 99], "amount": [1, 2, 3],
+                                "has_password": [True, False, True]})
+        out = frames.redact_frame(df)
+        self.assertEqual(out["cvv"][0], "***")
+        self.assertTrue(self.pd.isna(out["cvv"][1]))
+        self.assertEqual(out["pin"].tolist(), ["***", "***", "***"])
+        self.assertEqual(out["amount"].tolist(), [1, 2, 3])
+        self.assertEqual(out["has_password"].tolist(), [True, False, True])
+        self.assertEqual(frames.redact_frame(df, allow=["99"])["pin"].tolist(), ["***", "***", 99])
+        self.assertEqual(frames.scan_frame(df)["columns"]["cvv"], {"rows": 2, "by_detector": {"sensitive_key": 2}})
+
     def test_accessor_and_scan(self):
         frames.register()
         self.assertEqual(self.df.flare.redact()["note"][3], "key ghp_***")
@@ -100,6 +112,15 @@ class PolarsTests(unittest.TestCase):
         self.assertEqual(self.df.flare.redact(columns=["note"])["password"][0], "hunter2hunter2")
         self.assertEqual(self.df.lazy().flare.redact().collect()["note"][0], "call a***@***")
         self.assertEqual(self.df.flare.scan()["columns"]["note"]["rows"], 2)
+
+    def test_number_columns_with_a_sensitive_name(self):
+        pl = self.pl
+        df = pl.DataFrame({"cvv": [123, None, 456], "pin": [1.5, 2.0, None], "amount": [1, 2, 3]})
+        out = frames.redact_frame(df)
+        self.assertEqual(out["cvv"].to_list(), ["***", None, "***"])
+        self.assertEqual(out["pin"].to_list(), ["***", "***", None])
+        self.assertEqual(out["amount"].to_list(), [1, 2, 3])
+        self.assertTrue(frames.redact_frame(df.lazy()).collect().equals(out))
 
     def test_categorical(self):
         pl = self.pl

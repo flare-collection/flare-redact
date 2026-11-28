@@ -199,14 +199,10 @@ function redactGraph(
   allow: (value: string) => boolean,
   mint: (value: string, detectorId: string) => string,
 ): unknown {
-  return mapGraph(
-    value,
-    redactString,
-    (key, raw) => {
-      if (matchKey(key) && !allow(raw)) return mint(raw, 'sensitive_key');
-      return redactString(raw);
-    },
-  );
+  return mapGraph(value, redactString, {
+    matches: matchKey,
+    replace: (text) => (allow(text) ? undefined : mint(text, 'sensitive_key')),
+  });
 }
 
 /**
@@ -269,7 +265,11 @@ export function createVault(opts: VaultOptions = {}): Vault {
     if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
       return new PathHit(mintPath(String(value)));
     }
-    return new PathHit(walkStrings(value, mintPath));
+    // Numbers and binary data inside the matched value are minted too.
+    return new PathHit(mapGraph(value, mintPath, {
+      matches: () => false,
+      replace: (text) => (allow(text) ? undefined : mint(text, 'sensitive_path')),
+    }, true));
   });
 
   return {

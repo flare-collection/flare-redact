@@ -389,10 +389,10 @@ the first release after 1.9.1. Until it lands, or to pin a tag, install them
 from the repository:
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.13.0#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.13.1#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.13.0" }
+                           tag = "v1.13.1" }
 
 They are not ports that drift. All six implement FRS-1, the specification in
 spec/SPEC.md, and all six run the same conformance corpus in spec/conformance/

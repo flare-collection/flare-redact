@@ -18,6 +18,7 @@
 
 import { buildStreamRestore, type IncrementalRestorer, type Vault } from '../index.js';
 import { escapeEntriesForJson } from '../vault.js';
+import { mapGraph, PathHit } from '../graph.js';
 
 export type PathSegment =
   | { kind: 'key'; name: string }
@@ -119,6 +120,35 @@ export function transformAtPaths(value: unknown, paths: ParsedPath[], transform:
   return paths.reduce((current, path) => transformAtPath(current, path, transform), value);
 }
 
+/**
+ * Request fields that hold a JSON Schema: tool parameters and structured output
+ * formats. Their member names describe fields instead of holding values, so a
+ * property called `password` is the definition of a field, not a password.
+ * When the whole body is redacted, every string inside them is still scanned,
+ * but the sensitive-key rule is not applied, which keeps the schema valid for
+ * the provider.
+ */
+export const SCHEMA_PATHS: ParsedPath[] = [
+  'tools[*].function.parameters', // OpenAI Chat Completions
+  'functions[*].parameters', // OpenAI legacy functions
+  'tools[*].parameters', // OpenAI Responses
+  'tools[*].input_schema', // Anthropic Messages
+  'tools[*].inputSchema', // MCP tool definitions
+  'tools[*].functionDeclarations[*].parameters', // Gemini
+  'tools[*].functionDeclarations[*].parametersJsonSchema',
+  'tools[*].function_declarations[*].parameters',
+  'response_format.json_schema.schema', // OpenAI structured outputs
+  'text.format.schema', // OpenAI Responses structured outputs
+  'generationConfig.responseSchema', // Gemini
+  'generationConfig.responseJsonSchema',
+  'generation_config.response_schema',
+].map(parsePath);
+
+/** Every string in a schema redacted on its own, so member names give no key context. */
+function redactSchemaStrings(redact: <T>(value: T) => T) {
+  return (node: unknown): unknown => new PathHit(mapGraph(node, (text) => redact(text)));
+}
+
 const JSON_TYPE = /^application\/(?:[\w.+-]+\+)?json\b/i;
 const FORM_TYPE = /^application\/x-www-form-urlencoded\b/i;
 const TEXT_TYPE = /^text\/(?!event-stream)/i;
@@ -162,7 +192,9 @@ export function redactBody(raw: string, options: BodyRedactionOptions): BodyReda
     } catch {
       return { body: redact(raw), handled: true };
     }
-    const next = paths?.length ? transformAtPaths(parsed, paths, (node) => redact(node)) : redact(parsed);
+    const next = paths?.length
+      ? transformAtPaths(parsed, paths, (node) => redact(node))
+      : redact(transformAtPaths(parsed, SCHEMA_PATHS, redactSchemaStrings(redact)));
     return { body: JSON.stringify(next), handled: true, parsed: next };
   }
 

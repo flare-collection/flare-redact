@@ -187,6 +187,11 @@ const EVENT: Keep = {
   },
 };
 
+/** A Sentry span or log attribute in its wrapped form: `{ value, type }`, maybe with `unit`. */
+function isTypedAttribute(value: unknown): value is Plain {
+  return isObject(value) && !Array.isArray(value) && own(value, 'value') && own(value, 'type') && typeof value.type === 'string';
+}
+
 const MASK = '***';
 /** `cookie`, `Cookies`, `Set-Cookie`, `http.request.header.cookie`. */
 const COOKIE_KEY = /(?:^|[._-])(?:set[-_]?)?cookies?$/i;
@@ -318,11 +323,22 @@ export function sentryRedact(opts: RedactOptions = {}, sentry: SentryHookOptions
     if (spec.attributes) {
       for (const key of Object.keys(redacted)) {
         if (!own(original, key)) continue;
+        // A typed attribute ({ value, type, unit }) under a sensitive name has
+        // all of it masked. Its type and unit describe the value, so they come
+        // back, and a value masked to text is typed as a string.
+        const typed = original[key];
+        const masked = out[key];
+        if (isTypedAttribute(typed) && isObject(masked) && !Array.isArray(masked) && own(masked, 'value')) {
+          const type = typeof masked.value === 'string' && typeof typed.value !== 'string' ? 'string' : typed.type;
+          const fixed: Plain = { ...masked, type };
+          if (own(typed, 'unit')) fixed.unit = typed.unit;
+          if (fixed.type !== masked.type || fixed.unit !== masked.unit) set(key, fixed);
+        }
         const rule = spec.attributes.find(([pattern]) => pattern.test(key));
         if (!rule) continue;
         const guard = rule[1];
         const before = original[key];
-        const after = redacted[key];
+        const after = out[key];
         // Streamed spans and logs wrap each attribute as { value, type }.
         if (guard !== WHOLE && isObject(before) && isObject(after) && own(before, 'value') && own(after, 'value')) {
           const value = guard(before.value, after.value, checks);

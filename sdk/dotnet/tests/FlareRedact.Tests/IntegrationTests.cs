@@ -65,6 +65,28 @@ namespace FlareRedact.Tests
         }
 
         [Fact]
+        public void NumbersAndStructuresUnderSensitiveNamesAreMasked()
+        {
+            var collector = new Collector();
+            using (Logger log = new LoggerConfiguration()
+                .WriteTo.FlareRedact(wt => wt.Sink(collector))
+                .CreateLogger())
+            {
+                log.Information("charge {Cvv} for {Amount}, {@Cookie} {Pin}", 123, 1000,
+                    new { Name = "connect.sid", Value = "s%3A_SID_abc", Secure = true }, new[] { 1234, 5678 });
+            }
+            LogEvent logEvent = collector.Events.Single();
+            string rendered = Render(logEvent);
+            foreach (string leak in new[] { "123", "connect.sid", "s%3A_SID_abc", "1234", "5678" })
+            {
+                Assert.DoesNotContain(leak, rendered);
+            }
+            Assert.Equal("\"***\"", logEvent.Properties["Cvv"].ToString());
+            Assert.Equal("1000", logEvent.Properties["Amount"].ToString());
+            Assert.Contains("Secure: True", logEvent.Properties["Cookie"].ToString());
+        }
+
+        [Fact]
         public void ScalarObjectsAreRedactedAsText()
         {
             const string dsn = "postgres://admin:s3cr3tPassw0rd@db.internal:5432/app";
@@ -177,6 +199,24 @@ namespace FlareRedact.Tests
             Assert.IsType<RedactedException>(second.Exception);
             Assert.DoesNotContain("ghp_abcdefghijklmnopqrstuvwxyz0123456789", second.Exception!.ToString());
             Assert.DoesNotContain("grace@", second.Message);
+        }
+
+        [Fact]
+        public void NumbersUnderSensitiveNamesAreMasked()
+        {
+            lock (CollectorProvider.Entries) CollectorProvider.Entries.Clear();
+            using ServiceProvider services = new ServiceCollection()
+                .AddLogging(b => b.AddProvider(new CollectorProvider()).AddFlareRedact())
+                .BuildServiceProvider();
+            ILogger log = services.GetRequiredService<ILoggerFactory>().CreateLogger("numbers");
+            log.LogInformation("charge {Cvv} for {Amount}, otp {Otp}", 123, 1000, 482913L);
+
+            Entry entry = CollectorProvider.Entries.Single();
+            Dictionary<string, object?> state = entry.State.ToDictionary(p => p.Key, p => p.Value);
+            Assert.Equal("***", state["Cvv"]);
+            Assert.Equal(1000, state["Amount"]);
+            Assert.Equal("***", state["Otp"]);
+            Assert.Equal("charge *** for 1000, otp ***", entry.Message);
         }
 
         private sealed class ConnectionInfo

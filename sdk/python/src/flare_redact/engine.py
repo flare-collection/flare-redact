@@ -18,10 +18,14 @@ The two decisions worth knowing about:
 from __future__ import annotations
 
 import dataclasses
+import datetime
+import numbers
 import re
+import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import (
-    Any, Callable, Dict, List, Mapping, Optional, Pattern, Sequence, Tuple, Union,
+    Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Pattern, Sequence, Tuple, Union,
 )
 
 from .crypto import hmac_fingerprint
@@ -488,60 +492,179 @@ def redact_string(
 # --------------------------------------------------------------------------- #
 
 _ATOMIC = (bool, int, float, complex, bytes, bytearray, memoryview, type(None))
+_BINARY = (bytes, bytearray, memoryview)
+
+
+def _js_float(value: float) -> str:
+    """ECMAScript ``Number::toString`` for a float (FRS-1 §9)."""
+    if value != value:
+        return "NaN"
+    if value in (float("inf"), float("-inf")):
+        return "Infinity" if value > 0 else "-Infinity"
+    if value == 0:
+        return "0"
+    sign = "-" if value < 0 else ""
+    text = repr(abs(value))  # the shortest digits that round-trip
+    mantissa, _, exponent = text.partition("e")
+    whole, _, fraction = mantissa.partition(".")
+    raw = whole + fraction
+    lead = len(raw) - len(raw.lstrip("0"))
+    digits = raw.strip("0") or "0"
+    point = len(whole) - lead + (int(exponent) if exponent else 0)
+    count = len(digits)
+    if count <= point <= 21:
+        out = digits + "0" * (point - count)
+    elif 0 < point <= 21:
+        out = digits[:point] + "." + digits[point:]
+    elif -6 < point <= 0:
+        out = "0." + "0" * (-point) + digits
+    else:
+        power = point - 1
+        out = digits[0] + ("." + digits[1:] if count > 1 else "") + "e" + ("+" if power >= 0 else "-") + str(abs(power))
+    return sign + out
+
+
+def number_text(value: Any) -> str:
+    """The decimal text a number under a sensitive key stands for (FRS-1 §9)."""
+    if isinstance(value, numbers.Integral):
+        return str(int(value))
+    if isinstance(value, Decimal):
+        if value.is_finite() and value == value.to_integral_value():
+            return str(int(value))
+        return _js_float(float(value))
+    return _js_float(float(value))
+
+
+def bytes_text(value: Any) -> str:
+    """The text binary data under a sensitive key stands for: lowercase hex."""
+    return bytes(value).hex()
+
+
+def _is_number(value: Any) -> bool:
+    # numbers.Real covers int, float, Fraction and the NumPy scalars, which are
+    # what DataFrame.to_dict() rows hold.
+    return isinstance(value, (numbers.Real, Decimal)) and not isinstance(value, bool)
+
+
+#: Values kept under a sensitive key: flags and points in time are not secrets.
+_KEPT = (bool, type(None), datetime.date, datetime.time, datetime.timedelta)
+
+
+def _plain(value: Any) -> Any:
+    """A NumPy scalar as the Python value it holds; anything else as it is."""
+    if type(value).__module__ == "numpy" and hasattr(value, "item"):
+        try:
+            return value.item()
+        except (TypeError, ValueError):
+            return value
+    return value
+
+
+def sensitive_text(value: Any) -> Optional[str]:
+    """The text a leaf under a sensitive key is replaced as, or None (FRS-1 §9).
+
+    A number gives its decimal text, binary data its hex, a UUID its canonical
+    form. Kept values (booleans, None, dates) and containers give None.
+    """
+    if isinstance(value, _KEPT):
+        return None
+    if _is_number(value):
+        return number_text(value)
+    if isinstance(value, _BINARY):
+        return bytes_text(value)
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    return None
+
+
+def _printed(value: Any) -> str:
+    """The text an object the walk cannot open prints as."""
+    try:
+        return str(value)
+    except Exception:  # a broken __str__ must not let the value through
+        return object.__repr__(value)
+
+
+class SensitiveRule(NamedTuple):
+    """How a walk treats values under a sensitive key (FRS-1 §9).
+
+    ``replace`` gets the text of a string, number or byte array found under a
+    sensitive key and returns its replacement, or ``None`` when the allowlist
+    keeps it.
+    """
+
+    matches: Callable[[str], bool]
+    replace: Callable[[str], Optional[str]]
 
 
 def map_graph(
     value: Any,
     map_string: Callable[[str], str],
-    map_sensitive: Optional[Callable[[str, str], str]] = None,
+    rule: Optional[SensitiveRule] = None,
+    start_hot: bool = False,
 ) -> Any:
     """Rebuild a structure with every reachable string transformed.
 
     Cycles are visited once and shared references stay shared, so redacting a
-    log record that points at itself terminates and still round-trips.
+    log record that points at itself terminates and still round-trips. With a
+    ``rule``, everything reachable from a value under a sensitive key is
+    replaced, numbers and binary data included; a value reached both there and
+    elsewhere gets one copy for each position.
     """
     seen: Dict[int, Any] = {}
+    seen_hot: Dict[int, Any] = {}
 
-    def walk(node: Any) -> Any:
+    def hot_text(text: str) -> str:
+        replaced = rule.replace(text) if rule is not None else None
+        return map_string(text) if replaced is None else replaced
+
+    def walk(node: Any, hot: bool = False) -> Any:
         if isinstance(node, str):
-            return map_string(node)
+            return hot_text(node) if hot else map_string(node)
+        if hot and rule is not None:
+            node = _plain(node)
+            if isinstance(node, str):
+                return hot_text(node)
+            text = sensitive_text(node)
+            if text is not None:
+                replaced = rule.replace(text)
+                return node if replaced is None else replaced
         if isinstance(node, _ATOMIC):
             return node
 
+        cache = seen_hot if hot else seen
         identity = id(node)
-        if identity in seen:
-            return seen[identity]
+        if identity in cache:
+            return cache[identity]
 
         if isinstance(node, Mapping):
             out: Dict[Any, Any] = {}
-            seen[identity] = out
+            cache[identity] = out
             # Keys are field names and stay as they are (FRS-1 §10); only the
             # values are redacted, which is also all that scan() reports on.
             for key, item in node.items():
-                if map_sensitive is not None and isinstance(key, str) and isinstance(item, str):
-                    out[key] = map_sensitive(key, item)
-                else:
-                    out[key] = walk(item)
+                sensitive = hot or (rule is not None and isinstance(key, str) and rule.matches(key))
+                out[key] = walk(item, sensitive)
             return out
 
         if isinstance(node, list):
             out_list: List[Any] = []
-            seen[identity] = out_list
+            cache[identity] = out_list
             for item in node:
-                out_list.append(walk(item))
+                out_list.append(walk(item, hot))
             return out_list
 
         if isinstance(node, (set, frozenset)):
             # A hashable container cannot contain itself, so no cycle guard is needed.
-            return type(node)(walk(item) for item in node)
+            return type(node)(walk(item, hot) for item in node)
 
         if isinstance(node, tuple):
-            mapped = tuple(walk(item) for item in node)
-            seen[identity] = mapped
+            mapped = tuple(walk(item, hot) for item in node)
+            cache[identity] = mapped
             return mapped
 
         if isinstance(node, BaseException):
-            mapped_args = tuple(walk(arg) for arg in node.args)
+            mapped_args = tuple(walk(arg, hot) for arg in node.args)
             try:
                 rebuilt = type(node)(*mapped_args)
             except TypeError:
@@ -549,20 +672,25 @@ def map_graph(
                 # returning a plain Exception keeps the message redacted, which
                 # matters more than preserving the class.
                 rebuilt = Exception(*mapped_args)
-            seen[identity] = rebuilt
+            cache[identity] = rebuilt
             # The chain a traceback prints: ``raise ... from`` and the exception
             # being handled when this one was raised. Dropping it would hide the
             # real reason for a failure.
             if node.__cause__ is not None:
-                rebuilt.__cause__ = walk(node.__cause__)
+                rebuilt.__cause__ = walk(node.__cause__, hot)
             if node.__context__ is not None:
-                rebuilt.__context__ = walk(node.__context__)
+                rebuilt.__context__ = walk(node.__context__, hot)
             rebuilt.__suppress_context__ = node.__suppress_context__
             return rebuilt
 
+        if hot and rule is not None and not isinstance(node, _KEPT):
+            # An object the walk cannot open (a dataclass, a model, an enum):
+            # under a sensitive key it is masked as the text it prints as.
+            replaced = rule.replace(_printed(node))
+            return node if replaced is None else replaced
         return node
 
-    return walk(value)
+    return walk(value, start_hot and rule is not None)
 
 
 def _locate(text: str, offset: int) -> Tuple[int, int]:
@@ -603,12 +731,17 @@ class Policy:
 
     def redact(self, value: Any) -> Any:
         """Redact every string reachable from ``value``, preserving its shape."""
-        def sensitive(key: str, item: str) -> str:
-            if self._match_key(key) and not self._allow(item):
-                return self._replace(item, _SENSITIVE_KEY_DETECTOR)
-            return self.redact_str(item)
+        return map_graph(value, self.redact_str, self._sensitive_rule())
 
-        return map_graph(value, self.redact_str, sensitive)
+    def is_sensitive_key(self, key: str) -> bool:
+        """Whether a field name is sensitive under this policy (FRS-1 §9)."""
+        return self._match_key(key)
+
+    def _sensitive_rule(self) -> SensitiveRule:
+        def replace(text: str) -> Optional[str]:
+            return None if self._allow(text) else self._replace(text, _SENSITIVE_KEY_DETECTOR)
+
+        return SensitiveRule(self._match_key, replace)
 
     # -- inspection --------------------------------------------------------- #
 
@@ -652,18 +785,8 @@ class Policy:
                 for key, item in node.items():
                     name = key if isinstance(key, str) else f"<key:{key!r}>"
                     child = f"{path}.{name}" if path else str(name)
-                    if isinstance(key, str) and isinstance(item, str) and self._match_key(key) and not self._allow(item):
-                        findings.append(
-                            Finding(
-                                detector="sensitive_key",
-                                label="Sensitive field",
-                                why=f'Value stored under a sensitive field name ("{key}").',
-                                risk="critical",
-                                confidence=0.98,
-                                path=child,
-                                value=item if include_values else None,
-                            )
-                        )
+                    if isinstance(key, str) and self._match_key(key):
+                        sensitive(item, child, key)
                     else:
                         walk(item, child)
                 return
@@ -681,6 +804,58 @@ class Policy:
                     if linked is not None:
                         walk(linked, f"{path}.{name}" if path else name)
                 return
+
+        seen_hot: set = set()
+
+        def sensitive(node: Any, path: str, key: str) -> None:
+            """One finding per string, number and byte array under a sensitive key."""
+            def found(text: str) -> None:
+                findings.append(
+                    Finding(
+                        detector="sensitive_key",
+                        label="Sensitive field",
+                        why=f'Value stored under a sensitive field name ("{key}").',
+                        risk="critical",
+                        confidence=0.98,
+                        path=path,
+                        value=text if include_values else None,
+                    )
+                )
+
+            node = _plain(node)
+            if isinstance(node, str):
+                if self._allow(node):
+                    scan_text(node, path)
+                else:
+                    found(node)
+                return
+            text = sensitive_text(node)
+            if text is not None:
+                if not self._allow(text):
+                    found(text)
+                return
+            if isinstance(node, (_ATOMIC, _KEPT)):
+                return
+            identity = id(node)
+            if identity in seen_hot:
+                return
+            seen_hot.add(identity)
+            if isinstance(node, Mapping):
+                for name, item in node.items():
+                    label = name if isinstance(name, str) else f"<key:{name!r}>"
+                    sensitive(item, f"{path}.{label}", key)
+            elif isinstance(node, (list, tuple, set, frozenset)):
+                for index, item in enumerate(node):
+                    sensitive(item, f"{path}[{index}]", key)
+            elif isinstance(node, BaseException):
+                for index, arg in enumerate(node.args):
+                    sensitive(arg, f"{path}.args[{index}]", key)
+                for name in ("__cause__", "__context__"):
+                    linked = getattr(node, name)
+                    if linked is not None:
+                        sensitive(linked, f"{path}.{name}", key)
+            elif not self._allow(_printed(node)):
+                found(_printed(node))
 
         walk(value, "")
         return findings

@@ -1668,6 +1668,60 @@
     ],
     "redact": "Authorization [REDACTED JWT]"
   },
+  "keys/allowlisted-number": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "cvv",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "cvv": "***",
+      "pin": 1234
+    }
+  },
+  "keys/array-values": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "password[0]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "password[1][0]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "password[1][1]",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "password": [
+        "***",
+        [
+          "***",
+          "***"
+        ]
+      ],
+      "user": "ada"
+    }
+  },
+  "keys/booleans-and-null-kept": {
+    "findings": [],
+    "redact": {
+      "hasPassword": true,
+      "password": null,
+      "password_set": false
+    }
+  },
   "keys/compound-names": {
     "findings": [
       {
@@ -1858,6 +1912,77 @@
       "TOKENIZERS_PARALLELISM": "false"
     }
   },
+  "keys/float-text-hash-mode": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[0]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[1]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[2]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[3]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[4]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[5]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[6]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[7]",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin[8]",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "pin": [
+        "sensitive_key_bce4cfc7b688cb207d492718d217b9fa",
+        "sensitive_key_920589a892e88c0a82dd866950f1689a",
+        "sensitive_key_54b8b5e9dab5e2cfcd4ca0cbbcff5157",
+        "sensitive_key_982fe1d69b5ac4698ee34d9441eb3202",
+        "sensitive_key_9703bdf9cb5b9ad57d1848994be28cd9",
+        "sensitive_key_113fb2ae4b78df0ef846b3be312c50af",
+        "sensitive_key_bec5a69aa754dca62d9d49c9e460e70f",
+        "sensitive_key_5ed7d2d76e071c43612ba13ff2c38bd6",
+        "sensitive_key_a0a81c5ebfbf7d6ec4280500a59c34d1"
+      ]
+    }
+  },
   "keys/greek-final-sigma": {
     "findings": [
       {
@@ -1972,6 +2097,119 @@
         true,
         null
       ]
+    }
+  },
+  "keys/nested-values": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "credentials.hash",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "credentials.params.cost",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "credentials.params.salt",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "credentials": {
+        "hash": "***",
+        "params": {
+          "cost": "***",
+          "salt": "***"
+        },
+        "rotated": true
+      }
+    }
+  },
+  "keys/number-hash-mode": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "otp",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "otp": "sensitive_key_2c6edfb1b364bba1590e256da2bc0aab",
+      "pin": "sensitive_key_0f75a30fd51b07f50722e2a29dfa3035"
+    }
+  },
+  "keys/number-label-mode": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "pin": "[REDACTED:sensitive_key]",
+      "session": {
+        "id": 9
+      }
+    }
+  },
+  "keys/number-values": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "cvv",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "pin",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "amount": 1000,
+      "cvv": "***",
+      "pin": "***",
+      "ratio": 1.5
+    }
+  },
+  "keys/object-values": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "cookie.name",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "cookie.value",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "cookie": {
+        "name": "***",
+        "value": "***"
+      },
+      "host": "api.example.com"
     }
   },
   "keys/redact-keys-normalised": {
@@ -3549,6 +3787,32 @@
       ],
       "redacted": "email [EMAIL_1] and [EMAIL_2]",
       "restored": "email ada@example.com and grace@example.org"
+    }
+  },
+  "vault/sensitive-values": {
+    "vault": {
+      "entries": [
+        [
+          "[SENSITIVE_KEY_1]",
+          "abc"
+        ],
+        [
+          "[SENSITIVE_KEY_2]",
+          "482913"
+        ]
+      ],
+      "redacted": {
+        "cookie": {
+          "value": "[SENSITIVE_KEY_1]"
+        },
+        "otp": "[SENSITIVE_KEY_2]"
+      },
+      "restored": {
+        "cookie": {
+          "value": "abc"
+        },
+        "otp": "482913"
+      }
     }
   },
   "vault/stable-placeholder": {
