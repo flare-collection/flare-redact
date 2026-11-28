@@ -83,6 +83,13 @@ func (h *SlogHandler) text(value string) string {
 
 func (h *SlogHandler) attr(attr slog.Attr) slog.Attr {
 	value := attr.Value.Resolve()
+	// A sensitive key name is decided by the attribute key, exactly as it is
+	// for a map entry: logger.Info("x", "password", pw) must not print pw,
+	// neither may logger.Info("x", "dsn", err), and logger.Info("x", "pin",
+	// 1234) must not print the number.
+	if h.policy.matchKey(attr.Key) {
+		return slog.Attr{Key: attr.Key, Value: h.sensitive(value)}
+	}
 	text, isText := value.String(), value.Kind() == slog.KindString
 	if value.Kind() == slog.KindAny {
 		text, isText = printedText(value.Any())
@@ -90,13 +97,47 @@ func (h *SlogHandler) attr(attr slog.Attr) slog.Attr {
 	if !isText {
 		return slog.Attr{Key: attr.Key, Value: h.value(value)}
 	}
-	// A sensitive key name is decided by the attribute key, exactly as it is
-	// for a map entry: logger.Info("x", "password", pw) must not print pw, and
-	// neither may logger.Info("x", "dsn", err) when the key is sensitive.
-	if h.policy.matchKey(attr.Key) && !h.policy.allow(text) {
-		return slog.String(attr.Key, h.policy.replace(text, sensitiveKeyDetector))
-	}
 	return slog.String(attr.Key, h.text(text))
+}
+
+// sensitive masks a value logged under a sensitive key whatever its kind:
+// text and numbers whole, and every one of them inside a group or a structured
+// value (SPEC §9). Booleans, times and durations are kept.
+func (h *SlogHandler) sensitive(value slog.Value) slog.Value {
+	switch value.Kind() {
+	case slog.KindString:
+		return slog.StringValue(h.sensitiveText(value.String()))
+	case slog.KindInt64, slog.KindUint64, slog.KindFloat64:
+		text, _ := sensitiveText(value.Any())
+		if h.policy.allow(text) {
+			return value
+		}
+		return slog.StringValue(h.policy.replace(text, sensitiveKeyDetector))
+	case slog.KindGroup:
+		attrs := value.Group()
+		out := make([]slog.Attr, len(attrs))
+		for i, attr := range attrs {
+			out[i] = slog.Attr{Key: attr.Key, Value: h.sensitive(attr.Value.Resolve())}
+		}
+		return slog.GroupValue(out...)
+	case slog.KindLogValuer:
+		return h.sensitive(value.Resolve())
+	case slog.KindAny:
+		if text, ok := printedText(value.Any()); ok {
+			return slog.StringValue(h.sensitiveText(text))
+		}
+		return h.anyValue(value.Any(), true)
+	default:
+		return value
+	}
+}
+
+func (h *SlogHandler) sensitiveText(text string) string {
+	out, err := h.policy.redactText(text, true)
+	if err != nil {
+		return redactionFailed
+	}
+	return out
 }
 
 func (h *SlogHandler) value(value slog.Value) slog.Value {
@@ -113,7 +154,7 @@ func (h *SlogHandler) value(value slog.Value) slog.Value {
 	case slog.KindLogValuer:
 		return h.value(value.Resolve())
 	case slog.KindAny:
-		return h.anyValue(value.Any())
+		return h.anyValue(value.Any(), false)
 	default:
 		return value
 	}
@@ -124,13 +165,15 @@ func (h *SlogHandler) value(value slog.Value) slog.Value {
 // handlers still print it: TextHandler through MarshalText, Error or %+v
 // (which calls String), JSONHandler through Error or json.Marshal. So the
 // value is first turned into what a handler would print, and that is redacted.
-func (h *SlogHandler) anyValue(value any) slog.Value {
+// hot is true under a sensitive key, where every string and number inside is
+// masked whole.
+func (h *SlogHandler) anyValue(value any, hot bool) slog.Value {
 	if text, ok := printedText(value); ok {
 		return slog.StringValue(h.text(text))
 	}
 	switch value.(type) {
 	case nil, map[string]any, map[string]string, []any, []string:
-		return h.structured(value)
+		return h.structured(value, hot)
 	}
 	// Structs, typed slices and maps, and pointers to them. JSON is what the
 	// JSON handler prints, and as JSON the field names reach the key rules, so
@@ -138,7 +181,11 @@ func (h *SlogHandler) anyValue(value any) slog.Value {
 	document, err := json.Marshal(value)
 	if err != nil {
 		// A channel, a func or a cycle: print it as TextHandler would.
-		return slog.StringValue(h.text(fmt.Sprintf("%+v", value)))
+		printed := fmt.Sprintf("%+v", value)
+		if hot {
+			return slog.StringValue(h.sensitiveText(printed))
+		}
+		return slog.StringValue(h.text(printed))
 	}
 	decoder := json.NewDecoder(bytes.NewReader(document))
 	decoder.UseNumber() // keep int64 ids exact instead of rounding them through float64
@@ -146,11 +193,11 @@ func (h *SlogHandler) anyValue(value any) slog.Value {
 	if err := decoder.Decode(&decoded); err != nil {
 		return slog.StringValue(redactionFailed)
 	}
-	return h.structured(decoded)
+	return h.structured(decoded, hot)
 }
 
-func (h *SlogHandler) structured(value any) slog.Value {
-	redacted, err := h.policy.Redact(value)
+func (h *SlogHandler) structured(value any, hot bool) slog.Value {
+	redacted, err := h.policy.redactValue(value, 0, hot)
 	if err != nil {
 		return slog.StringValue(redactionFailed)
 	}

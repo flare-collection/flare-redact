@@ -152,10 +152,13 @@ func (v *Vault) redactStringLocked(text string) (string, error) {
 func (v *Vault) Redact(value any) (any, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return v.redactValue(value, 0)
+	return v.redactValue(value, 0, false)
 }
 
-func (v *Vault) redactValue(value any, depth int) (any, error) {
+// redactValue walks value as Policy.redactValue does, minting a placeholder
+// for every string and number under a sensitive key (SPEC §9). A number comes
+// back from Restore as its text.
+func (v *Vault) redactValue(value any, depth int, hot bool) (any, error) {
 	if depth > maxDepth {
 		return nil, ErrTooDeep
 	}
@@ -163,19 +166,11 @@ func (v *Vault) redactValue(value any, depth int) (any, error) {
 	case nil:
 		return nil, nil
 	case string:
-		return v.redactStringLocked(typed)
+		return v.redactTextLocked(typed, hot)
 	case map[string]any:
 		out := make(map[string]any, len(typed))
 		for _, key := range sortedKeys(typed) {
-			if text, ok := typed[key].(string); ok {
-				replaced, err := v.redactFieldLocked(key, text)
-				if err != nil {
-					return nil, err
-				}
-				out[key] = replaced
-				continue
-			}
-			replaced, err := v.redactValue(typed[key], depth+1)
+			replaced, err := v.redactValue(typed[key], depth+1, hot || v.policy.matchKey(key))
 			if err != nil {
 				return nil, err
 			}
@@ -185,7 +180,7 @@ func (v *Vault) redactValue(value any, depth int) (any, error) {
 	case map[string]string:
 		out := make(map[string]string, len(typed))
 		for _, key := range sortedKeys(typed) {
-			replaced, err := v.redactFieldLocked(key, typed[key])
+			replaced, err := v.redactTextLocked(typed[key], hot || v.policy.matchKey(key))
 			if err != nil {
 				return nil, err
 			}
@@ -195,7 +190,7 @@ func (v *Vault) redactValue(value any, depth int) (any, error) {
 	case []any:
 		out := make([]any, len(typed))
 		for i, entry := range typed {
-			replaced, err := v.redactValue(entry, depth+1)
+			replaced, err := v.redactValue(entry, depth+1, hot)
 			if err != nil {
 				return nil, err
 			}
@@ -205,7 +200,7 @@ func (v *Vault) redactValue(value any, depth int) (any, error) {
 	case []string:
 		out := make([]string, len(typed))
 		for i, entry := range typed {
-			replaced, err := v.redactStringLocked(entry)
+			replaced, err := v.redactTextLocked(entry, hot)
 			if err != nil {
 				return nil, err
 			}
@@ -213,15 +208,27 @@ func (v *Vault) redactValue(value any, depth int) (any, error) {
 		}
 		return out, nil
 	default:
+		if !hot {
+			return value, nil
+		}
+		if text, ok := sensitiveText(value); ok {
+			if v.policy.allow(text) {
+				return value, nil
+			}
+			return v.mint(text, sensitiveKeyDetector.ID)
+		}
+		if shaped, ok := sensitiveShape(value); ok {
+			return v.redactValue(shaped, depth+1, true)
+		}
 		return value, nil
 	}
 }
 
-func (v *Vault) redactFieldLocked(key, value string) (string, error) {
-	if v.policy.matchKey(key) && !v.policy.allow(value) {
-		return v.mint(value, sensitiveKeyDetector.ID)
+func (v *Vault) redactTextLocked(text string, hot bool) (string, error) {
+	if hot && !v.policy.allow(text) {
+		return v.mint(text, sensitiveKeyDetector.ID)
 	}
-	return v.redactStringLocked(value)
+	return v.redactStringLocked(text)
 }
 
 // Entries returns placeholder → original pairs in the order they were minted.

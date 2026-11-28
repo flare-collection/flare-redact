@@ -124,16 +124,15 @@ namespace FlareRedact
 
         /// <summary>
         /// Replace every secret reachable from a value with a stable placeholder, preserving its
-        /// shape (see <see cref="FlareRedact.Policy.Redact"/>).
+        /// shape (see <see cref="FlareRedact.Policy.Redact"/>). Every string and number under a
+        /// sensitive key gets one; a number restores as its text.
         /// </summary>
         public object? Redact(object? value)
         {
             lock (_lock)
             {
-                return new Policy.Walker(RedactStringLocked,
-                    (key, text) => Policy.IsSensitiveKey(key) && !Policy.Allows(text)
-                        ? Mint(text, Detector.SensitiveKey.Id)
-                        : RedactStringLocked(text)).Walk(value, 0);
+                return new Policy.Walker(RedactStringLocked, Policy.IsSensitiveKey,
+                    text => Policy.Allows(text) ? null : Mint(text, Detector.SensitiveKey.Id)).Walk(value, 0);
             }
         }
 

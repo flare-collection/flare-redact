@@ -140,7 +140,17 @@ namespace FlareRedact
 
         internal bool Allows(string value) => _allowed.Contains(value) || (_allowPredicate != null && _allowPredicate(value));
 
-        internal bool IsSensitiveKey(string key) => _matchKey(key);
+        /// <summary>
+        /// Whether a field name is sensitive under this policy (SPEC §9): by convention, or in
+        /// <see cref="RedactOptions.KeyNames"/>. Everything under such a key is masked whole,
+        /// whatever its type, which is what logging integrations that see fields one at a time
+        /// need to know.
+        /// </summary>
+        public bool IsSensitiveKey(string key)
+        {
+            if (key == null) throw new ArgumentNullException(nameof(key));
+            return _matchKey(key);
+        }
 
         // -------------------------------------------------------------------
         // Scanning
@@ -387,9 +397,12 @@ namespace FlareRedact
         /// Rewrite every string reachable from a value, preserving its shape. Dictionaries come
         /// back as <see cref="Dictionary{TKey, TValue}"/> in the input's order, lists and other
         /// sequences as <see cref="List{T}"/>, arrays as arrays; a cycle in the input is a cycle in
-        /// the output.
+        /// the output. Everything under a sensitive key is masked whatever its type: strings,
+        /// numbers (as their decimal text), byte arrays (as hex), GUIDs and every string or number
+        /// inside a dictionary or sequence at any depth. Booleans, dates and null are kept.
         /// </summary>
-        public object? Redact(object? value) => new Walker(RedactString, RedactField).Walk(value, 0);
+        public object? Redact(object? value) =>
+            new Walker(RedactString, _matchKey, text => Allows(text) ? null : _replace(text, Detector.SensitiveKey)).Walk(value, 0);
 
         /// <summary>
         /// Redact a JSON document and return a JSON document: the entry point for your own classes
@@ -408,74 +421,105 @@ namespace FlareRedact
             public int GetHashCode(object obj) => RuntimeHelpers.GetHashCode(obj);
         }
 
-        /// <summary>Rebuilds a structured value, transforming every string in it.</summary>
+        /// <summary>
+        /// Rebuilds a structured value, transforming every string in it. Under a sensitive key every
+        /// string and number is replaced whole, at any depth; a value reached both under a sensitive
+        /// key and elsewhere gets one copy of each kind.
+        /// </summary>
         internal sealed class Walker
         {
             private readonly Func<string, string> _onString;
-            private readonly Func<string, string, string>? _onField;
+            private readonly Func<string, bool>? _isSensitiveKey;
+            private readonly Func<string, string?>? _onSensitive;
             private readonly Dictionary<object, object> _seen = new Dictionary<object, object>(ReferenceComparer.Instance);
+            private readonly Dictionary<object, object> _seenHot = new Dictionary<object, object>(ReferenceComparer.Instance);
 
-            internal Walker(Func<string, string> onString, Func<string, string, string>? onField)
+            /// <param name="onString">What a string becomes.</param>
+            /// <param name="isSensitiveKey">Which dictionary keys are sensitive, or null for none.</param>
+            /// <param name="onSensitive">
+            /// What the text of a value under a sensitive key becomes, or null when the allowlist keeps it.
+            /// </param>
+            internal Walker(Func<string, string> onString, Func<string, bool>? isSensitiveKey = null,
+                Func<string, string?>? onSensitive = null)
             {
                 _onString = onString;
-                _onField = onField;
+                _isSensitiveKey = isSensitiveKey;
+                _onSensitive = onSensitive;
             }
 
-            internal object? Walk(object? value, int depth)
+            internal object? Walk(object? value, int depth) => Walk(value, depth, false);
+
+            private object? Walk(object? value, int depth, bool hot)
             {
                 switch (value)
                 {
                     case null:
                         return null;
                     case string text:
-                        return _onString(text);
+                        return (hot ? _onSensitive!(text) : null) ?? _onString(text);
+                }
+                if (hot)
+                {
+                    string? text = SensitiveValues.Text(value);
+                    if (text != null) return _onSensitive!(text) ?? value;
                 }
                 if (depth > MaxDepth) throw new FlareRedactException("value nests deeper than " + MaxDepth + " levels");
 #if NET8_0_OR_GREATER
                 // System.Text.Json values go through the JSON model and come back as the same kind.
                 if (value is JsonNode node)
                 {
-                    return JsonNode.Parse(Json.Stringify(Walk(Json.Parse(node.ToJsonString()), depth)));
+                    return JsonNode.Parse(Json.Stringify(Walk(Json.Parse(node.ToJsonString()), depth, hot)));
                 }
                 if (value is JsonElement element)
                 {
-                    using JsonDocument document = JsonDocument.Parse(Json.Stringify(Walk(Json.Parse(element.GetRawText()), depth)));
+                    using JsonDocument document = JsonDocument.Parse(Json.Stringify(Walk(Json.Parse(element.GetRawText()), depth, hot)));
                     return document.RootElement.Clone();
                 }
 #endif
-                if (value.GetType().IsValueType) return value;
-                if (_seen.TryGetValue(value, out object? cached)) return cached;
+                if (value.GetType().IsValueType) return hot ? Opaque(value) : value;
+                Dictionary<object, object> seen = hot ? _seenHot : _seen;
+                if (seen.TryGetValue(value, out object? cached)) return cached;
                 switch (value)
                 {
                     case IDictionary map:
-                        return WalkMap(map, depth);
+                        return WalkMap(map, depth, hot, seen);
                     case string[] strings:
                     {
                         var output = new string[strings.Length];
-                        _seen[value] = output;
-                        for (int i = 0; i < strings.Length; i++) output[i] = (string)Walk(strings[i], depth + 1)!;
+                        seen[value] = output;
+                        for (int i = 0; i < strings.Length; i++) output[i] = (string)Walk(strings[i], depth + 1, hot)!;
                         return output;
                     }
                     case object?[] items:
                     {
                         var output = new object?[items.Length];
-                        _seen[value] = output;
-                        for (int i = 0; i < items.Length; i++) output[i] = Walk(items[i], depth + 1);
+                        seen[value] = output;
+                        for (int i = 0; i < items.Length; i++) output[i] = Walk(items[i], depth + 1, hot);
                         return output;
                     }
                     case IEnumerable sequence:
                     {
                         var output = new List<object?>();
-                        _seen[value] = output;
-                        foreach (object? item in sequence) output.Add(Walk(item, depth + 1));
+                        seen[value] = output;
+                        foreach (object? item in sequence) output.Add(Walk(item, depth + 1, hot));
                         return output;
                     }
                     default:
-                        return value;
+                        return hot ? Opaque(value) : value;
                 }
             }
 
-            private object WalkMap(IDictionary map, int depth)
+            /// <summary>
+            /// An object the walker cannot open (a class, a struct, an enum, a Uri) under a sensitive
+            /// key: masked as the text it prints as, unless it is a boolean or a time.
+            /// </summary>
+            private object Opaque(object value)
+            {
+                if (SensitiveValues.Kept(value)) return value;
+                return _onSensitive!(Convert.ToString(value, CultureInfo.InvariantCulture) ?? "") ?? value;
+            }
+
+            private object WalkMap(IDictionary map, int depth, bool hot, Dictionary<object, object> seen)
             {
                 bool stringKeys = true;
                 foreach (object key in map.Keys)
@@ -489,17 +533,11 @@ namespace FlareRedact
                 IDictionary output = stringKeys
                     ? new Dictionary<string, object?>(StringComparer.Ordinal)
                     : (IDictionary)new Dictionary<object, object?>();
-                _seen[map] = output;
+                seen[map] = output;
                 foreach (DictionaryEntry entry in map)
                 {
-                    if (entry.Key is string key && entry.Value is string text && _onField != null)
-                    {
-                        output[entry.Key] = _onField(key, text);
-                    }
-                    else
-                    {
-                        output[entry.Key] = Walk(entry.Value, depth + 1);
-                    }
+                    bool sensitive = hot || entry.Key is string key && _isSensitiveKey != null && _isSensitiveKey(key);
+                    output[entry.Key] = Walk(entry.Value, depth + 1, sensitive);
                 }
                 return output;
             }
@@ -512,62 +550,85 @@ namespace FlareRedact
         public IReadOnlyList<Finding> Scan(object? value)
         {
             var output = new List<Finding>();
-            ScanValue(value, "", 0, output, new HashSet<object>(ReferenceComparer.Instance));
+            ScanValue(value, "", 0, null, output, new HashSet<object>(ReferenceComparer.Instance),
+                new HashSet<object>(ReferenceComparer.Instance));
             return output;
         }
 
-        private void ScanValue(object? value, string path, int depth, List<Finding> output, HashSet<object> seen)
+        /// <summary><paramref name="under"/> is the sensitive key the value sits beneath, or null.</summary>
+        private void ScanValue(object? value, string path, int depth, string? under, List<Finding> output,
+            HashSet<object> seen, HashSet<object> seenHot)
         {
             if (value == null) return;
             if (value is string text)
             {
+                if (under != null && KeyFinding(under, text, path, output)) return;
                 ScanStringInto(text, path.Length == 0 ? null : path, output);
                 return;
+            }
+            if (under != null)
+            {
+                string? replaced = SensitiveValues.Text(value);
+                if (replaced != null)
+                {
+                    KeyFinding(under, replaced, path, output);
+                    return;
+                }
             }
             if (depth > MaxDepth) throw new FlareRedactException("value nests deeper than " + MaxDepth + " levels");
 #if NET8_0_OR_GREATER
             if (value is JsonNode node)
             {
-                ScanValue(Json.Parse(node.ToJsonString()), path, depth, output, seen);
+                ScanValue(Json.Parse(node.ToJsonString()), path, depth, under, output, seen, seenHot);
                 return;
             }
             if (value is JsonElement element)
             {
-                ScanValue(Json.Parse(element.GetRawText()), path, depth, output, seen);
+                ScanValue(Json.Parse(element.GetRawText()), path, depth, under, output, seen, seenHot);
                 return;
             }
 #endif
+            if (under != null && (value.GetType().IsValueType || !(value is IEnumerable)))
+            {
+                // An object the walker cannot open, masked as the text it prints as.
+                if (!SensitiveValues.Kept(value)) KeyFinding(under, Convert.ToString(value, CultureInfo.InvariantCulture) ?? "", path, output);
+                return;
+            }
             if (value.GetType().IsValueType) return;
+            HashSet<object> visited = under != null ? seenHot : seen;
             switch (value)
             {
                 case IDictionary map:
-                    if (!seen.Add(value)) return;
+                    if (!visited.Add(value)) return;
                     foreach (DictionaryEntry entry in map)
                     {
                         string name = Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? "";
                         string child = path.Length == 0 ? name : path + "." + name;
-                        if (entry.Key is string key && entry.Value is string item && _matchKey(key) && !Allows(item))
-                        {
-                            Detector d = Detector.SensitiveKey;
-                            output.Add(new Finding(d.Id, d.Label, "Value stored under a sensitive field name (\"" + key + "\").",
-                                Risk.Critical, 0.98, -1, -1, -1, -1, child, _options.IncludeValues ? item : null));
-                        }
-                        else
-                        {
-                            ScanValue(entry.Value, child, depth + 1, output, seen);
-                        }
+                        string? sensitive = under ?? (entry.Key is string key && _matchKey(key) ? key : null);
+                        ScanValue(entry.Value, child, depth + 1, sensitive, output, seen, seenHot);
                     }
                     return;
                 case IEnumerable sequence:
-                    if (!seen.Add(value)) return;
+                    if (!visited.Add(value)) return;
                     int index = 0;
                     foreach (object? item in sequence)
                     {
-                        ScanValue(item, path + "[" + index.ToString(CultureInfo.InvariantCulture) + "]", depth + 1, output, seen);
+                        ScanValue(item, path + "[" + index.ToString(CultureInfo.InvariantCulture) + "]", depth + 1, under,
+                            output, seen, seenHot);
                         index++;
                     }
                     return;
             }
+        }
+
+        /// <summary>Reports <paramref name="text"/> as sitting under <paramref name="key"/>, unless the allowlist keeps it.</summary>
+        private bool KeyFinding(string key, string text, string path, List<Finding> output)
+        {
+            if (Allows(text)) return false;
+            Detector d = Detector.SensitiveKey;
+            output.Add(new Finding(d.Id, d.Label, "Value stored under a sensitive field name (\"" + key + "\").",
+                Risk.Critical, 0.98, -1, -1, -1, -1, path.Length == 0 ? null : path, _options.IncludeValues ? text : null));
+            return true;
         }
 
         /// <summary>Whether nothing in a value would be redacted.</summary>

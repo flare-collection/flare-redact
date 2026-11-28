@@ -12,6 +12,7 @@ use regex::Regex;
 use serde_json::{Map, Value};
 
 use crate::engine::Policy;
+use crate::value::number_text;
 use crate::{Error, Options};
 
 /// The shape of minted placeholders.
@@ -166,28 +167,35 @@ impl Vault {
     }
 
     /// Replace every secret reachable from `value` with a stable placeholder.
+    /// Every string and number under a sensitive key gets one (SPEC §9); a
+    /// number comes back from [`Vault::restore`] as its text.
     pub fn redact(&mut self, value: &Value) -> Result<Value, Error> {
+        self.redact_at(value, false)
+    }
+
+    fn redact_at(&mut self, value: &Value, hot: bool) -> Result<Value, Error> {
         Ok(match value {
+            Value::String(text) if hot && !self.policy.allows(text) => Value::String(self.mint(text, "sensitive_key")?),
             Value::String(text) => Value::String(self.redact_str(text)?),
+            Value::Number(number) if hot => {
+                let text = number_text(number);
+                match self.policy.allows(&text) {
+                    true => value.clone(),
+                    false => Value::String(self.mint(&text, "sensitive_key")?),
+                }
+            }
             Value::Array(items) => {
                 let mut out = Vec::with_capacity(items.len());
                 for item in items {
-                    out.push(self.redact(item)?);
+                    out.push(self.redact_at(item, hot)?);
                 }
                 Value::Array(out)
             }
             Value::Object(entries) => {
                 let mut out = Map::new();
                 for (key, entry) in entries {
-                    let replaced = match entry {
-                        Value::String(text)
-                            if self.policy.is_sensitive_key(key) && !self.policy.allows(text) =>
-                        {
-                            Value::String(self.mint(text, "sensitive_key")?)
-                        }
-                        other => self.redact(other)?,
-                    };
-                    out.insert(key.clone(), replaced);
+                    let hot = hot || self.policy.is_sensitive_key(key);
+                    out.insert(key.clone(), self.redact_at(entry, hot)?);
                 }
                 Value::Object(out)
             }

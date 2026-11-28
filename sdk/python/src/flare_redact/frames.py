@@ -18,7 +18,8 @@ them, so this package stays dependency-free.
     con.sql("SELECT redact(note), redact_field('email', email) FROM tickets")
 
 A column is treated like a field: a column named ``password`` or ``api_key`` is
-masked whole, as a dictionary key with that name would be. Each distinct value
+masked whole, as a dictionary key with that name would be, and so is a column of
+numbers named ``pin`` or ``cvv`` (missing values stay missing). Each distinct value
 is redacted once, so a column with many repeated values stays fast, and
 deterministic modes (``hash``, ``pseudonym``, ``surrogate``) keep joins working.
 """
@@ -28,7 +29,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Union
 
-from .engine import Options, Policy, compile_policy
+from .engine import Options, Policy, compile_policy, number_text
 
 __all__ = ["redact_frame", "redact_series", "scan_frame", "register", "register_duckdb"]
 
@@ -77,9 +78,38 @@ def _pandas_is_text(series: Any) -> bool:
     return dtype == "object" or dtype.startswith("string") or dtype == "str" or dtype == "category"
 
 
+def _pandas_is_number(series: Any) -> bool:
+    from pandas.api import types
+
+    return types.is_numeric_dtype(series) and not types.is_bool_dtype(series)
+
+
+def _sensitive(policy: Policy, name: Any) -> bool:
+    return name is not None and policy.is_sensitive_key(str(name))
+
+
+def _number_changes(values: Iterable[Any], policy: Policy, key: str) -> Dict[Any, Any]:
+    """Distinct numbers of a sensitive column mapped to what replaces them."""
+    out: Dict[Any, Any] = {}
+    for value in values:
+        plain = value.item() if hasattr(value, "item") else value
+        masked = policy.redact({key: plain})[key]
+        if masked != plain:
+            out[value] = masked
+    return out
+
+
 def _pandas_series(series: Any, policy: Policy, name: Optional[str]) -> Any:
     if not _pandas_is_text(series):
-        return series
+        if not (_sensitive(policy, name) and _pandas_is_number(series)):
+            return series
+        number_changes = _number_changes(series.dropna().unique(), policy, str(name))
+        if not number_changes:
+            return series
+        masked = series.astype(object)
+        hit = series.isin(list(number_changes))
+        masked[hit] = series[hit].map(number_changes)
+        return masked
     if str(series.dtype) == "category":
         return _pandas_series(series.astype(object), policy, name).astype("category")
     redact_one = _value_redactor(policy, name)
@@ -110,7 +140,12 @@ def _polars_series(series: Any, policy: Policy, name: Optional[str]) -> Any:
     import polars as pl
 
     if not _polars_is_text(series.dtype):
-        return series
+        if not (_sensitive(policy, name) and series.dtype.is_numeric()):
+            return series
+        number_changes = _number_changes(series.drop_nulls().unique().to_list(), policy, str(name))
+        if not number_changes:
+            return series
+        return series.map_elements(lambda v: number_changes.get(v, number_text(v)), return_dtype=pl.String)
     categorical = series.dtype == pl.Categorical
     text = series.cast(pl.String) if categorical else series
     changes = _changes(text.drop_nulls().unique().to_list(), _value_redactor(policy, name))
@@ -129,7 +164,8 @@ def redact_series(series: Any, options: OptionsArg = None, *, name: Optional[str
     """A redacted copy of one pandas or Polars series of text.
 
     ``name`` is the field name for the key rule; it defaults to the series name.
-    Series that do not hold text are returned unchanged.
+    Series that do not hold text are returned unchanged, except numbers under a
+    sensitive name, which are masked like a dictionary value with that key.
     """
     policy = _policy(options, overrides)
     field = name if name is not None else getattr(series, "name", None)
@@ -138,10 +174,17 @@ def redact_series(series: Any, options: OptionsArg = None, *, name: Optional[str
     return _polars_series(series, policy, field)
 
 
-def _text_columns(frame: Any) -> List[str]:
+def _text_columns(frame: Any, policy: Policy) -> List[str]:
+    """Text columns, plus number columns whose name is sensitive."""
     if _kind(frame) == "pandas":
-        return [column for column in frame.columns if _pandas_is_text(frame[column])]
-    return [column for column, dtype in frame.collect_schema().items() if _polars_is_text(dtype)]
+        return [
+            column for column in frame.columns
+            if _pandas_is_text(frame[column]) or (_sensitive(policy, column) and _pandas_is_number(frame[column]))
+        ]
+    return [
+        column for column, dtype in frame.collect_schema().items()
+        if _polars_is_text(dtype) or (_sensitive(policy, column) and dtype.is_numeric())
+    ]
 
 
 def redact_frame(
@@ -157,7 +200,7 @@ def redact_frame(
     Other columns, the index and the row order are left as they are.
     """
     policy = _policy(options, overrides)
-    names = list(columns) if columns is not None else _text_columns(frame)
+    names = list(columns) if columns is not None else _text_columns(frame, policy)
     if _kind(frame) == "pandas":
         out = frame.copy()
         for column in names:
@@ -185,7 +228,7 @@ def scan_frame(
     policy = _policy(options, overrides)
     if _kind(frame) == "polars" and hasattr(frame, "collect") and not hasattr(frame, "height"):
         frame = frame.collect()
-    names = list(columns) if columns is not None else _text_columns(frame)
+    names = list(columns) if columns is not None else _text_columns(frame, policy)
     report: Dict[str, Any] = {"total": 0, "columns": {}}
     for column in names:
         if _kind(frame) == "pandas":

@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.13.1 (2026-11-28)
+
+### Security: values under sensitive keys were kept when they were not strings (GHSA-3w4p-rh85-rprm)
+
+- The key rule masked a value under a sensitive key only when the value was a
+  string. A number, an object, an array or binary data under such a key came
+  out unchanged unless a detector happened to match something inside it:
+  `{ cvv: 123 }`, `{ pin: 1234 }`,
+  `{ cookie: { name: 'connect.sid', value: 's%3A...' } }`,
+  `{ Authorization: { scheme: 'Bearer', value: '...' } }`,
+  `{ password: { algorithm: 'argon2id', hash: '...' } }` and
+  `{ password: ['hunter2'] }` were logged in clear.
+- Everything under a sensitive key is now masked, at any depth and whatever
+  the inner member names are: strings, numbers (as their decimal text), binary
+  data (as lowercase hex), UUIDs, and every string or number inside an object,
+  array, Map or Set. A value the engine does not open into fields, such as a
+  Python dataclass, a Java bean or a .NET class, is masked as the text it
+  prints as; a Go struct is masked field by field through its JSON form.
+  Booleans, null and dates are kept, so `hasPassword: true` stays readable.
+- Each masked value is its own `sensitive_key` finding at its own path
+  (`cookie.value`, `password[1][0]`), so `scan`, `isClean` and summaries count
+  them.
+- All six engines change together, with their integrations: `redact`,
+  `redactAsync`, `scan`, compiled policies, vaults and vault path rules, the
+  Sentry hooks, the gateway, Go `slog`, .NET `ILogger` and Serilog, Java Log4j2
+  and Logback, the Fluent Bit filter, and Python data frames (a number column
+  named `cvv` or `pin` is masked, missing values stay missing). FRS-1 section 9
+  describes the rule. The conformance corpus has 10 new cases (237 in all),
+  including the decimal text of floating point numbers, so hash and vault
+  modes give the same result in every language.
+- Reported by Vishal Suwalka ([@vsuwalka01](https://github.com/vsuwalka01)).
+
+### Changed output
+
+- A masked number becomes a string: `"***"`, or the hash or placeholder of its
+  decimal text. A vault restores it as that text, so `482913` comes back as
+  `"482913"`.
+- An allowlisted number, byte array or UUID is kept as it was. An allowlisted
+  string is still scanned for patterns, as before.
+- An object under a sensitive name is masked even when it is not a credential,
+  for example a JSON Schema property named `password`. The gateway keeps
+  request schemas valid: tool parameters, `response_format` and Gemini
+  response schemas are redacted string by string, without the key rule.
+  Elsewhere, add the value to `allow` or pass your own `redactKeys`.
+- JavaScript: a Map entry with a sensitive string key follows the key rule.
+- Sentry typed attributes (`{ value, type, unit }`) keep their type and unit;
+  the type becomes `string` when a number was masked.
+- New helpers for integrations that see one field at a time: .NET
+  `Policy.IsSensitiveKey(key)` and Python `Policy.is_sensitive_key(key)`.
+
 ## 1.13.0 (2026-11-28)
 
 ### Changed: sensitive key names are matched by how they end

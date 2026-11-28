@@ -20,7 +20,7 @@ public final class FlareRedact {
     }
 
     /** The engine version. */
-    public static final String VERSION = "1.13.0";
+    public static final String VERSION = "1.13.1";
 
     private static final class Defaults {
         static final Policy POLICY = Policy.defaults();
@@ -110,6 +110,6 @@ public final class FlareRedact {
         for (Map.Entry<String, String> entry : entries.entrySet()) {
             list.add(new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), entry.getValue()));
         }
-        return new Policy.Walker(Restorers.jsonAware(list), null).walk(value, 0);
+        return new Policy.Walker(Restorers.jsonAware(list), null, null).walk(value, 0);
     }
 }

@@ -19,7 +19,7 @@ import secrets
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 from .engine import (
-    Options, allow_matcher, key_matcher, map_graph, resolve_detectors, scan_string,
+    Options, SensitiveRule, allow_matcher, key_matcher, map_graph, resolve_detectors, scan_string,
 )
 
 __all__ = [
@@ -305,12 +305,10 @@ class Vault:
 
     def redact(self, value: Any) -> Any:
         """Replace every secret with a stable placeholder, remembering the mapping."""
-        def sensitive(key: str, item: str) -> str:
-            if self._match_key(key) and not self._allow(item):
-                return self._mint(item, "sensitive_key")
-            return self._redact_str(item)
+        def replace(text: str) -> Optional[str]:
+            return None if self._allow(text) else self._mint(text, "sensitive_key")
 
-        return map_graph(value, self._redact_str, sensitive)
+        return map_graph(value, self._redact_str, SensitiveRule(self._match_key, replace))
 
     def restore(self, value: Any) -> Any:
         """Put the originals back into any text or structure.

@@ -413,8 +413,9 @@ identical pseudonyms for astral-plane input should mask those detectors instead.
 
 ## 9. Sensitive keys, allowlists and terms
 
-- **`redactKeys`**: when a structured input has a string value under a key that is
-  sensitive by name, the value is replaced without pattern matching. Keys are
+- **`redactKeys`**: when a structured input has a value under a key that is
+  sensitive by name, the value is replaced without pattern matching, whatever
+  its type (see *Values under a sensitive key* below). Keys are
   compared in a **normalised form**: İ and ı become i, every character takes its
   simple lowercase mapping (`UnicodeData.txt`), then ς becomes σ and ſ becomes s.
   A locale-free full lowercase (`toLowerCase`, `str.lower`) differs from simple
@@ -450,6 +451,39 @@ identical pseudonyms for astral-plane input should mask those detectors instead.
   the keywords: exact equality in normalised form.
   The finding is reported as detector `sensitive_key`, risk `critical`,
   confidence `0.98`.
+
+  *Values under a sensitive key.* Everything reachable from such a value is
+  sensitive, at any depth and whatever the nested member names are:
+
+  | Value | Result |
+  |---|---|
+  | string | replaced |
+  | number | replaced as if it were a string holding its decimal text |
+  | binary data (a byte array or buffer) | replaced as if it were a string holding its bytes in lowercase hex |
+  | UUID, where the language has a type for one | replaced as if it were a string holding its canonical lowercase form |
+  | object, map, array, set | each string, number and binary value inside it replaced the same way; member names stay |
+  | error | its message replaced; its own fields as for an object |
+  | any other object the engine cannot open into fields (a class instance without enumerable fields, an enum, a URI) | replaced as if it were a string holding the text the language prints for it |
+  | boolean, null, date, time span | kept |
+
+  Each replaced value is its own `sensitive_key` finding, at its own path
+  (`cookie.value`, `password[1][0]`), and the allowlist is consulted with the
+  text above: an allowed string is scanned like any other string, an allowed
+  number, byte array or UUID is kept. A vault mints a placeholder for that text, so a
+  number restores as its decimal text. Booleans and null cannot carry a
+  credential, and masking them would change meaning (`hasPassword: true`).
+
+  The decimal text of a number: an integer type gives its digits, with `-` in
+  front when it is negative. A floating-point value gives ECMAScript
+  `Number::toString`: the shortest digits that round-trip, written out in full
+  from 10<sup>-6</sup> up to below 10<sup>21</sup> (`1000`, `0.000012`,
+  `123456789012345680000`) and in exponent form outside that range (`1e-7`,
+  `1.5e+21`); negative zero gives `0`, and `NaN` and the infinities give `NaN`,
+  `Infinity` and `-Infinity`.
+
+  A value reached both under a sensitive key and elsewhere is masked only in
+  the sensitive position: engines that preserve shared references keep one
+  copy for each.
 - **`allow`** — exact values (or a host regular expression) that are never
   redacted. Tested against the raw slice *and* against the zero-width-normalised
   slice, so `​`-padded look-alikes cannot slip past an allowlist entry.
@@ -481,7 +515,9 @@ The member names of a JSON object are field names and are never redacted, in
 whatever type an engine uses for one: a JavaScript object, a Python `dict`, a Go
 `map[string]any`, a `serde_json::Map`. Cycles are visited once. Non-string leaves (numbers, booleans, null, binary
 buffers, dates) are returned as-is; a redactor that stringifies numbers changes
-meaning, and a redactor that walks binary blobs wastes the caller's CPU.
+meaning, and a redactor that walks binary blobs wastes the caller's CPU. The one
+exception is a value under a sensitive key ([§9](#9-sensitive-keys-allowlists-and-terms)),
+where numbers and binary data are replaced too.
 
 Finding paths use the host language's natural notation: `user.contact.email`,
 `items[0].token`, `headers.<map-key:0>`.

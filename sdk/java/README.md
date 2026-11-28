@@ -14,7 +14,7 @@ other JVM languages use the same jar.
 <dependency>
   <groupId>io.github.flare-collection</groupId>
   <artifactId>flare-redact</artifactId>
-  <version>1.13.0</version>
+  <version>1.13.1</version>
 </dependency>
 ```
 

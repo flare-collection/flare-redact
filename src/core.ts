@@ -5,7 +5,7 @@
  */
 import { SENSITIVE_KEY_DETECTOR, SENSITIVE_PATH_DETECTOR } from './detectors.js';
 import { createVault } from './vault.js';
-import { errorChain, mapGraph, PathHit } from './graph.js';
+import { bytesText, errorChain, mapGraph, numberText, PathHit, type SensitiveRule } from './graph.js';
 import { applyPaths, compilePaths, REMOVE, type CompiledPath } from './paths.js';
 import { printfStrings } from './printf.js';
 import {
@@ -85,10 +85,17 @@ function redactPrepared<T>(input: T, policy: PreparedPolicy): T {
   return mapGraph(
     withPaths(input, policy),
     (value) => redactString(value, dets, allow, replace, opts),
-    (key, value) => matchKey(key) && !allow(value)
-      ? replace(value, SENSITIVE_KEY_DETECTOR)
-      : redactString(value, dets, allow, replace, opts),
+    sensitiveRule(policy),
   ) as T;
+}
+
+/** Spec section 9: what replaces a value under a sensitive key. */
+function sensitiveRule(policy: PreparedPolicy): SensitiveRule {
+  const { allow, replace, matchKey } = policy;
+  return {
+    matches: matchKey,
+    replace: (text) => (allow(text) ? undefined : replace(text, SENSITIVE_KEY_DETECTOR)),
+  };
 }
 
 export function redact<T>(input: T, opts: RedactOptions = {}): T {
@@ -103,85 +110,75 @@ async function resolvedSemanticOptions(text: string, opts: RedactOptions): Promi
 
 /** Async counterpart for local ML/NER providers whose `detect()` returns a Promise. */
 async function redactAsyncPrepared<T>(input: T, policy: PreparedPolicy): Promise<T> {
-  const { opts, dets, allow, replace, matchKey } = policy;
+  const { opts, dets, allow, replace } = policy;
+  const rule = sensitiveRule(policy);
   const seen = new WeakMap<object, unknown>();
+  const seenHot = new WeakMap<object, unknown>();
 
-  const walk = async (value: unknown): Promise<unknown> => {
-    if (typeof value === 'string') {
-      const localOpts = await resolvedSemanticOptions(value, opts);
-      return redactString(value, dets, allow, replace, localOpts);
+  const cold = async (text: string): Promise<string> =>
+    redactString(text, dets, allow, replace, await resolvedSemanticOptions(text, opts));
+  const text = (value: string, hot: boolean): Promise<string> | string =>
+    hot ? (rule.replace(value) ?? cold(value)) : cold(value);
+
+  const walk = async (value: unknown, hot = false): Promise<unknown> => {
+    if (typeof value === 'string') return text(value, hot);
+    if (hot && (typeof value === 'number' || typeof value === 'bigint')) {
+      return rule.replace(numberText(value)) ?? value;
     }
     if (!value || typeof value !== 'object') return value;
     if (value instanceof PathHit) return value.value;
-    const cached = seen.get(value);
+    const cache = hot ? seenHot : seen;
+    const cached = cache.get(value);
     if (cached !== undefined) return cached;
+
+    if (hot && (value instanceof ArrayBuffer || ArrayBuffer.isView(value))) {
+      const out = rule.replace(bytesText(value)) ?? value;
+      cache.set(value, out);
+      return out;
+    }
 
     if (value instanceof Error) {
       const out = Object.create(Object.getPrototypeOf(value)) as Error;
-      seen.set(value, out);
+      cache.set(value, out);
       Object.defineProperties(out, {
         name: { value: value.name, writable: true, configurable: true },
-        message: {
-          value: redactString(
-            value.message,
-            dets,
-            allow,
-            replace,
-            await resolvedSemanticOptions(value.message, opts),
-          ),
-          writable: true,
-          configurable: true,
-        },
+        message: { value: await text(value.message, hot), writable: true, configurable: true },
         ...(typeof value.stack === 'string'
-          ? {
-              stack: {
-                value: redactString(
-                  value.stack,
-                  dets,
-                  allow,
-                  replace,
-                  await resolvedSemanticOptions(value.stack, opts),
-                ),
-                writable: true,
-                configurable: true,
-              },
-            }
+          ? { stack: { value: await text(value.stack, hot), writable: true, configurable: true } }
           : {}),
       });
       for (const key of Reflect.ownKeys(value)) {
         const descriptor = Object.getOwnPropertyDescriptor(value, key);
         if (!descriptor?.enumerable || !('value' in descriptor)) continue;
-        Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value) });
+        const sensitive = hot || (typeof key === 'string' && rule.matches(key));
+        Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value, sensitive) });
       }
       for (const [key, descriptor] of errorChain(value)) {
-        Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value) });
+        Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value, hot) });
       }
       return out;
     }
 
-    if (value instanceof URL) {
-      const localOpts = await resolvedSemanticOptions(value.toString(), opts);
-      const out = new URL(redactString(value.toString(), dets, allow, replace, localOpts));
-      seen.set(value, out);
-      return out;
-    }
-    if (value instanceof URLSearchParams) {
-      const localOpts = await resolvedSemanticOptions(value.toString(), opts);
-      const out = new URLSearchParams(redactString(value.toString(), dets, allow, replace, localOpts));
-      seen.set(value, out);
+    if (value instanceof URL || value instanceof URLSearchParams) {
+      const masked = await text(value.toString(), hot);
+      const out = hot ? masked : value instanceof URL ? new URL(masked) : new URLSearchParams(masked);
+      cache.set(value, out);
       return out;
     }
 
     if (value instanceof Map) {
       const out = new Map<unknown, unknown>();
-      seen.set(value, out);
-      for (const [key, entry] of value) out.set(await walk(key), await walk(entry));
+      cache.set(value, out);
+      for (const [key, entry] of value) {
+        const sensitive = hot || (typeof key === 'string' && rule.matches(key));
+        out.set(await walk(key), await walk(entry, sensitive));
+      }
       return out;
     }
     if (value instanceof Set) {
       const out = new Set<unknown>();
-      seen.set(value, out);
-      for (const entry of value) out.add(await walk(entry));
+      cache.set(value, out);
+      for (const entry of value) out.add(await walk(entry, hot));
       return out;
     }
     if (value instanceof Date || value instanceof RegExp || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
@@ -191,16 +188,14 @@ async function redactAsyncPrepared<T>(input: T, policy: PreparedPolicy): Promise
     const out: Record<PropertyKey, unknown> | unknown[] = Array.isArray(value)
       ? new Array(value.length)
       : Object.create(Object.getPrototypeOf(value)) as Record<PropertyKey, unknown>;
-    seen.set(value, out);
+    cache.set(value, out);
     for (const key of Reflect.ownKeys(value)) {
       if (Array.isArray(value) && key === 'length') continue;
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!descriptor?.enumerable || !('value' in descriptor)) continue;
-      const raw = descriptor.value as unknown;
-      const next = typeof key === 'string' && typeof raw === 'string' && matchKey(key) && !allow(raw)
-        ? replace(raw, SENSITIVE_KEY_DETECTOR)
-        : await walk(raw);
-      Object.defineProperty(out, key, { ...descriptor, value: next });
+      const isIndex = Array.isArray(value) && typeof key === 'string' && /^(?:0|[1-9][0-9]*)$/.test(key);
+      const sensitive = hot || (!isIndex && typeof key === 'string' && rule.matches(key));
+      Object.defineProperty(out, key, { ...descriptor, value: await walk(descriptor.value, sensitive) });
     }
     return out;
   };
@@ -213,10 +208,98 @@ export async function redactAsync<T>(input: T, opts: RedactOptions = {}): Promis
   return redactAsyncPrepared(input, preparePolicy(opts));
 }
 
+/**
+ * Findings for a value stored under a sensitive key (spec section 9): one
+ * `sensitive_key` finding for each string, number or binary value inside it,
+ * at any depth. Strings the allowlist keeps (and Map keys, which are names) are
+ * returned so the caller scans them like any other string.
+ */
+function sensitiveFindings(
+  value: unknown,
+  path: string,
+  key: string,
+  policy: PreparedPolicy,
+  out: Finding[],
+  seen: WeakSet<object>,
+): Array<[string, string]> {
+  const { allow, opts } = policy;
+  const rest: Array<[string, string]> = [];
+  const push = (text: string, at: string) => {
+    out.push({
+      detector: 'sensitive_key',
+      label: 'Sensitive field',
+      why: `Value stored under a sensitive field name ("${key}").`,
+      ...(opts.includeValues ? { value: text } : {}),
+      path: at,
+      risk: 'critical',
+      confidence: 0.98,
+    });
+  };
+  const visit = (v: unknown, at: string): void => {
+    if (typeof v === 'string') {
+      if (allow(v)) rest.push([v, at]);
+      else push(v, at);
+      return;
+    }
+    if (typeof v === 'number' || typeof v === 'bigint') {
+      const text = numberText(v);
+      if (!allow(text)) push(text, at);
+      return;
+    }
+    if (!v || typeof v !== 'object') return;
+    if (v instanceof PathHit) {
+      out.push(pathFinding(at, v.value, opts.includeValues));
+      return;
+    }
+    if (seen.has(v)) return;
+    seen.add(v);
+    if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) {
+      const text = bytesText(v);
+      if (!allow(text)) push(text, at);
+      return;
+    }
+    if (v instanceof URL || v instanceof URLSearchParams) {
+      visit(v.toString(), at);
+      return;
+    }
+    if (v instanceof Date || v instanceof RegExp) return;
+    if (v instanceof Error) {
+      visit(v.message, `${at}.message`);
+      for (const [name, descriptor] of errorChain(v)) visit(descriptor.value, `${at}.${name}`);
+    }
+    if (v instanceof Map) {
+      let index = 0;
+      for (const [k, entry] of v) {
+        if (typeof k === 'string') rest.push([k, `${at}.<map-key:${index}>`]);
+        visit(entry, `${at}.<map-value:${index}>`);
+        index++;
+      }
+      return;
+    }
+    if (v instanceof Set) {
+      let index = 0;
+      for (const entry of v) visit(entry, `${at}[${index++}]`);
+      return;
+    }
+    if (Array.isArray(v)) {
+      v.forEach((entry, i) => visit(entry, `${at}[${i}]`));
+      return;
+    }
+    for (const k of Reflect.ownKeys(v)) {
+      const descriptor = Object.getOwnPropertyDescriptor(v, k);
+      if (!descriptor?.enumerable || !('value' in descriptor)) continue;
+      visit(descriptor.value, `${at}.${typeof k === 'symbol' ? `[${String(k)}]` : k}`);
+    }
+  };
+  visit(value, path);
+  return rest;
+}
+
 function scanPrepared(input: unknown, policy: PreparedPolicy): Finding[] {
   const { opts, dets, allow, matchKey } = policy;
   const out: Finding[] = [];
   const seen = new WeakSet<object>();
+  const seenHot = new WeakSet<object>();
 
   const push = (h: Hit, location: { line: number; column: number }, path?: string) => {
     const { det: _det, ...f } = h;
@@ -256,7 +339,12 @@ function scanPrepared(input: unknown, policy: PreparedPolicy): Finding[] {
         let index = 0;
         for (const [key, entry] of value) {
           walk(key, `${path}.<map-key:${index}>`);
-          walk(entry, `${path}.<map-value:${index}>`);
+          const at = `${path}.<map-value:${index}>`;
+          if (typeof key === 'string' && matchKey(key)) {
+            for (const [text, p] of sensitiveFindings(entry, at, key, policy, out, seenHot)) walk(text, p);
+          } else {
+            walk(entry, at);
+          }
           index++;
         }
         return;
@@ -284,16 +372,8 @@ function scanPrepared(input: unknown, policy: PreparedPolicy): Finding[] {
         const child = path ? `${path}.${name}` : name;
         if (v instanceof PathHit) {
           out.push(pathFinding(child, v.value, opts.includeValues));
-        } else if (typeof key === 'string' && typeof v === 'string' && matchKey(key) && !allow(v)) {
-          out.push({
-            detector: 'sensitive_key',
-            label: 'Sensitive field',
-            why: `Value stored under a sensitive field name ("${key}").`,
-            ...(opts.includeValues ? { value: v } : {}),
-            path: child,
-            risk: 'critical',
-            confidence: 0.98,
-          });
+        } else if (typeof key === 'string' && matchKey(key)) {
+          for (const [text, at] of sensitiveFindings(v, child, key, policy, out, seenHot)) walk(text, at);
         } else {
           walk(v, child);
         }
@@ -319,6 +399,7 @@ async function scanAsyncPrepared(input: unknown, policy: PreparedPolicy): Promis
   const { opts, dets, allow, matchKey } = policy;
   const out: Finding[] = [];
   const seen = new WeakSet<object>();
+  const seenHot = new WeakSet<object>();
 
   const walk = async (value: unknown, path: string): Promise<void> => {
     if (typeof value === 'string') {
@@ -359,7 +440,12 @@ async function scanAsyncPrepared(input: unknown, policy: PreparedPolicy): Promis
         let index = 0;
         for (const [key, entry] of value) {
           await walk(key, `${path}.<map-key:${index}>`);
-          await walk(entry, `${path}.<map-value:${index}>`);
+          const at = `${path}.<map-value:${index}>`;
+          if (typeof key === 'string' && matchKey(key)) {
+            for (const [text, p] of sensitiveFindings(entry, at, key, policy, out, seenHot)) await walk(text, p);
+          } else {
+            await walk(entry, at);
+          }
           index++;
         }
         return;
@@ -388,16 +474,8 @@ async function scanAsyncPrepared(input: unknown, policy: PreparedPolicy): Promis
         const child = path ? `${path}.${name}` : name;
         if (v instanceof PathHit) {
           out.push(pathFinding(child, v.value, opts.includeValues));
-        } else if (typeof key === 'string' && typeof v === 'string' && matchKey(key) && !allow(v)) {
-          out.push({
-            detector: 'sensitive_key',
-            label: 'Sensitive field',
-            why: `Value stored under a sensitive field name ("${key}").`,
-            ...(opts.includeValues ? { value: v } : {}),
-            path: child,
-            risk: 'critical',
-            confidence: 0.98,
-          });
+        } else if (typeof key === 'string' && matchKey(key)) {
+          for (const [text, at] of sensitiveFindings(v, child, key, policy, out, seenHot)) await walk(text, at);
         } else {
           await walk(v, child);
         }

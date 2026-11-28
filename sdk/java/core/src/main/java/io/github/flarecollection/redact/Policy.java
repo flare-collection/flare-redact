@@ -425,10 +425,8 @@ public final class Policy {
      * @return the redacted copy
      */
     public Object redact(Object value) {
-        return new Walker(this::redactString,
-            (key, text) -> matchKey.test(key) && !allows(text)
-                ? replace.apply(text, Detector.SENSITIVE_KEY)
-                : redactString(text)).walk(value, 0);
+        return new Walker(this::redactString, matchKey,
+            text -> allows(text) ? null : replace.apply(text, Detector.SENSITIVE_KEY)).walk(value, 0);
     }
 
     /**
@@ -443,61 +441,102 @@ public final class Policy {
         return Json.stringify(redact(Json.parse(json)));
     }
 
-    /** Rebuilds a structured value, transforming every string in it. */
+    /**
+     * Rebuilds a structured value, transforming every string in it. Under a
+     * sensitive key every string and number is replaced whole, whatever its
+     * depth (SPEC §9); booleans and {@code null} are kept. A value reached both
+     * under a sensitive key and elsewhere gets one copy of each kind.
+     */
     static final class Walker {
         private final Function<String, String> onString;
-        private final BiFunction<String, String, String> onField;
+        private final Predicate<String> isSensitiveKey;
+        private final Function<String, String> onSensitive;
         private final IdentityHashMap<Object, Object> seen = new IdentityHashMap<>();
+        private final IdentityHashMap<Object, Object> seenHot = new IdentityHashMap<>();
 
-        Walker(Function<String, String> onString, BiFunction<String, String, String> onField) {
+        /**
+         * @param onString what a string becomes
+         * @param isSensitiveKey which map keys are sensitive, or {@code null} for none
+         * @param onSensitive what the text of a value under a sensitive key becomes,
+         *     or {@code null} when the allowlist keeps it
+         */
+        Walker(Function<String, String> onString, Predicate<String> isSensitiveKey,
+                Function<String, String> onSensitive) {
             this.onString = onString;
-            this.onField = onField;
+            this.isSensitiveKey = isSensitiveKey;
+            this.onSensitive = onSensitive;
         }
 
         Object walk(Object value, int depth) {
+            return walk(value, depth, false);
+        }
+
+        private Object walk(Object value, int depth, boolean hot) {
             if (value == null) {
                 return null;
             }
             if (value instanceof String) {
-                return onString.apply((String) value);
+                String replaced = hot ? onSensitive.apply((String) value) : null;
+                return replaced != null ? replaced : onString.apply((String) value);
+            }
+            if (hot) {
+                String text = SensitiveValues.text(value);
+                if (text != null) {
+                    String replaced = onSensitive.apply(text);
+                    return replaced != null ? replaced : value;
+                }
             }
             if (depth > MAX_DEPTH) {
                 throw new FlareRedactException("value nests deeper than " + MAX_DEPTH + " levels");
             }
-            Object cached = seen.get(value);
+            IdentityHashMap<Object, Object> cache = hot ? seenHot : seen;
+            Object cached = cache.get(value);
             if (cached != null) {
                 return cached;
             }
             if (value instanceof Map) {
                 Map<Object, Object> out = new LinkedHashMap<>();
-                seen.put(value, out);
+                cache.put(value, out);
                 for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                     Object key = entry.getKey();
-                    Object item = entry.getValue();
-                    if (key instanceof String && item instanceof String && onField != null) {
-                        out.put(key, onField.apply((String) key, (String) item));
-                    } else {
-                        out.put(key, walk(item, depth + 1));
-                    }
+                    boolean sensitive = hot || key instanceof String && isSensitiveKey != null
+                        && isSensitiveKey.test((String) key);
+                    out.put(key, walk(entry.getValue(), depth + 1, sensitive));
                 }
                 return out;
             }
             if (value instanceof Collection) {
                 Collection<Object> out = value instanceof Set ? new LinkedHashSet<>() : new ArrayList<>();
-                seen.put(value, out);
+                cache.put(value, out);
                 for (Object item : (Collection<?>) value) {
-                    out.add(walk(item, depth + 1));
+                    out.add(walk(item, depth + 1, hot));
                 }
                 return out;
             }
             if (value instanceof Object[]) {
                 Object[] in = (Object[]) value;
                 Object[] out = in instanceof String[] ? new String[in.length] : new Object[in.length];
-                seen.put(value, out);
+                cache.put(value, out);
                 for (int i = 0; i < in.length; i++) {
-                    out[i] = walk(in[i], depth + 1);
+                    out[i] = walk(in[i], depth + 1, hot);
                 }
                 return out;
+            }
+            if (hot && value.getClass().isArray()) {
+                // int[], long[], double[] and the like: each number on its own.
+                int length = java.lang.reflect.Array.getLength(value);
+                Object[] out = new Object[length];
+                cache.put(value, out);
+                for (int i = 0; i < length; i++) {
+                    out[i] = walk(java.lang.reflect.Array.get(value, i), depth + 1, true);
+                }
+                return out;
+            }
+            if (hot && !SensitiveValues.kept(value)) {
+                // An object the walker cannot open (a bean, a record, an enum, a
+                // URI): under a sensitive key it is masked as the text it prints as.
+                String replaced = onSensitive.apply(String.valueOf(value));
+                return replaced != null ? replaced : value;
             }
             return value;
         }
@@ -512,60 +551,84 @@ public final class Policy {
      */
     public List<Finding> scan(Object value) {
         List<Finding> out = new ArrayList<>();
-        scanValue(value, "", 0, out, Collections.newSetFromMap(new IdentityHashMap<>()));
+        scanValue(value, "", 0, null, out, Collections.newSetFromMap(new IdentityHashMap<>()),
+            Collections.newSetFromMap(new IdentityHashMap<>()));
         return out;
     }
 
-    private void scanValue(Object value, String path, int depth, List<Finding> out, Set<Object> seen) {
+    /** {@code under} is the sensitive key the value sits beneath, or {@code null}. */
+    private void scanValue(Object value, String path, int depth, String under, List<Finding> out,
+            Set<Object> seen, Set<Object> seenHot) {
         if (value == null) {
             return;
         }
         if (value instanceof String) {
+            if (under != null && keyFinding(under, (String) value, path, out)) {
+                return;
+            }
             scanStringInto((String) value, path.isEmpty() ? null : path, out);
             return;
+        }
+        if (under != null) {
+            String text = SensitiveValues.text(value);
+            if (text != null) {
+                keyFinding(under, text, path, out);
+                return;
+            }
         }
         if (depth > MAX_DEPTH) {
             throw new FlareRedactException("value nests deeper than " + MAX_DEPTH + " levels");
         }
+        Set<Object> visited = under != null ? seenHot : seen;
         if (value instanceof Map) {
-            if (!seen.add(value)) {
+            if (!visited.add(value)) {
                 return;
             }
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                 Object key = entry.getKey();
-                Object item = entry.getValue();
                 String name = String.valueOf(key);
                 String child = path.isEmpty() ? name : path + "." + name;
-                if (key instanceof String && item instanceof String && matchKey.test((String) key)
-                        && !allows((String) item)) {
-                    out.add(new Finding(Detector.SENSITIVE_KEY.id, Detector.SENSITIVE_KEY.label,
-                        "Value stored under a sensitive field name (\"" + key + "\").", Risk.CRITICAL, 0.98,
-                        -1, -1, -1, -1, child, options.includeValues ? (String) item : null));
-                } else {
-                    scanValue(item, child, depth + 1, out, seen);
-                }
+                String sensitive = under != null ? under
+                    : key instanceof String && matchKey.test((String) key) ? (String) key : null;
+                scanValue(entry.getValue(), child, depth + 1, sensitive, out, seen, seenHot);
             }
             return;
         }
         if (value instanceof Collection) {
-            if (!seen.add(value)) {
+            if (!visited.add(value)) {
                 return;
             }
             int index = 0;
             for (Object item : (Collection<?>) value) {
-                scanValue(item, path + "[" + index++ + "]", depth + 1, out, seen);
+                scanValue(item, path + "[" + index++ + "]", depth + 1, under, out, seen, seenHot);
             }
             return;
         }
-        if (value instanceof Object[]) {
-            if (!seen.add(value)) {
+        if (value instanceof Object[] || under != null && value.getClass().isArray()) {
+            if (!visited.add(value)) {
                 return;
             }
-            Object[] items = (Object[]) value;
-            for (int i = 0; i < items.length; i++) {
-                scanValue(items[i], path + "[" + i + "]", depth + 1, out, seen);
+            int length = java.lang.reflect.Array.getLength(value);
+            for (int i = 0; i < length; i++) {
+                scanValue(java.lang.reflect.Array.get(value, i), path + "[" + i + "]", depth + 1, under, out,
+                    seen, seenHot);
             }
+            return;
         }
+        if (under != null && !SensitiveValues.kept(value)) {
+            keyFinding(under, String.valueOf(value), path, out);
+        }
+    }
+
+    /** Reports {@code text} as sitting under {@code key}, unless the allowlist keeps it. */
+    private boolean keyFinding(String key, String text, String path, List<Finding> out) {
+        if (allows(text)) {
+            return false;
+        }
+        out.add(new Finding(Detector.SENSITIVE_KEY.id, Detector.SENSITIVE_KEY.label,
+            "Value stored under a sensitive field name (\"" + key + "\").", Risk.CRITICAL, 0.98,
+            -1, -1, -1, -1, path.isEmpty() ? null : path, options.includeValues ? text : null));
+        return true;
     }
 
     /**
