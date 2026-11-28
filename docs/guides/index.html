@@ -10,7 +10,11 @@
   <meta property="og:title" content="Secret and PII Redaction Guides for JavaScript">
   <meta property="og:description" content="Tested patterns for logs, LLM prompts, MCP tools, SDKs, and application data.">
   <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://flare-collection.github.io/flare-redact/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="flare-redact: keep secrets and PII out of logs, LLM prompts and Sentry">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="../site.css">
   <script type="application/ld+json">
   {
@@ -42,9 +46,17 @@
   <main class="page wide">
     <p class="eyebrow">Developer guides</p>
     <h1>Put a redaction boundary where data can leak</h1>
-    <p class="lede">These guides solve six concrete problems with complete, copyable JavaScript. Each pattern runs locally with the zero-dependency Flare Redact core.</p>
+    <p class="lede">These guides solve concrete problems with complete, copyable code. Each pattern runs locally with Flare Redact.</p>
 
     <div class="cards">
+      <a class="card featured" href="why-log-redaction-misses-errors/">
+        <h2>Why log redaction misses errors and objects</h2>
+        <p>Field notes: errors, structs and printf arguments become text after the redaction hook ran. Real output from pino, Go slog and Python logging, and a canary test you can copy.</p>
+      </a>
+      <a class="card" href="migrate-to-flare-redact/">
+        <h2>Switching from fast-redact, pino redact, redact-secrets or deep-redact</h2>
+        <p>Keep your paths and censor value, and also catch the secrets that sit inside strings. Option mapping, tested before and after output, and a speed and coverage benchmark.</p>
+      </a>
       <a class="card" href="pii-redaction-javascript/">
         <h2>PII redaction in JavaScript</h2>
         <p>Redact emails, payment data, phone numbers, identifiers, and nested object values without mutating the input.</p>

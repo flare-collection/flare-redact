@@ -1,0 +1,38 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "outDir": "dist/cjs",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": [],
+  "files": [
+    "src/index.ts",
+    "src/lite.ts",
+    "src/stream.ts",
+    "src/llm.ts",
+    "src/ai-sdk.ts",
+    "src/ml.ts",
+    "src/entities.ts",
+    "src/tool.ts",
+    "src/session.ts",
+    "src/pino.ts",
+    "src/winston.ts",
+    "src/sentry.ts",
+    "src/http.ts",
+    "src/csv.ts",
+    "src/recording.ts",
+    "src/snapshot.ts",
+    "src/replay.ts",
+    "src/audit.ts",
+    "src/db.ts",
+    "src/fetch.ts",
+    "src/middleware.ts",
+    "src/agent.ts",
+    "src/pack.ts",
+    "src/register.ts"
+  ]
+}

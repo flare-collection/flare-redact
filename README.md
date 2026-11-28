@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/npm/types/flare-redact.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero dependencies">
-  <img src="https://img.shields.io/badge/detectors-129-4f46e5" alt="129 detectors">
+  <img src="https://img.shields.io/badge/detectors-154-4f46e5" alt="154 detectors">
   <img src="https://img.shields.io/badge/languages-24-4f46e5" alt="24 languages">
 </p>
 
@@ -49,7 +49,7 @@ redact({ user: 'bob@corp.com', password: 'hunter2', note: 'my key is AKIAIOSFODN
 
 ## Highlights
 
-- 🔍 **Reads content, not field names.** 129 detectors for API keys, tokens, JWTs,
+- 🔍 **Reads content, not field names.** 154 detectors for API keys, tokens, JWTs,
   private keys, cards, IBANs, emails and national IDs, checksum-validated
   wherever a checksum exists.
 - ⚡ **No code change needed.** `node --import flare-redact/register app.js`
@@ -63,7 +63,11 @@ redact({ user: 'bob@corp.com', password: 'hunter2', note: 'my key is AKIAIOSFODN
   lines you add, and a CI scan with SARIF output.
 - 🌍 **International by default: 24 languages** of secret vocabulary and
   national ID formats.
-- 🪶 **Zero dependencies.** Node 20+, browsers, edge runtimes, Bun and Deno.
+- 🧭 **Keeps your path rules.** The `paths` syntax of fast-redact and pino
+  (`items[*].card`, `headers["x-api-key"]`, plus `**.email`) and `remove`, with
+  value detection on top. [Switching guide](https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/).
+- 🪶 **Zero dependencies.** Node 20+, browsers, edge runtimes, Bun and Deno;
+  `import` or `require`, and a 34 KB gzipped `flare-redact/lite` for the browser.
 - 🐍 **Python, Go, Rust, Java and .NET** engines that run the same detector
   spec and pass the same conformance suite.
 
@@ -88,6 +92,10 @@ npx flare-redact init          # openai, @anthropic-ai/sdk, ai, Sentry, pino, wi
 npx flare-redact init --hook   # also stop any commit that adds a secret
 npx flare-redact init --ci     # also scan every pull request
 ```
+
+<p align="center">
+  <img src="assets/demo.gif" alt="node app.js prints an email, a password, a GitHub token, a database password and a card number; the same app started with --import flare-redact/register prints them masked" width="760">
+</p>
 
 Want more than the defaults? Choose a goal instead of a detector list:
 `{ preset: 'logs' }`, `'llm'`, `'gdpr'` or `'strict'` ([what each adds](docs/guide.md#presets)).
@@ -207,10 +215,19 @@ Polars, and `redact(note)` in DuckDB ([details](docs/guide.md#clean-data-frames-
 
 | Tool | What it does well | What flare-redact adds |
 |---|---|---|
-| Logger path redaction (pino `redact`, fast-redact) | Fast masking of the fields you list | Finds secrets in fields you never listed and inside free text |
+| Logger path redaction (pino `redact`, fast-redact) | Fast masking of the fields you list | The same `paths` syntax, plus secrets in fields you never listed and inside free text |
+| Key-name redactors (redact-secrets, deep-redact) | Mask values under sensitive-looking keys | A key rule that keeps `max_tokens` and `nextPageToken` readable, plus value detection |
 | Sentry server-side scrubbing | Scrubs sensitive-looking fields once events reach Sentry | Redacts in your process, before the event leaves it |
 | gitleaks, TruffleHog | Find secrets in git history and files | Masks secrets at runtime in logs, errors and prompts. Use both |
 | Microsoft Presidio | Model-based PII detection in prose, as a Python service | Runs in-process with no model and no dependencies; plug a model in with `semanticProvider` when you need that recall |
+
+On one log record with nine planted secrets, fast-redact with five listed paths
+takes 1.4 µs and catches 5; flare-redact with its defaults takes 41 µs and
+catches all 9, including the key and email in the message, the token in a URL
+and the password in an error string. If the paths are all you need, fast-redact
+is faster. Run [`bench/object-redactors.mjs`](bench/object-redactors.mjs) on your
+own records; the [switching guide](https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/)
+maps every option.
 
 ## FAQ
 
@@ -222,6 +239,10 @@ Start the app with `node --import flare-redact/register app.js`, or add
 Wrap the client with `wrapOpenAI` or `wrapAnthropic`, or on the Vercel AI SDK
 add `flareRedactMiddleware()` to the model. Sensitive values become
 placeholders before the request is sent and are restored in the reply.
+
+**I already use pino's `redact` or fast-redact. Do I have to drop it?**
+No. Spread `pinoRedact()` next to your `redact` list, or move the list into
+`redact(obj, { paths })`: the syntax is the same, and `remove: true` works too.
 
 **Will it slow my app down?**
 It runs in your process with no model and no network call, and its patterns are

@@ -85,9 +85,25 @@ func SecretKeywords() []string {
 	return out
 }
 
-// sensitiveKeyPattern covers the English key names that are sensitive by
-// convention, including their punctuated spellings.
-var sensitiveKeyPattern = regexp.MustCompile(`^(?i:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn)$`)
+// sensitiveKeyPattern is the English rule of SPEC §9, matched against the
+// normalised key. A key is sensitive when it ends with a credential word, glued
+// or not (db_password, DbPassword, accessToken, apiSecret,
+// aws_secret_access_key), or when it is, or ends in _, -, . or a space followed
+// by, a short word that is only safe whole (pass, auth, pin, otp, cvv, ssn, dsn,
+// pwd and the rest). Look-alikes such as author, monkey, publicKey, tokenizer
+// and max_tokens stay readable.
+var sensitiveKeyPattern = regexp.MustCompile(`^(?:` +
+	`[\s\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic` +
+	`|(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?` +
+	`|session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string` +
+	`|(?:seed|recovery)[_. -]?phrase)` +
+	`|(?:[\s\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp|totp|hotp|cvv2?|cvc|ssn|dsn|creds|pwd)` +
+	`)$`)
+
+// nonSecretTokenKeyPattern matches keys that end in token but name a pagination
+// cursor or a count (next_token, nextPageToken, max_token); they are not
+// sensitive by name unless they are a keyword.
+var nonSecretTokenKeyPattern = regexp.MustCompile(`^[\s\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token$`)
 
 // normalizedKeywords holds secretKeywords in the form key names are compared in.
 var normalizedKeywords = func() map[string]struct{} {
@@ -99,11 +115,11 @@ var normalizedKeywords = func() map[string]struct{} {
 }()
 
 // isSensitiveKeyName reports whether a key is sensitive by name (SPEC §9): its
-// normalised form is one of the conventional English names or a multilingual
-// keyword.
+// normalised form matches the English rule and is not a pagination token, or is
+// a multilingual keyword.
 func isSensitiveKeyName(name string) bool {
 	normalized := normalizeKeyName(name)
-	if sensitiveKeyPattern.MatchString(normalized) {
+	if sensitiveKeyPattern.MatchString(normalized) && !nonSecretTokenKeyPattern.MatchString(normalized) {
 		return true
 	}
 	_, ok := normalizedKeywords[normalized]

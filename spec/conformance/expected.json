@@ -1668,10 +1668,194 @@
     ],
     "redact": "Authorization [REDACTED JWT]"
   },
+  "keys/compound-names": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "Access_Token",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "DbPassword",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "accessToken",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "apiSecret",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "api_secret",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "aws_secret_access_key",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "basic_auth",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "card_cvv",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "connectionString",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "db_password",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "db_pwd",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "idToken",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "privateKey",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "seed_phrase",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "set-cookie",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "user_pin",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "x-api-key",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "Access_Token": "***",
+      "DbPassword": "***",
+      "accessToken": "***",
+      "apiSecret": "***",
+      "api_secret": "***",
+      "aws_secret_access_key": "***",
+      "basic_auth": "***",
+      "card_cvv": "***",
+      "connectionString": "***",
+      "db_password": "***",
+      "db_pwd": "***",
+      "idToken": "***",
+      "privateKey": "***",
+      "seed_phrase": "***",
+      "set-cookie": "***",
+      "user_pin": "***",
+      "x-api-key": "***"
+    }
+  },
   "keys/disabled": {
     "findings": [],
     "redact": {
       "password": "hunter2"
+    }
+  },
+  "keys/environment-dump": {
+    "findings": [
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "DATABASE_PASSWORD",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "GITHUB_TOKEN",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "OPENAI_API_KEY",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "SENTRY_DSN",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "SLACK_BOT_TOKEN",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "SMTP_PASS",
+        "risk": "critical"
+      },
+      {
+        "confidence": 0.98,
+        "detector": "sensitive_key",
+        "path": "STRIPE_SECRET_KEY",
+        "risk": "critical"
+      }
+    ],
+    "redact": {
+      "DATABASE_PASSWORD": "***",
+      "GITHUB_TOKEN": "***",
+      "HOME": "/home/ada",
+      "NODE_ENV": "production",
+      "OPENAI_API_KEY": "***",
+      "SENTRY_DSN": "***",
+      "SLACK_BOT_TOKEN": "***",
+      "SMTP_PASS": "***",
+      "SSH_AUTH_SOCK": "/tmp/ssh-agent.sock",
+      "STRIPE_SECRET_KEY": "***",
+      "TOKENIZERS_PARALLELISM": "false"
     }
   },
   "keys/greek-final-sigma": {
@@ -1685,6 +1869,23 @@
     ],
     "redact": {
       "ΚΩΔΙΚΌΣ": "***"
+    }
+  },
+  "keys/look-alike-names": {
+    "findings": [],
+    "redact": {
+      "AccessKeyId": "AKID-public-01",
+      "author": "Ada Lovelace",
+      "keyboard": "qwerty",
+      "max_tokens": "4096",
+      "monkey": "business",
+      "nextPageToken": "CgkI2c3d",
+      "next_token": "eyJwYWdlIjozfQ",
+      "password_min_length": "12",
+      "publicKey": "pk-visible-01",
+      "secret_name": "prod-db",
+      "token_type": "Bearer",
+      "tokenizer": "cl100k"
     }
   },
   "keys/multilingual-object": {
@@ -2431,6 +2632,240 @@
       }
     ],
     "redact": "rubygems_***"
+  },
+  "secrets/more-service-near-misses": {
+    "findings": [],
+    "redact": "xapp-1-A0123-short | AAAAAAAAAAAAAAAAAAAAAAAAAMk9xAb12Cd34%2FAb12Cd34%2FAb12Cd34%2FAb12Cd34%2FAb12Cd34%2FAb12Cd34%2FAb12Cd34%2FAb12Cd34%2F | pk.eyJ1IjoiYWRhIiwiYSI6ImNrMTIzIn0.Ab12Cd34Ef56Gh78Ij90Kl | pat-na1-not-a-uuid | pk-lf-12345678-abcd-4ef0-9abc-1234567890ab | phc_Ab12Cd34Ef56Ab12Cd34Ef56Ab12Cd34Ef56Ab12Cd34Ef56 | abc8Q~short | FLWSECK-zz"
+  },
+  "secrets/more-service-tokens": {
+    "findings": [
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "slack_app_token",
+        "end": 99,
+        "line": 1,
+        "risk": "critical",
+        "start": 2
+      },
+      {
+        "column": 3,
+        "confidence": 0.85,
+        "detector": "twitter_bearer_token",
+        "end": 215,
+        "line": 2,
+        "risk": "critical",
+        "start": 102
+      },
+      {
+        "column": 3,
+        "confidence": 0.85,
+        "detector": "meta_access_token",
+        "end": 342,
+        "line": 3,
+        "risk": "critical",
+        "start": 218
+      },
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "mapbox_secret_token",
+        "end": 402,
+        "line": 4,
+        "risk": "critical",
+        "start": 345
+      },
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "contentful_token",
+        "end": 454,
+        "line": 5,
+        "risk": "critical",
+        "start": 405
+      },
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "hubspot_token",
+        "end": 501,
+        "line": 6,
+        "risk": "critical",
+        "start": 457
+      },
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "sonarqube_token",
+        "end": 548,
+        "line": 7,
+        "risk": "critical",
+        "start": 504
+      },
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "buildkite_token",
+        "end": 596,
+        "line": 8,
+        "risk": "critical",
+        "start": 551
+      },
+      {
+        "column": 3,
+        "confidence": 0.92,
+        "detector": "plaid_token",
+        "end": 650,
+        "line": 9,
+        "risk": "critical",
+        "start": 599
+      },
+      {
+        "column": 4,
+        "confidence": 0.95,
+        "detector": "braintree_token",
+        "end": 727,
+        "line": 10,
+        "risk": "critical",
+        "start": 654
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "shippo_token",
+        "end": 783,
+        "line": 11,
+        "risk": "critical",
+        "start": 731
+      },
+      {
+        "column": 4,
+        "confidence": 0.95,
+        "detector": "langfuse_key",
+        "end": 829,
+        "line": 12,
+        "risk": "critical",
+        "start": 787
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "posthog_personal_key",
+        "end": 885,
+        "line": 13,
+        "risk": "critical",
+        "start": 833
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "neon_api_key",
+        "end": 958,
+        "line": 14,
+        "risk": "critical",
+        "start": 889
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "typeform_token",
+        "end": 1014,
+        "line": 15,
+        "risk": "critical",
+        "start": 962
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "readme_key",
+        "end": 1093,
+        "line": 16,
+        "risk": "critical",
+        "start": 1018
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "prefect_key",
+        "end": 1137,
+        "line": 17,
+        "risk": "critical",
+        "start": 1097
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "fcm_server_key",
+        "end": 1293,
+        "line": 18,
+        "risk": "critical",
+        "start": 1141
+      },
+      {
+        "column": 4,
+        "confidence": 0.9,
+        "detector": "azure_ad_client_secret",
+        "end": 1335,
+        "line": 19,
+        "risk": "critical",
+        "start": 1297
+      },
+      {
+        "column": 4,
+        "confidence": 0.85,
+        "detector": "firecrawl_key",
+        "end": 1374,
+        "line": 20,
+        "risk": "critical",
+        "start": 1339
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "e2b_key",
+        "end": 1422,
+        "line": 21,
+        "risk": "critical",
+        "start": 1378
+      },
+      {
+        "column": 4,
+        "confidence": 0.9,
+        "detector": "clickup_token",
+        "end": 1470,
+        "line": 22,
+        "risk": "critical",
+        "start": 1426
+      },
+      {
+        "column": 4,
+        "confidence": 0.95,
+        "detector": "flutterwave_key",
+        "end": 1521,
+        "line": 23,
+        "risk": "critical",
+        "start": 1474
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "duffel_token",
+        "end": 1580,
+        "line": 24,
+        "risk": "critical",
+        "start": 1525
+      },
+      {
+        "column": 4,
+        "confidence": 0.92,
+        "detector": "frameio_token",
+        "end": 1654,
+        "line": 25,
+        "risk": "critical",
+        "start": 1584
+      }
+    ],
+    "redact": "1 xapp-***\n2 AAAA***\n3 EAAG***\n4 sk.***\n5 CFPAT-***\n6 pat-na1-***\n7 squ_***\n8 bkua_***\n9 access-sandbox-***\n10 access_token$production$***\n11 shippo_live_***\n12 sk-lf-***\n13 phx_***\n14 napi_***\n15 tfp_***\n16 rdme_***\n17 pnu_***\n18 AAAA***\n19 abc***\n20 fc-***\n21 e2b_***\n22 pk_***\n23 FLWSECK_TEST-***\n24 duffel_test_***\n25 fio-u-***"
   },
   "selection/disable-email": {
     "findings": [

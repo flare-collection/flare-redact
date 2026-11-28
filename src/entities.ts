@@ -26,17 +26,9 @@
 import type { Detector } from './detectors.js';
 import type { Risk, SemanticFinding, SemanticProvider } from './engine.js';
 import { AMBIGUOUS_NAMES, GIVEN_NAMES, NON_PERSON, SURNAMES } from './entity-lexicon.js';
+import { ENTITY_LABELS, installEntitySupport } from './entity-hook.js';
 
-export const ENTITY_LABELS = [
-  'private_person',
-  'private_address',
-  'private_phone',
-  'private_date',
-  'account_number',
-  'private_handle',
-  'private_url',
-  'secret',
-] as const;
+export { ENTITY_LABELS };
 
 export type EntityLabel = (typeof ENTITY_LABELS)[number];
 
@@ -1002,3 +994,10 @@ export function recognizeEntities(text: string, options: EntityOptions = {}): En
 export function createEntityRecognizer(options: EntityOptions = {}): SemanticProvider {
   return { detect: (text: string) => recognizeEntities(text, options) };
 }
+
+installEntitySupport({
+  detectors: ENTITY_DETECTORS,
+  labels: ENTITY_LABELS,
+  isEntityDetector,
+  recognize: (text, options) => recognizeEntities(text, options as EntityOptions),
+});

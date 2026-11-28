@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Switching from fast-redact, pino redact, redact-secrets or deep-redact | Flare Redact</title>
+  <meta name="description" content="Move from fast-redact, pino's redact option, redact-secrets or deep-redact to Flare Redact. Option mapping, tested before and after code, and a speed and coverage benchmark.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Switching from fast-redact, pino redact, redact-secrets or deep-redact">
+  <meta property="og:description" content="Keep your paths, and also catch the secrets that are not at a path you listed.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/">
+  <meta property="og:image" content="https://flare-collection.github.io/flare-redact/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="flare-redact: keep secrets and PII out of logs, LLM prompts and Sentry">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Switching from fast-redact, pino redact, redact-secrets or deep-redact",
+    "description": "Option mapping, tested migration code and a benchmark for moving to content-aware redaction.",
+    "datePublished": "2026-11-28",
+    "dateModified": "2026-11-28",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/",
+    "proficiencyLevel": "Intermediate",
+    "dependencies": "Node.js 20 or newer; flare-redact 1.13 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / Switching redactors</div>
+    <p class="eyebrow">Migration guide</p>
+    <h1>Switching from fast-redact, pino redact, redact-secrets or deep-redact</h1>
+    <p class="lede">Path and key-name redactors only hide what you listed. Keep your list, and let Flare Redact also catch the token pasted into a message, the password inside an error URL and the email in a free-text field.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · November 28, 2026 · Every output below was printed by the libraries named, with Flare Redact 1.13.0</p>
+
+    <div class="answer"><strong>Short answer:</strong> your <code>paths</code> carry over unchanged (<code>users.*.password</code>, <code>items[*].card</code>, <code>headers["x-api-key"]</code>, plus <code>**</code> for any depth), <code>censor</code> becomes <code>mask</code> and <code>remove</code> keeps its name. What changes is that every other string is read too.</div>
+
+    <h2>Option mapping</h2>
+    <table>
+      <thead><tr><th>You have</th><th>In Flare Redact</th></tr></thead>
+      <tbody>
+        <tr><td><code>paths: [...]</code> (fast-redact, pino, @pinojs/redact)</td><td><code>paths: [...]</code>, same syntax, plus <code>**</code></td></tr>
+        <tr><td><code>censor: '[REDACTED]'</code></td><td><code>mask: '[REDACTED]'</code>, or a function of the match</td></tr>
+        <tr><td><code>remove: true</code></td><td><code>remove: true</code></td></tr>
+        <tr><td><code>serialize</code> (returns a JSON string)</td><td><code>redact()</code> returns a copy; call <code>JSON.stringify</code> yourself</td></tr>
+        <tr><td><code>list: ['email', 'password']</code> (deep-redact)</td><td><code>paths: ['**.email']</code>; <code>password</code> is already a sensitive key</td></tr>
+        <tr><td>is-secret key rules (redact-secrets)</td><td>built in: <code>db_password</code>, <code>accessToken</code>, <code>apiSecret</code> and the rest</td></tr>
+      </tbody>
+    </table>
+    <p>Two differences in behaviour. Flare Redact never changes your object: it returns a copy and shares the parts it did not touch. And it masks every string it recognises, not only the listed ones, so output you compared byte for byte in a test may change where a value really was sensitive.</p>
+
+    <h2>From fast-redact</h2>
+    <pre><code>// before
+const fastRedact = require('fast-redact');
+const redact = fastRedact({ paths: ['user.password', 'req.headers.authorization'], censor: '[REDACTED]' });
+log(redact(event));
+
+// after
+const { compilePolicy } = require('flare-redact');
+const policy = compilePolicy({ paths: ['user.password', 'req.headers.authorization'], mask: '[REDACTED]' });
+log(JSON.stringify(policy.redact(event)));</code></pre>
+    <pre><code>fast-redact   {"user":{"id":7,"password":"[REDACTED]"},"req":{"headers":{"authorization":"[REDACTED]","host":"api.example.com"}},"msg":"login failed for ada@example.com"}
+flare-redact  {"user":{"id":7,"password":"[REDACTED]"},"req":{"headers":{"authorization":"[REDACTED]","host":"api.example.com"}},"msg":"login failed for [REDACTED]"}</code></pre>
+    <p>The listed paths come out the same; the email in <code>msg</code> is the difference. Use <code>compilePolicy</code> once at startup on a hot path, as you did with <code>fastRedact()</code>. CommonJS <code>require</code> works from 1.13.0, so Jest and older bundlers need no ESM setup.</p>
+
+    <h2>From pino's <code>redact</code> option</h2>
+    <p>pino's <code>redact</code> is fast-redact (or @pinojs/redact) inside pino. You can keep it and add value scanning next to it:</p>
+    <pre><code>import pino from 'pino';
+import { pinoRedact } from 'flare-redact/pino';
+
+const logger = pino({
+  ...pinoRedact(),
+  redact: ['user.password', 'req.headers.authorization'],
+});
+
+logger.info(event, 'login failed for ada@example.com');</code></pre>
+    <pre><code>pino redact only  {"level":30,"user":{"id":7,"password":"[Redacted]"},"req":{"headers":{"authorization":"[Redacted]"}},"msg":"login failed for ada@example.com"}
+with pinoRedact   {"level":30,"user":{"id":7,"password":"[Redacted]"},"req":{"headers":{"authorization":"[Redacted]"}},"msg":"login failed for a***@***"}</code></pre>
+    <p>Checked with pino 9.14. Or move the paths into <code>pinoRedact({ paths: [...] })</code> so one policy covers both. <a href="../why-log-redaction-misses-errors/">Why the message needs its own hook</a>.</p>
+
+    <h2>From redact-secrets or is-secret</h2>
+    <pre><code>// before
+const redact = require('redact-secrets')('[REDACTED]');
+redact.map(config);
+
+// after
+const { redact } = require('flare-redact');
+redact(config, { mask: '[REDACTED]' });</code></pre>
+    <pre><code>redact-secrets  {"db_password":"[REDACTED]","accessToken":"[REDACTED]","max_tokens":"[REDACTED]","nextPageToken":"[REDACTED]","secret_name":"[REDACTED]","card":"[REDACTED]"}
+flare-redact    {"db_password":"[REDACTED]","accessToken":"[REDACTED]","max_tokens":4096,"nextPageToken":"CgkI2c3d","secret_name":"prod-db","card":"[REDACTED]"}</code></pre>
+    <p>is-secret hides any key that contains <code>token</code> or <code>secret</code>, so a token count, a pagination cursor and the name of a secret disappear with the real credentials. Flare Redact looks at how a key ends (<code>db_password</code>, <code>accessToken</code>, <code>api_secret</code>) and keeps look-alikes such as <code>max_tokens</code>, <code>nextPageToken</code>, <code>author</code> and <code>publicKey</code> readable. The card is found by its Luhn checksum, wherever it is.</p>
+
+    <h2>From deep-redact</h2>
+    <pre><code>// before
+import { redact } from 'deep-redact';
+redact(data, { list: ['email', 'password'], redactString: '[REDACTED]' });
+
+// after
+import { redact } from 'flare-redact';
+redact(data, { paths: ['**.email'], mask: '[REDACTED]' });</code></pre>
+    <pre><code>deep-redact   {"email":"[REDACTED]","password":"[REDACTED]","dontRedactMe":"123456","url":"https://example.com/r?this=test&amp;password=[REDACTED]&amp;email=[REDACTED]"}
+flare-redact  {"email":"[REDACTED]","password":"[REDACTED]","dontRedactMe":"123456","url":"https://example.com/r?this=test&amp;[REDACTED]"}</code></pre>
+    <p><code>**.email</code> matches the key at any depth, which is what deep-redact's <code>list</code> does. One honest difference: deep-redact keeps each query parameter name, while Flare Redact masks the whole <code>password=…</code> assignment, including what follows it in the query.</p>
+
+    <h2>Speed and coverage</h2>
+    <p>One log record with nine planted secrets: two headers, two password fields, a card in an array, and four values inside strings (a key and an email in the message, a token in a URL query, a password in an error URL). Each library gets the configuration its README recommends, with every sensitive field listed where it takes a list.</p>
+    <table>
+      <thead><tr><th>Library</th><th>Per record</th><th>Caught</th><th>Missed</th></tr></thead>
+      <tbody>
+        <tr><td>fast-redact 3.5.0, 5 paths</td><td>1.4 µs</td><td>5 of 9</td><td>every value inside a string</td></tr>
+        <tr><td>@pinojs/redact 0.4.0, 5 paths</td><td>4.2 µs</td><td>5 of 9</td><td>every value inside a string</td></tr>
+        <tr><td>deep-redact 1.0.21, 5 keys</td><td>15.5 µs</td><td>5 of 9</td><td>every value inside a string</td></tr>
+        <tr><td>veilit 1.0.1, defaults</td><td>17.3 µs</td><td>8 of 9</td><td>the email in the message</td></tr>
+        <tr><td>Flare Redact 1.13.0, paths only</td><td>7.8 µs</td><td>5 of 9</td><td>every value inside a string</td></tr>
+        <tr><td><strong>Flare Redact 1.13.0, defaults</strong></td><td>41 µs</td><td><strong>9 of 9</strong></td><td>none</td></tr>
+      </tbody>
+    </table>
+    <p>Node 22.23 on an Apple A18 Pro; each figure is the middle of three runs of the script, and each run takes the median of 7 rounds of 20,000 records. Timings move by 10 to 20 percent between runs on a busy laptop. fast-redact is about 30 times faster, because it only touches the paths you name and compiles them to code; reading every value costs more. At 41 µs a record, one core still redacts over 20,000 log lines a second. The script is <a href="https://github.com/flare-collection/flare-redact/blob/main/bench/object-redactors.mjs"><code>bench/object-redactors.mjs</code></a>; run it on your own records before deciding.</p>
+
+    <h2>In the browser and at the edge</h2>
+    <p><code>flare-redact/lite</code> is the same API without entity recognition (names and addresses found from name lists), at about 34 KB gzipped instead of 63 KB. Every secret detector and every pattern detector for emails, cards, phone numbers and IDs is still in it.</p>
+    <pre><code>import { redact } from 'flare-redact/lite';</code></pre>
+
+    <div class="next">
+      <h2>Next</h2>
+      <p>See <a href="../redact-secrets-nodejs-logs/">redacting secrets in Node.js logs</a> for Winston, console and streams, or the <a href="https://github.com/flare-collection/flare-redact/blob/main/docs/guide.md#redact-by-path">path rules reference</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact/blob/main/bench/object-redactors.mjs">benchmark script</a></footer>
+</body>
+</html>

@@ -12,6 +12,10 @@
   <meta property="og:title" content="JavaScript PII &amp; Secret Redaction Library | Flare Redact">
   <meta property="og:description" content="Local, zero-dependency redaction for logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets.">
   <meta property="og:url" content="https://flare-collection.github.io/flare-redact/">
+  <meta property="og:image" content="https://flare-collection.github.io/flare-redact/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="flare-redact: keep secrets and PII out of logs, LLM prompts and Sentry">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="JavaScript PII &amp; Secret Redaction Library | Flare Redact">
   <meta name="twitter:description" content="Redact locally across logs, LLM prompts, MCP tools, HTTP, SDKs, and datasets.">
@@ -24,7 +28,7 @@
     "codeRepository": "https://github.com/flare-collection/flare-redact",
     "url": "https://flare-collection.github.io/flare-redact/",
     "downloadUrl": "https://www.npmjs.com/package/flare-redact",
-    "softwareVersion": "1.12.1",
+    "softwareVersion": "1.13.0",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Cross-platform",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -103,6 +107,7 @@
     .guide:hover { border-color: rgba(165,180,252,.4); text-decoration: none; }
     .guide h3 { margin: 0 0 7px; font-size: 16px; color: var(--ink); }
     .guide p { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.5; }
+    .guide.featured { grid-column: 1 / -1; }
     @media (max-width: 720px) { .guides { grid-template-columns: 1fr; } .topbar-inner { align-items: flex-start; flex-direction: column; padding: 14px 20px; } }
     footer { padding: 40px 0 60px; text-align: center; color: var(--faint); font-size: 13px; border-top: 1px solid var(--line); margin-top: 20px; }
     code.k { font-family: var(--mono); color: var(--indigo2); }
@@ -196,6 +201,10 @@
       <div class="eyebrow">Practical guides</div>
       <h2>Redaction patterns you can ship</h2>
       <div class="guides">
+        <a class="guide featured" href="guides/why-log-redaction-misses-errors/">
+          <h3>Why log redaction misses errors and objects</h3>
+          <p>Field notes: the logger turns errors, structs and printf arguments into text after the redaction hook ran. Real output from pino, Go slog and Python, and a test you can copy.</p>
+        </a>
         <a class="guide" href="guides/pii-redaction-javascript/">
           <h3>PII redaction in JavaScript</h3>
           <p>Mask emails, cards, identifiers, phone numbers, and nested values locally.</p>
@@ -203,6 +212,10 @@
         <a class="guide" href="guides/redact-secrets-nodejs-logs/">
           <h3>Hide secrets in Node.js logs</h3>
           <p>Protect Pino, Winston, console, HTTP request snapshots, and streams.</p>
+        </a>
+        <a class="guide" href="guides/migrate-to-flare-redact/">
+          <h3>Coming from fast-redact or pino redact</h3>
+          <p>Keep your paths, catch what is inside the strings too. Tested migration and a benchmark.</p>
         </a>
         <a class="guide" href="guides/llm-prompt-redaction/">
           <h3>Redact LLM prompts</h3>
@@ -247,7 +260,7 @@ wallet 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
       // Bundled from the same release that ships to npm; nothing leaves this page.
       const mod = await import('./playground/flare-redact.min.js');
       redact = mod.redact; scan = mod.scan;
-      status.textContent = 'v1.12.1 · runs entirely in your browser';
+      status.textContent = 'v1.13.0 · runs entirely in your browser';
     } catch (e) {
       status.textContent = 'failed to load library';
       $('out').textContent = 'Could not load the playground bundle.';

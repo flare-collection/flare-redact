@@ -1,5 +1,91 @@
 # Changelog
 
+## 1.13.0 (2026-11-28)
+
+### Changed: sensitive key names are matched by how they end
+
+The key rule used to know a list of exact names, so `db_password`,
+`accessToken`, `apiSecret`, `SENTRY_DSN` or `aws_secret_access_key` were only
+masked when their value also looked like a secret. A key now counts when it
+ends in a credential word (`password`, `secret`, `token`, `api_key`,
+`private_key`, `session_id`, `connection_string`, `seed_phrase`, ...) in snake,
+camel, kebab or upper case, or is one of a few short words on its own (`pin`,
+`otp`, `cvv`, `ssn`, `dsn`, `jwt`, `auth`, ...). The 24-language keywords apply
+as before.
+
+Look-alikes stay readable: `max_tokens`, `input_tokens`, `nextPageToken`,
+`continuationToken`, `author`, `publicKey`, `secret_name`, `token_type`,
+`passport`, `SSH_AUTH_SOCK`, `AccessKeyId`. All six engines use the same two
+patterns (`spec/SPEC.md` §9), and the conformance corpus has new cases for
+compound names, look-alikes and a `process.env` dump (227 cases).
+
+This is a change in output: values under such keys are now masked whole. Check
+a name with `isSensitiveKeyName(key)`. To keep a value readable, add it to
+`allow`; to use your own key rule, pass a RegExp as `redactKeys`.
+
+### Added: path rules (JavaScript)
+
+`redact(obj, { paths: [...] })` masks the values at those paths whole, objects
+included, using the syntax of fast-redact and pino's `redact` option:
+`user.password`, `users.*.address`, `items[*].card`, `headers["x-api-key"]`,
+plus `**` for any depth (`**.email`). `remove: true` deletes them instead.
+Path values honour `mask`, `mode` and vaults (`[SENSITIVE_PATH_1]` restores),
+`scan` reports them as `sensitive_path`, and detectors and key names still run
+everywhere else. The input is never changed, frozen objects included; a bad
+path throws `ERR_INVALID_PATH`. The other five engines do not take paths.
+
+### Added: CommonJS and a lite entry point
+
+- `require('flare-redact')` and every library subpath work from CommonJS,
+  with their own type declarations. Jest and older bundlers need no ESM setup.
+  The CLI and the gateway stay ESM.
+- `flare-redact/lite` is the same API without free-text entity recognition:
+  about 34 KB gzipped instead of 63 KB for browsers and edge functions. Every
+  secret detector and the email, card, phone and ID detectors are in it.
+  `entities: true` throws `ERR_ENTITIES_UNAVAILABLE` there, and the `llm` and
+  `gdpr` presets run without entities.
+- New exports: `CORE_DETECTORS`, `isSensitiveKeyName`, `SENSITIVE_KEY_RE`,
+  `NON_SECRET_TOKEN_KEY_RE`.
+
+### Added: 25 detectors, in all six engines
+
+`slack_app_token`, `twitter_bearer_token`, `meta_access_token`,
+`mapbox_secret_token`, `contentful_token`, `hubspot_token`, `sonarqube_token`,
+`buildkite_token`, `plaid_token`, `braintree_token`, `shippo_token`,
+`langfuse_key`, `posthog_personal_key`, `neon_api_key`, `typeform_token`,
+`readme_key`, `prefect_key`, `fcm_server_key`, `azure_ad_client_secret`,
+`firecrawl_key`, `e2b_key`, `clickup_token`, `flutterwave_key`,
+`duffel_token`, `frameio_token`. All are on by default and critical. Formats
+were cross-checked against gitleaks (MIT) rules. Each one is found in every
+engine's conformance run, and near misses (short tokens, public keys such as
+Mapbox `pk.`, PostHog `phc_` and Langfuse `pk-lf-`) must stay readable.
+`openai_key` no longer claims Langfuse `sk-lf-` keys. The shared pack has 145
+detectors.
+
+### Faster, smaller
+
+- Redacting a nested log record takes about a third less time than 1.12.1
+  (60 to 40 µs on the benchmark record), with the 25 new detectors included:
+  objects are copied with plain assignment where that is safe, and each
+  detector list compiles its scan plan once.
+- The npm package is 1.34 MB unpacked instead of 1.60 MB, with the CommonJS
+  build added. Source maps are gone, and the guide, the spec text, the
+  conformance corpus, Docker files and benchmarks are no longer in the
+  package; they stay in the repository. `spec/detectors.json` and its schema
+  still ship.
+
+### Docs
+
+- [Switching from fast-redact, pino redact, redact-secrets or
+  deep-redact](https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/):
+  option mapping and tested before and after output for each library.
+- `bench/object-redactors.mjs` measures speed and coverage next to
+  fast-redact, @pinojs/redact, deep-redact and veilit on one record with nine
+  planted secrets. fast-redact is about 30 times faster at masking the paths
+  you list; flare-redact catches all nine, including the four inside strings.
+- [Why log redaction misses errors and objects](https://flare-collection.github.io/flare-redact/guides/why-log-redaction-misses-errors/),
+  field notes on the leaks fixed in 1.12.1.
+
 ## 1.12.1 (2026-11-26)
 
 ### Fixed: logging integrations redact every value they are given

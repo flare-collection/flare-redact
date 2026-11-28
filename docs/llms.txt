@@ -1,9 +1,12 @@
 # flare-redact
 
-> Zero-dependency JavaScript/TypeScript library that redacts secrets and PII (API keys, tokens, JWTs, credit cards, emails, IBANs, national IDs) from strings, objects, logs, LLM prompts, HTTP traffic, and datasets. Content-based detection (reads values, not field names), checksum-validated to avoid false positives, reversible via encrypted vaults. ESM-only, Node >= 20, also runs in browsers, edge runtimes, Bun, and Deno.
+> Zero-dependency JavaScript/TypeScript library that redacts secrets and PII (API keys, tokens, JWTs, credit cards, emails, IBANs, national IDs) from strings, objects, logs, LLM prompts, HTTP traffic, and datasets. Content-based detection (reads values, not field names), checksum-validated to avoid false positives, reversible via encrypted vaults. ESM and CommonJS (`import` or `require`), Node >= 20, also runs in browsers, edge runtimes, Bun, and Deno.
 
 Key facts for code generation:
 - Install: `npm install flare-redact`. Import: `import { redact, scan, createVault } from 'flare-redact'`.
+- CommonJS works too: `const { redact } = require('flare-redact')`. For browsers and edge functions, `import { redact } from 'flare-redact/lite'` is the same API without entity recognition (about 34 KB gzipped).
+- Path rules (JavaScript): `redact(obj, { paths: ['user.password', 'items[*].card', 'headers["x-api-key"]', '**.email'] })` masks those values whole, objects included; add `remove: true` to delete them. Same syntax as fast-redact and pino's `redact`, plus `**` for any depth. Detectors and sensitive key names still apply everywhere else.
+- Sensitive key names are matched by how the key ends: `db_password`, `accessToken`, `aws_secret_access_key`, `x-api-key`, `SENTRY_DSN` are masked; `max_tokens`, `nextPageToken`, `author`, `publicKey`, `secret_name` stay readable. `isSensitiveKeyName(key)` exposes the rule.
 - `redact(input)` accepts strings, arrays, or objects and returns the same shape with sensitive values masked. No configuration required for the default detectors.
 - Modes: `mask` (default), `label`, `hash`, `pseudonym`, `surrogate`. The last three REQUIRE `transformSecret` in options (or `FLARE_REDACT_SECRET` env for the CLI).
 - National IDs, phone numbers, crypto addresses, and network detectors are opt-in: `redact(text, { enable: ['pii', 'phone'] })` or by country tag (`enable: ['tr', 'fr', 'in']`).
@@ -15,7 +18,7 @@ Key facts for code generation:
 - Universal integration: `import { createRedactionMiddleware } from 'flare-redact/middleware'` wraps any SDK method, route handler, queue consumer, RPC function, or persistence call in redact/observe/block mode.
 - Agent information flow: `createAgentFlow()` from `flare-redact/agent` binds each protected value to a trusted source and detector, then restores it only at an operator-approved sink and JSON path within cumulative budgets. Never derive source, sink, or policy from model output.
 - Simpler agent tools: `createScopedToolBoundary()` from `flare-redact/tool` restores placeholders only in the runtime-owned tool/trust-domain scope that minted them. Legacy `createToolBoundary()` is safe only for one trust domain.
-- Logger integration: `import { pinoRedact } from 'flare-redact/pino'`, `import { winstonRedact } from 'flare-redact/winston'`.
+- Logger integration: `pino(pinoRedact())` with `import { pinoRedact } from 'flare-redact/pino'` (pass the whole result, it holds hooks and formatters), `import { winstonRedact } from 'flare-redact/winston'`.
 - No code change: `node --import flare-redact/register app.js` redacts every console.* call; `FLARE_REDACT_PRESET` picks the preset.
 - Sentry: `Sentry.init({ dsn, ...sentryRedact({ preset: 'gdpr' }) })` with `import { sentryRedact } from 'flare-redact/sentry'`; Sentry ids, release and timestamps are kept. On Sentry 11 pass `{ traceLifecycle: 'stream' }` as the second argument.
 - Pre-commit: `npx flare-redact init --hook` writes a git hook that runs `flare-redact --staged`, which scans only the lines a commit adds. pre-commit framework users add `repo: https://github.com/flare-collection/flare-redact` with `id: flare-redact`. CLI scans leave out assignments whose value is plainly code and nothing else (`token = process.env.TOKEN`, `password: string`); `--no-code-filter` reports them, and `redact()` still masks them.
@@ -30,6 +33,8 @@ Key facts for code generation:
 - [README](https://github.com/flare-collection/flare-redact#readme): overview, quick start and comparison with other tools
 - [CHANGELOG](https://github.com/flare-collection/flare-redact/blob/main/CHANGELOG.md): release history
 - [Live playground](https://flare-collection.github.io/flare-redact/): try redaction in the browser
+- [Why log redaction misses errors](https://flare-collection.github.io/flare-redact/guides/why-log-redaction-misses-errors/): errors, structs and printf arguments become text after a redaction hook ran; real output for pino, Go slog and Python, and a canary test
+- [Switching from fast-redact, pino redact, redact-secrets or deep-redact](https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/): option mapping (`paths`, `censor` to `mask`, `remove`), tested before and after output, and a speed and coverage benchmark against object redactors
 - [Agent information-flow guide](https://flare-collection.github.io/flare-redact/guides/agent-information-flow/): source-to-sink capabilities for model-produced tool calls
 - [NeMo Guardrails + FlareFlow guide](https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow/): add provenance, path, and budget checks after IORails validation and before application-owned tool execution
 - [FlareFlow specification](https://github.com/flare-collection/flare-redact/blob/main/spec/FLAREFLOW.md): threat model, policy, invariant, wire API, and limitations

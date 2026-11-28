@@ -372,7 +372,7 @@ namespace FlareRedact.Tests
                 + "\"mask\":{\"type\":\"fixed\"},\"default\":true,\"risk\":\"high\",\"confidence\":0.9}"));
             Assert.Throws<PackException>(() => Pack.Load("{\"spec\":\"FRS-2\",\"detectors\":[]}"));
             Assert.Throws<PackException>(() => Pack.Load("not json"));
-            Assert.Equal(120, Pack.Core.Detectors.Count);
+            Assert.Equal(145, Pack.Core.Detectors.Count);
             Assert.NotNull(Pack.Core.GetDetector("email"));
             Assert.NotNull(Pack.Core.Model);
         }

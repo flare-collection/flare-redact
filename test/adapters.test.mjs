@@ -41,7 +41,7 @@ test('pinoRedact redacts whole lines only for loggers with sensitive bindings', 
   assert.equal(written[0], '{"level":30,"user":"a***@***","msg":"x"}\n');
   assert.equal(written[1], line); // nothing sensitive bound: the line is not parsed
   assert.equal(hooks.streamWrite(line), line); // outside a log call
-  assert.equal(formatters.bindings({ dsn: 'postgres://admin:s3cr3tPassw0rd@db/app' }).dsn, 'postgres://admin:***@db/app');
+  assert.equal(formatters.bindings({ db: 'postgres://admin:s3cr3tPassw0rd@db/app' }).db, 'postgres://admin:***@db/app');
 });
 
 test('winstonRedact covers what format.splat() and format.errors() read later', () => {

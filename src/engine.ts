@@ -1,11 +1,12 @@
-import { DETECTORS, type Detector } from './detectors.js';
+import { CORE_DETECTORS, type Detector } from './detectors.js';
 import { hmacFingerprint } from './crypto.js';
 import { pseudonymize, surrogate } from './transforms.js';
 import { isSensitiveKeyName } from './i18n.js';
 import { normalizeKeyName, prefilterPattern } from './fold.js';
 import { buildTermsDetector, type TermSpec } from './terms.js';
 import { secretProbability } from './ml.js';
-import { ENTITY_DETECTORS, ENTITY_LABELS, isEntityDetector, recognizeEntities, type EntityLabel, type EntityOptions } from './entities.js';
+import type { EntityLabel, EntityOptions } from './entities.js';
+import { ENTITY_LABELS, entitySupport, type EntitySupport } from './entity-hook.js';
 
 export type Mode = 'mask' | 'label' | 'hash' | 'pseudonym' | 'surrogate' | 'fpe';
 export type Risk = 'low' | 'medium' | 'high' | 'critical';
@@ -84,6 +85,16 @@ export interface RedactOptions {
   /** Secret key for hash, pseudonym, and surrogate modes. Never hard-code it. */
   transformSecret?: string;
   redactKeys?: boolean | RegExp | string[];
+  /**
+   * Values to redact by where they are, as pino's `redact.paths` and fast-redact
+   * write them: `user.password`, `users[0].token`, `users.*.password` (`*` is any
+   * one key or index), `**.authorization` (`**` is any depth) and
+   * `headers["x-api-key"]`. Keys compare exactly. A matched value is masked
+   * whatever its type; detectors and `redactKeys` still apply everywhere else.
+   */
+  paths?: string[];
+  /** Delete the properties `paths` matches instead of masking them (default: false). */
+  remove?: boolean;
   allow?: RegExp | string[];
   /** Your own words/phrases to always catch — masked one-way, or reversible in a vault. */
   terms?: TermSpec[] | Record<string, string>;
@@ -158,9 +169,39 @@ export function presetTags(preset: string | undefined): readonly string[] {
   return PRESETS[preset as Preset];
 }
 
+let defaultList: { support: EntitySupport | undefined; list: Detector[] } | undefined;
+
+/** The built-in detectors, with the entity detectors when entity support is installed. */
+function defaultDetectors(): Detector[] {
+  const support = entitySupport();
+  if (defaultList && defaultList.support === support) return defaultList.list;
+  const list = support ? [...CORE_DETECTORS, ...support.detectors] : CORE_DETECTORS;
+  defaultList = { support, list };
+  return list;
+}
+
+/** Entity support, or a clear error in builds that leave it out. */
+function requireEntities(): EntitySupport {
+  const support = entitySupport();
+  if (!support) {
+    throw new FlareRedactError(
+      'ERR_ENTITIES_UNAVAILABLE',
+      'Entity recognition (`entities`) is not part of flare-redact/lite. Import from "flare-redact" to use it.',
+    );
+  }
+  return support;
+}
+
 export function resolveDetectors(opts: RedactOptions): Detector[] {
-  const base = opts.detectors ?? DETECTORS;
+  const base = opts.detectors ?? defaultDetectors();
   const all = opts.custom?.length ? [...base, ...opts.custom] : base;
+  if (!entitySupport()) {
+    // An explicit ask for entity recognition fails loudly where it is left out.
+    for (const entry of [...(opts.enable ?? []), ...(opts.only ?? [])]) {
+      const isEntity = entry === 'entities' || (ENTITY_LABELS as readonly string[]).includes(entry);
+      if (isEntity && !all.some((d) => matches(entry, d))) requireEntities();
+    }
+  }
   const preset = presetTags(opts.preset);
   const everything = preset.includes('*');
   let chosen: Detector[];
@@ -175,9 +216,10 @@ export function resolveDetectors(opts: RedactOptions): Detector[] {
     });
   }
   if (opts.entities) {
-    const labels: readonly EntityLabel[] = (typeof opts.entities === 'object' && opts.entities.labels) || ENTITY_LABELS;
-    for (const det of ENTITY_DETECTORS) {
-      if (chosen.includes(det) || !labels.includes(det.id as EntityLabel)) continue;
+    const support = requireEntities();
+    const labels = ((typeof opts.entities === 'object' && opts.entities.labels) || support.labels) as readonly string[];
+    for (const det of support.detectors) {
+      if (chosen.includes(det) || !labels.includes(det.id)) continue;
       if (opts.disable?.some((e) => matches(e, det))) continue;
       chosen = [...chosen, det];
     }
@@ -286,6 +328,39 @@ function prefilterOf(det: Detector): RegExp | undefined {
   }
   return re;
 }
+interface PlanEntry {
+  det: Detector;
+  re: RegExp;
+  prefilter: RegExp | undefined;
+}
+
+interface ScanPlan {
+  support: EntitySupport | undefined;
+  regex: PlanEntry[];
+  entity: Detector[];
+}
+
+const scanPlans = new WeakMap<readonly Detector[], ScanPlan>();
+
+/**
+ * Everything scanString needs per detector, worked out once per detector list
+ * instead of once per string: the compiled scan pattern, the prefilter and
+ * whether entity recognition handles it. A compiled policy keeps its list, so
+ * this runs once per policy.
+ */
+function scanPlan(dets: readonly Detector[]): ScanPlan {
+  const support = entitySupport();
+  const cached = scanPlans.get(dets);
+  if (cached && cached.support === support) return cached;
+  const plan: ScanPlan = { support, regex: [], entity: [] };
+  for (const det of dets) {
+    if (support?.isEntityDetector(det)) plan.entity.push(det);
+    else plan.regex.push({ det, re: scanPattern(det), prefilter: prefilterOf(det) });
+  }
+  scanPlans.set(dets, plan);
+  return plan;
+}
+
 export function scanString(
   text: string,
   dets: Detector[],
@@ -300,15 +375,11 @@ export function scanString(
   const normalized = normalizedView(text);
   const subject = normalized.text;
   const hits: Hit[] = [];
-  let entityDetectors: Detector[] | undefined;
-  for (const det of dets) {
-    if (isEntityDetector(det)) {
-      (entityDetectors ??= []).push(det);
-      continue;
-    }
-    const prefilter = prefilterOf(det);
+  const plan = scanPlan(dets);
+  const entities = plan.support;
+  const entityDetectors = plan.entity.length ? plan.entity : undefined;
+  for (const { det, re, prefilter } of plan.regex) {
     if (prefilter && !prefilter.test(subject)) continue;
-    const re = scanPattern(det);
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(subject)) !== null) {
@@ -377,7 +448,7 @@ export function scanString(
   if (entityDetectors) {
     const byId = new Map(entityDetectors.map((det) => [det.id, det]));
     const tuning = typeof opts.entities === 'object' ? opts.entities : {};
-    for (const finding of recognizeEntities(text, { ...tuning, labels: [...byId.keys()] as EntityLabel[] })) {
+    for (const finding of entities!.recognize(text, { ...tuning, labels: [...byId.keys()] as EntityLabel[] })) {
       const det = byId.get(finding.detector)!;
       const value = text.slice(finding.start, finding.end);
       if (allow(value) || finding.confidence < (opts.minConfidence ?? 0)) continue;

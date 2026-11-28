@@ -268,7 +268,7 @@ class EngineTest {
             "{\"id\":\"t\",\"label\":\"T\",\"why\":\"w\",\"pattern\":\"a\",\"validators\":[{\"name\":\"nope\"}],"
                 + "\"mask\":{\"type\":\"fixed\"},\"default\":true,\"risk\":\"high\",\"confidence\":0.9}"));
         assertThrows(PackException.class, () -> Pack.load("{\"spec\":\"FRS-2\",\"detectors\":[]}"));
-        assertEquals(120, Pack.core().detectors().size());
+        assertEquals(145, Pack.core().detectors().size());
     }
 
     @Test

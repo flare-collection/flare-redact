@@ -15,7 +15,7 @@ PyPI releases start with the first release after 1.9.1. Until it lands, or to
 pin a tag, install from the repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.12.1#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.13.0#subdirectory=sdk/python"
 ```
 
 ```python

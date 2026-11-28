@@ -69,10 +69,25 @@ namespace FlareRedact
 
         private static readonly HashSet<string> Normalized;
 
-        /// <summary>English names a field is sensitive under, compared against the normalised key.</summary>
+        /// <summary>
+        /// The English rule of SPEC §9, matched against the normalised key. A key is
+        /// sensitive when it ends with a credential word, glued or not (db_password,
+        /// DbPassword, accessToken, apiSecret), or when it is, or ends in _, -, . or a
+        /// space followed by, a short word that is only safe whole (pass, auth, pin,
+        /// otp, cvv, ssn, dsn, pwd and the rest).
+        /// </summary>
         private static readonly Regex SensitiveKey = new Regex(
-            "^(?:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key"
-            + "|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn)\\z",
+            "^(?:[\\s\\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic"
+            + "|(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?"
+            + "|session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string"
+            + "|(?:seed|recovery)[_. -]?phrase)"
+            + "|(?:[\\s\\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp|totp|hotp"
+            + "|cvv2?|cvc|ssn|dsn|creds|pwd))\\z",
+            RegexOptions.CultureInvariant);
+
+        /// <summary>Keys ending in token that name a pagination cursor or a count, not a credential.</summary>
+        private static readonly Regex NonSecretTokenKey = new Regex(
+            "^[\\s\\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token\\z",
             RegexOptions.CultureInvariant);
 
         static Keywords()
@@ -107,7 +122,8 @@ namespace FlareRedact
         public static bool IsSensitiveKeyName(string name)
         {
             string normalized = NormalizeKeyName(name);
-            return SensitiveKey.IsMatch(normalized) || Normalized.Contains(normalized);
+            return (SensitiveKey.IsMatch(normalized) && !NonSecretTokenKey.IsMatch(normalized))
+                || Normalized.Contains(normalized);
         }
     }
 }

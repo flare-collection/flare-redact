@@ -1,9 +1,8 @@
 import { assignmentPattern } from './i18n.js';
 import { LOCALE_DETECTORS } from './locales.js';
 import { EXTRA_DETECTORS } from './extra.js';
-import { ENTITY_DETECTORS } from './entities.js';
 
-export { SECRET_KEYWORDS, MULTILANG_KEY_SET, SENSITIVE_KEY_RE, isSensitiveKeyName } from './i18n.js';
+export { SECRET_KEYWORDS, MULTILANG_KEY_SET, SENSITIVE_KEY_RE, NON_SECRET_TOKEN_KEY_RE, isSensitiveKeyName } from './i18n.js';
 
 export interface Detector {
   id: string;
@@ -141,7 +140,21 @@ export const SENSITIVE_KEY_DETECTOR: Detector = {
   default: true,
 };
 
-export const DETECTORS: Detector[] = [
+export const SENSITIVE_PATH_DETECTOR: Detector = {
+  id: 'sensitive_path',
+  label: 'Redacted path',
+  why: 'A value at a path the policy names in `paths`.',
+  pattern: /(?!)/,
+  mask: () => '***',
+  default: true,
+};
+
+/**
+ * Every built-in detector except entity recognition, in priority order. The
+ * public `DETECTORS` list appends the entity detectors (see all-detectors.ts);
+ * `flare-redact/lite` uses this list alone.
+ */
+export const CORE_DETECTORS: Detector[] = [
   {
     id: 'private_key',
     label: 'Private key',
@@ -220,7 +233,7 @@ export const DETECTORS: Detector[] = [
     id: 'openai_key',
     label: 'OpenAI API key',
     why: 'Bills against your account and reaches your models and data.',
-    pattern: /\bsk-(?!ant-|or-)(?:proj-)?[A-Za-z0-9_-]{20,64}\b/g,
+    pattern: /\bsk-(?!ant-|or-|lf-)(?:proj-)?[A-Za-z0-9_-]{20,64}\b/g,
     mask: keepPrefix(3),
     default: true,
   },
@@ -437,5 +450,4 @@ export const DETECTORS: Detector[] = [
   },
   ...LOCALE_DETECTORS,
   ...EXTRA_DETECTORS,
-  ...ENTITY_DETECTORS,
 ];

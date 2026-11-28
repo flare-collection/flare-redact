@@ -8,6 +8,8 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+use regex::Regex;
+
 use crate::fold::normalize_key_name;
 
 const RAW: &[&str] = &[
@@ -81,19 +83,45 @@ pub fn secret_keywords() -> Vec<String> {
     out
 }
 
-/// English key names that are sensitive by convention, matched case-insensitively.
-const ENGLISH_KEYS: &[&str] = &[
-    "password", "passwd", "pass", "secret", "token", "apikey", "api_key", "api-key",
-    "accesskey", "access_key", "access-key", "clientsecret", "client_secret", "client-secret",
-    "privatekey", "private_key", "private-key", "auth", "authorization", "cookie",
-    "sessionid", "session_id", "session-id", "refreshtoken", "refresh_token", "refresh-token",
-    "creditcard", "credit_card", "credit-card", "cardnumber", "card_number", "card-number",
-    "cvv", "ssn",
-];
+/// The English rule of SPEC §9, matched against the normalised key. A key is
+/// sensitive when it ends with a credential word, glued or not (`db_password`,
+/// `DbPassword`, `accessToken`, `apiSecret`, `aws_secret_access_key`), or when it
+/// is, or ends in `_`, `-`, `.` or a space followed by, a short word that is only
+/// safe whole (`pass`, `auth`, `pin`, `otp`, `cvv`, `ssn`, `dsn`, `pwd` and the
+/// rest). Look-alikes such as `author`, `monkey`, `publicKey`, `tokenizer` and
+/// `max_tokens` stay readable.
+const SENSITIVE_KEY_PATTERN: &str = concat!(
+    r"^(?:[\s\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic",
+    r"|(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?",
+    r"|session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string",
+    r"|(?:seed|recovery)[_. -]?phrase)",
+    r"|(?:[\s\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp|totp|hotp",
+    r"|cvv2?|cvc|ssn|dsn|creds|pwd))$",
+);
+
+/// Keys that end in `token` but name a pagination cursor or a count, not a
+/// credential (`next_token`, `nextPageToken`, `max_token`).
+const NON_SECRET_TOKEN_KEY_PATTERN: &str =
+    r"^[\s\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token$";
+
+fn sensitive_key_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(SENSITIVE_KEY_PATTERN).expect("sensitive key pattern compiles"))
+}
+
+fn non_secret_token_key_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(NON_SECRET_TOKEN_KEY_PATTERN).expect("non-secret token pattern compiles")
+    })
+}
 
 /// Whether a field name is sensitive by convention, in any supported language:
-/// its normalised form (SPEC §9) is a conventional English name or a keyword.
+/// its normalised form (SPEC §9) matches the English rule and is not a
+/// pagination token, or is a keyword.
 pub fn is_sensitive_key_name(name: &str) -> bool {
     let normalized = normalize_key_name(name);
-    ENGLISH_KEYS.contains(&normalized.as_str()) || normalized_keyword_set().contains(&normalized)
+    (sensitive_key_regex().is_match(&normalized)
+        && !non_secret_token_key_regex().is_match(&normalized))
+        || normalized_keyword_set().contains(&normalized)
 }

@@ -19,6 +19,7 @@ __all__ = [
     "SECRET_KEYWORDS",
     "MULTILANG_KEY_SET",
     "SENSITIVE_KEY_PATTERN",
+    "NON_SECRET_TOKEN_KEY_PATTERN",
     "normalize_key_name",
     "is_sensitive_key_name",
 ]
@@ -82,11 +83,28 @@ SECRET_KEYWORDS: Tuple[str, ...] = tuple(dict.fromkeys(word.lower() for word in 
 #: Fast membership test for object key names.
 MULTILANG_KEY_SET: FrozenSet[str] = frozenset(SECRET_KEYWORDS)
 
-#: English key names that are sensitive by convention, including punctuated forms.
+#: English key names that are sensitive by convention (FRS-1 §9), matched with
+#: ``fullmatch`` against the normalised key. A key is sensitive when it ends with
+#: a credential word, glued or not (``db_password``, ``DbPassword``,
+#: ``accessToken``, ``apiSecret``, ``aws_secret_access_key``), or when it is, or
+#: ends in ``_``, ``-``, ``.`` or a space followed by, a short word that is only
+#: safe whole (``pass``, ``auth``, ``pin``, ``otp``, ``cvv``, ``ssn``, ``dsn``,
+#: ``pwd`` and the rest). Look-alikes such as ``author``, ``monkey``,
+#: ``publicKey``, ``tokenizer`` and ``max_tokens`` stay readable.
 SENSITIVE_KEY_PATTERN = (
-    r"(?:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret"
-    r"|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token"
-    r"|credit[_-]?card|card[_-]?number|cvv|ssn)"
+    r"[\s\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic"
+    r"|(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?"
+    r"|session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string"
+    r"|(?:seed|recovery)[_. -]?phrase)"
+    r"|(?:[\s\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp|totp"
+    r"|hotp|cvv2?|cvc|ssn|dsn|creds|pwd)"
+)
+
+#: Keys that end in ``token`` but name a pagination cursor or a count, not a
+#: credential (``next_token``, ``nextPageToken``, ``max_token``). Such a key is
+#: not sensitive by name unless it is a keyword.
+NON_SECRET_TOKEN_KEY_PATTERN = (
+    r"[\s\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token"
 )
 
 
@@ -110,10 +128,13 @@ def normalize_key_name(name: str) -> str:
 
 _NORMALIZED_KEYWORDS: FrozenSet[str] = frozenset(normalize_key_name(word) for word in SECRET_KEYWORDS)
 _SENSITIVE_KEY_NAME = re.compile(SENSITIVE_KEY_PATTERN)
+_NON_SECRET_TOKEN_KEY = re.compile(NON_SECRET_TOKEN_KEY_PATTERN)
 
 
 def is_sensitive_key_name(name: str) -> bool:
-    """Whether a key is sensitive by name: its normalised form is one of the
-    English names or one of the multilingual keywords."""
+    """Whether a key is sensitive by name: its normalised form matches the
+    English rule and is not a pagination token, or is a multilingual keyword."""
     normal = normalize_key_name(name)
-    return _SENSITIVE_KEY_NAME.fullmatch(normal) is not None or normal in _NORMALIZED_KEYWORDS
+    if _SENSITIVE_KEY_NAME.fullmatch(normal) and not _NON_SECRET_TOKEN_KEY.fullmatch(normal):
+        return True
+    return normal in _NORMALIZED_KEYWORDS

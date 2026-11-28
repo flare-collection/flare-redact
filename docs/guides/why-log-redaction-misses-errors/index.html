@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why Log Redaction Misses Errors and Objects | Flare Redact</title>
+  <meta name="description" content="A redaction hook sees values, but the logger prints text. Errors, structs and printf arguments become text after the hook ran. Real output from pino, Go slog and Python logging, and a test you can copy.">
+  <link rel="canonical" href="https://flare-collection.github.io/flare-redact/guides/why-log-redaction-misses-errors/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Your logger prints secrets after you redacted them">
+  <meta property="og:description" content="Errors, structs and printf arguments turn into text after the redaction hook ran. What leaked, why the tests missed it, and a test you can copy.">
+  <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/why-log-redaction-misses-errors/">
+  <meta property="og:image" content="https://flare-collection.github.io/flare-redact/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="flare-redact: keep secrets and PII out of logs, LLM prompts and Sentry">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="../../site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Your logger prints secrets after you redacted them",
+    "description": "Why log redaction hooks miss errors, structs and printf arguments, with real output from pino, Go slog and Python logging.",
+    "datePublished": "2026-11-27",
+    "dateModified": "2026-11-27",
+    "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
+    "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
+    "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/why-log-redaction-misses-errors/",
+    "proficiencyLevel": "Intermediate",
+    "dependencies": "flare-redact 1.12.1 or newer"
+  }
+  </script>
+</head>
+<body>
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="inner">
+      <a class="brand" href="../../">flare<span>-redact</span></a>
+      <div class="nav-links">
+        <a href="../">Guides</a>
+        <a href="https://github.com/flare-collection/flare-redact">GitHub</a>
+        <a href="https://www.npmjs.com/package/flare-redact">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div class="breadcrumbs"><a href="../../">Home</a> / <a href="../">Guides</a> / Why log redaction misses errors</div>
+    <p class="eyebrow">Field notes</p>
+    <h1>Your logger prints secrets after you redacted them</h1>
+    <p class="lede">A redaction hook sees values. The logger prints text. Errors, structs and printf arguments turn into text after the hook has run, so the secret inside them goes out as it came in. We found this in five of the six languages flare-redact supports and fixed it in 1.12.1. Here is the mechanism, the real output, and a test you can run against your own logger.</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · November 27, 2026 · Output below is real, from flare-redact 1.12.0 and 1.12.1</p>
+
+    <div class="answer"><strong>Short answer:</strong> redact what the logger will print, not only the values it is handed. A value the hook does not recognise (an error, a struct, a URL, a <code>%s</code> argument) has to be turned into text the way the logger would, and that text redacted. Then test with the real logger writing to a buffer, never with a fake of its hook.</div>
+
+    <h2>How we found it</h2>
+    <p>While checking code samples for a round of replies, we logged a database error through our own Go handler:</p>
+    <pre><code>slog.Error("db down", "err", fmt.Errorf("connect %s: connection refused", dsn))</code></pre>
+    <p>The password came out in clear. The handler's tests were green, because none of them logged an error. The redactor walks strings, maps and lists. An <code>error</code> is none of those, so the handler passed it on unchanged, and slog's JSON handler called <code>err.Error()</code> when it wrote the line.</p>
+    <p>So we checked every logging integration the same way: the real logger, a known secret, the printed output. Eight integrations in five languages leaked in at least one path.</p>
+
+    <h2>The mechanism</h2>
+    <p>Every logger works in two steps:</p>
+    <ol>
+      <li>You hand it values: a message template, arguments, fields, bound context.</li>
+      <li>Later, when it writes the line, it turns some of those values into text: <code>Error()</code>, <code>String()</code>, <code>toString()</code>, <code>__str__</code>, <code>ToString()</code>, printf's <code>%s</code>.</li>
+    </ol>
+    <p>A redaction hook sits between the two, so it can only redact what is already text when it runs. An error object is not text yet. Neither is a dataclass, a <code>Uri</code> or a struct. If the hook returns unknown objects unchanged, which is the polite thing for a walker to do, the text is created after redaction and nothing looks at it again.</p>
+    <pre><code>log.error(err)
+  hook:   "not a string, a map or a list; leave it"
+  logger: err.Error()  -&gt;  "connect postgres://app:S3cret@db..."
+  output: the password, in clear</code></pre>
+
+    <h2>Go slog</h2>
+    <pre><code>dsn := "postgres://app:S3cret-canary-42@db.internal:5432/prod"
+slog.Error("db down", "err", fmt.Errorf("connect %s: connection refused", dsn))
+slog.Info("config", "db", DB{Host: "db.internal", Password: "S3cret-canary-42"})</code></pre>
+    <p>With flare-redact 1.12.0:</p>
+    <pre><code>{"level":"ERROR","msg":"db down","err":"connect postgres://app:S3cret-canary-42@db.internal:5432/prod: connection refused"}
+{"level":"INFO","msg":"config","db":{"Host":"db.internal","Password":"S3cret-canary-42"}}</code></pre>
+    <p>With 1.12.1:</p>
+    <pre><code>{"level":"ERROR","msg":"db down","err":"connect postgres://app:***@db.internal:5432/prod: connection refused"}
+{"level":"INFO","msg":"config","db":{"Host":"db.internal","Password":"***"}}</code></pre>
+    <p>A key rule in <code>ReplaceAttr</code>, such as <code>if a.Key == "password"</code>, would not have helped with the first line: the key is <code>err</code>. The secret is in the value, and the value is not text yet.</p>
+
+    <h2>pino</h2>
+    <p>pino adds two twists. It builds the message itself from the template and arguments, and passes only the merge object to <code>formatters.log</code>, so a formatter never sees <code>msg</code>. And <code>child()</code> with no options swaps the bindings formatter for one that returns its input, so child bindings skip it too.</p>
+    <pre><code>log.info('connecting to %s', dsn);
+log.error(new Error(`connect ${dsn}: refused`));
+log.child({ dsn }).info('pool ready');</code></pre>
+    <p>With 1.12.0 (stack trimmed):</p>
+    <pre><code>{"level":30,"msg":"connecting to postgres://app:S3cret-canary-42@db.internal:5432/prod"}
+{"level":50,"err":{"type":"Error","message":"connect postgres://app:***@db.internal:5432/prod: refused"},"msg":"connect postgres://app:S3cret-canary-42@db.internal:5432/prod: refused"}
+{"level":30,"dsn":"postgres://app:S3cret-canary-42@db.internal:5432/prod","msg":"pool ready"}</code></pre>
+    <p>Look at the middle line: the same string is masked in <code>err.message</code> and printed raw in <code>msg</code> right next to it. With 1.12.1 all three lines show <code>app:***@db.internal</code>.</p>
+
+    <h2>Python logging</h2>
+    <p>A <code>logging.Filter</code> sees <code>record.msg</code> and <code>record.args</code>. <code>getMessage()</code> runs later, in the handler, and calls <code>str()</code> on each argument.</p>
+    <pre><code>log.info("config %s", DB("db.internal", "S3cret-canary-42"))</code></pre>
+    <pre><code>1.12.0  INFO config DB(host='db.internal', password='S3cret-canary-42')
+1.12.1  INFO config DB(host='db.internal', password='***')</code></pre>
+    <p>This one leaked only with <code>RedactingFilter</code> on its own. <code>install()</code> also wraps the handler's formatter, which redacts the final text, and that caught it. But the filter alone is a common setup, so it had to be right too.</p>
+
+    <h2>The other five</h2>
+    <ul>
+      <li><strong>winston:</strong> splat arguments and an Error's message and stack, when <code>winstonRedact()</code> runs before <code>format.splat()</code> or <code>format.errors()</code>. Those formats read the raw arguments kept under <code>Symbol.for('splat')</code> and the Error's non-enumerable properties.</li>
+      <li><strong>console</strong> (<code>wrapConsole()</code> and <code>--import flare-redact/register</code>): an object with its own <code>toString()</code> printed through <code>%s</code>.</li>
+      <li><strong>.NET Microsoft.Extensions.Logging and Serilog:</strong> a <code>Uri</code>, a class with its own <code>ToString()</code>, or a struct passed as a structured value or a scope.</li>
+      <li><strong>Java Log4j2:</strong> object values in a <code>MapMessage</code>.</li>
+    </ul>
+    <p>The Rust engine and the Fluent Bit filter only ever see JSON and msgpack values, so nothing is turned into text later. Logback and the Log4j2 pattern converters already redacted the formatted text.</p>
+
+    <h2>Why our tests missed it</h2>
+    <p>The old pino test called our <code>formatters.log</code> with a record that had a <code>msg</code> field in it. Real pino never puts <code>msg</code> there. The test checked the hook contract as we imagined it, not as the logger implements it, so it passed while the real path leaked. The Go, Python, .NET and Java tests had the same blind spot in a quieter form: none of them logged an error, a struct or an object with its own string form that held a secret.</p>
+    <p>The fix for the tests was the same everywhere: drive the real logger, write to a buffer, search the buffer for the secret. Every new leak test fails on 1.12.0.</p>
+
+    <h2>What the fix does</h2>
+    <p>One rule, applied per logger: redact what will be printed.</p>
+    <ul>
+      <li>When the hook meets a value it does not walk, it turns it into text the way the logger would (<code>Error()</code>, <code>String()</code>, <code>str()</code>, <code>ToString()</code>, <code>String.valueOf</code>) and redacts that text. In Go, structs, typed slices and maps are redacted as their JSON, decoded with <code>UseNumber</code> so int64 ids stay exact, and a <code>Password</code> field is masked whole by the key rule.</li>
+      <li>Plain numbers and booleans keep their type, so dashboards and queries keep working.</li>
+      <li>Where the logger formats the message itself (pino), the integration hooks in earlier, at <code>hooks.logMethod</code>, to redact the template and its arguments. For a logger whose bound context holds something sensitive, it also redacts the finished line in <code>hooks.streamWrite</code>. That check runs once per logger, so loggers with clean bindings pay nothing extra.</li>
+      <li>If redaction itself fails, the field becomes <code>[REDACTION FAILED]</code>. Printing the original is the one outcome a redactor exists to prevent.</li>
+    </ul>
+
+    <h2>A test you can copy</h2>
+    <p>This works whatever you use for redaction, including your own <code>ReplaceAttr</code> or a regex filter. Pick a canary secret, log it through every path your code uses, and search the printed output. The paths that matter: the message text, format arguments, errors (message, stack, traceback), objects with their own string form, child or bound context, and groups or scopes.</p>
+    <h3>Go</h3>
+    <pre><code>func TestLogsNeverPrintTheCanary(t *testing.T) {
+	const canary = "S3cret-canary-42"
+	dsn := "postgres://app:" + canary + "@db.internal:5432/prod"
+
+	var buf bytes.Buffer
+	policy, _ := flareredact.Compile(flareredact.Options{})
+	log := slog.New(flareredact.NewSlogHandler(slog.NewJSONHandler(&amp;buf, nil), policy))
+
+	log.Info("connecting to " + dsn)                                    // the message
+	log.Error("db down", "err", fmt.Errorf("connect %s: refused", dsn)) // an error
+	log.Info("config", "db", struct{ DSN string }{dsn})                 // a struct
+	log.With("dsn", dsn).Info("pool ready")                             // bound context
+	log.Info("pool", slog.Group("db", "url", dsn))                      // a group
+
+	if strings.Contains(buf.String(), canary) {
+		t.Fatalf("secret printed:\n%s", buf.String())
+	}
+}</code></pre>
+    <h3>Node.js with pino</h3>
+    <pre><code>import test from 'node:test';
+import assert from 'node:assert/strict';
+import pino from 'pino';
+import { pinoRedact } from 'flare-redact/pino';
+
+test('logs never print the canary', () =&gt; {
+  const canary = 'S3cret-canary-42';
+  const dsn = `postgres://app:${canary}@db.internal:5432/prod`;
+  let out = '';
+  const log = pino(pinoRedact(), { write: (line) =&gt; { out += line; } });
+
+  log.info(`connecting to ${dsn}`);                // the message
+  log.info('connecting to %s', dsn);               // a printf argument
+  log.error(new Error(`connect ${dsn}: refused`)); // an error
+  log.info({ db: { dsn } }, 'config');             // a field
+  log.child({ dsn }).info('pool ready');           // child bindings
+
+  assert.ok(!out.includes(canary), out);
+});</code></pre>
+    <h3>Python</h3>
+    <pre><code>import io
+import logging
+from dataclasses import dataclass
+
+import flare_redact.log as flare_log
+
+
+@dataclass
+class DB:
+    dsn: str
+
+
+def test_logs_never_print_the_canary():
+    canary = "S3cret-canary-42"
+    dsn = f"postgres://app:{canary}@db.internal:5432/prod"
+
+    stream = io.StringIO()
+    log = logging.getLogger("canary-test")
+    log.addHandler(logging.StreamHandler(stream))
+    flare_log.install(log)  # your redaction setup goes here
+
+    log.warning("connecting to %s", dsn)  # a format argument
+    log.warning("config %s", DB(dsn))     # an object with its own str()
+    try:
+        raise ConnectionError(f"connect {dsn}: refused")
+    except ConnectionError:
+        log.exception("db down")          # the traceback
+
+    assert canary not in stream.getvalue(), stream.getvalue()</code></pre>
+    <p>The Go and Node tests fail on flare-redact 1.12.0 and pass on 1.12.1. The Python test passes on both, because <code>install()</code> already redacted the formatted text in 1.12.0; the Python leak needed <code>RedactingFilter</code> on its own.</p>
+
+    <h2>Upgrade</h2>
+    <pre><code>npm install flare-redact@1.12.1
+pip install -U flare-redact
+go get github.com/flare-collection/flare-redact/sdk/go@v1.12.1</code></pre>
+    <p>The Rust crate was not affected. Java and .NET are not on Maven Central and NuGet yet; until they are, build <code>sdk/java</code> with <code>mvn install</code> and <code>sdk/dotnet</code> with <code>dotnet pack</code> from the 1.12.1 tag.</p>
+
+    <div class="note"><strong>What 1.12.1 still does not cover.</strong> A Python traceback is only redacted by the formatter, so use <code>install()</code> or add <code>RedactingFormatter</code> yourself; a filter never sees the rendered traceback. In pino, bindings added with <code>setBindings()</code> after a logger's first line are not checked again. A Node <code>Buffer</code> is printed as its byte values and is not scanned.</div>
+
+    <div class="next">
+      <h2>Read next</h2>
+      <p>The <a href="../redact-secrets-nodejs-logs/">Node.js log redaction guide</a> covers pino, winston, console, HTTP requests and streams. The full list of changes is in the <a href="https://github.com/flare-collection/flare-redact/blob/main/CHANGELOG.md">changelog</a>, and the tests are in the <a href="https://github.com/flare-collection/flare-redact">repository</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">Flare Redact · MIT · <a href="https://github.com/flare-collection/flare-redact">source and tests on GitHub</a></footer>
+</body>
+</html>
