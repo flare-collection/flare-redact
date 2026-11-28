@@ -326,8 +326,8 @@ whole call without partial restoration.
 This controls exact placeholder declassification. It is not a general prompt-
 injection defense and cannot protect data the model already saw.
 
-Specification: spec/FLAREFLOW.md
-Benchmark:     npm run benchmark:agent -- --json`,
+Specification: https://github.com/flare-collection/flare-redact/blob/main/spec/FLAREFLOW.md
+Benchmark:     npm run benchmark:agent -- --json (in a clone of the repository)`,
   },
   {
     name: 'library',
@@ -389,10 +389,10 @@ the first release after 1.9.1. Until it lands, or to pin a tag, install them
 from the repository:
 
   Python  pip install "flare-redact @ \\
-            git+https://github.com/flare-collection/flare-redact@v1.12.1#subdirectory=sdk/python"
+            git+https://github.com/flare-collection/flare-redact@v1.13.0#subdirectory=sdk/python"
 
   Rust    flare-redact = { git = "https://github.com/flare-collection/flare-redact", \\
-                           tag = "v1.12.1" }
+                           tag = "v1.13.0" }
 
 They are not ports that drift. All six implement FRS-1, the specification in
 spec/SPEC.md, and all six run the same conformance corpus in spec/conformance/

@@ -5,7 +5,8 @@ import {
   scanString,
   type RedactOptions,
 } from './engine.js';
-import { mapGraph } from './graph.js';
+import { mapGraph, PathHit } from './graph.js';
+import { applyPaths, compilePaths, REMOVE } from './paths.js';
 
 export interface Vault {
   redact<T>(input: T): T;
@@ -218,6 +219,7 @@ export function createVault(opts: VaultOptions = {}): Vault {
   const dets = resolveDetectors(opts);
   const allow = allowMatcher(opts);
   const matchKey = keyMatcher(opts);
+  const paths = compilePaths(opts.paths);
   const fmt = opts.placeholder ?? (opts.placeholderStyle === 'readable'
     ? ((id, n) => `[${id.toUpperCase()}_${n}]`)
     : ((id) => `[FR_${id.toUpperCase()}_${opaqueToken()}]`));
@@ -257,8 +259,21 @@ export function createVault(opts: VaultOptions = {}): Vault {
     return out + text.slice(cursor);
   };
 
+  // Path rules: a matched string becomes a placeholder that restores to it; in a
+  // matched object every string inside does, so restoring gives the object back.
+  const mintPath = (s: string): string => (allow(s) ? s : mint(s, 'sensitive_path'));
+  const withPaths = (input: unknown): unknown => !paths ? input : applyPaths(input, paths, (value) => {
+    if (opts.remove) return REMOVE;
+    if (value === undefined || value === null) return value;
+    if (typeof value === 'string') return new PathHit(mintPath(value));
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return new PathHit(mintPath(String(value)));
+    }
+    return new PathHit(walkStrings(value, mintPath));
+  });
+
   return {
-    redact: <T>(input: T) => redactGraph(input, redactStr, matchKey, allow, mint) as T,
+    redact: <T>(input: T) => redactGraph(withPaths(input), redactStr, matchKey, allow, mint) as T,
     restore: <T>(input: T) => walkStrings(input, buildJsonAwareRestore([...phToOrig])) as T,
     entries: () => [...phToOrig],
     get size() {

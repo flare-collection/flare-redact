@@ -1,109 +1,261 @@
 {
   "name": "flare-redact",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "description": "Keep secrets and PII out of logs, Sentry, LLM prompts and commits. Reads values, not field names. Zero dependencies.",
   "type": "module",
   "sideEffects": [
-    "./dist/register.js"
+    "./dist/register.js",
+    "./dist/cjs/register.js",
+    "./dist/entities.js",
+    "./dist/cjs/entities.js"
   ],
-  "main": "./dist/index.js",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./lite": {
+      "import": {
+        "types": "./dist/lite.d.ts",
+        "default": "./dist/lite.js"
+      },
+      "require": {
+        "types": "./dist/cjs/lite.d.ts",
+        "default": "./dist/cjs/lite.js"
+      }
     },
     "./stream": {
-      "types": "./dist/stream.d.ts",
-      "default": "./dist/stream.js"
+      "import": {
+        "types": "./dist/stream.d.ts",
+        "default": "./dist/stream.js"
+      },
+      "require": {
+        "types": "./dist/cjs/stream.d.ts",
+        "default": "./dist/cjs/stream.js"
+      }
     },
     "./llm": {
-      "types": "./dist/llm.d.ts",
-      "default": "./dist/llm.js"
+      "import": {
+        "types": "./dist/llm.d.ts",
+        "default": "./dist/llm.js"
+      },
+      "require": {
+        "types": "./dist/cjs/llm.d.ts",
+        "default": "./dist/cjs/llm.js"
+      }
     },
     "./ai-sdk": {
-      "types": "./dist/ai-sdk.d.ts",
-      "default": "./dist/ai-sdk.js"
+      "import": {
+        "types": "./dist/ai-sdk.d.ts",
+        "default": "./dist/ai-sdk.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ai-sdk.d.ts",
+        "default": "./dist/cjs/ai-sdk.js"
+      }
     },
     "./ml": {
-      "types": "./dist/ml.d.ts",
-      "default": "./dist/ml.js"
+      "import": {
+        "types": "./dist/ml.d.ts",
+        "default": "./dist/ml.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ml.d.ts",
+        "default": "./dist/cjs/ml.js"
+      }
     },
     "./entities": {
-      "types": "./dist/entities.d.ts",
-      "default": "./dist/entities.js"
+      "import": {
+        "types": "./dist/entities.d.ts",
+        "default": "./dist/entities.js"
+      },
+      "require": {
+        "types": "./dist/cjs/entities.d.ts",
+        "default": "./dist/cjs/entities.js"
+      }
     },
     "./tool": {
-      "types": "./dist/tool.d.ts",
-      "default": "./dist/tool.js"
+      "import": {
+        "types": "./dist/tool.d.ts",
+        "default": "./dist/tool.js"
+      },
+      "require": {
+        "types": "./dist/cjs/tool.d.ts",
+        "default": "./dist/cjs/tool.js"
+      }
     },
     "./session": {
-      "types": "./dist/session.d.ts",
-      "default": "./dist/session.js"
+      "import": {
+        "types": "./dist/session.d.ts",
+        "default": "./dist/session.js"
+      },
+      "require": {
+        "types": "./dist/cjs/session.d.ts",
+        "default": "./dist/cjs/session.js"
+      }
     },
     "./pino": {
-      "types": "./dist/pino.d.ts",
-      "default": "./dist/pino.js"
+      "import": {
+        "types": "./dist/pino.d.ts",
+        "default": "./dist/pino.js"
+      },
+      "require": {
+        "types": "./dist/cjs/pino.d.ts",
+        "default": "./dist/cjs/pino.js"
+      }
     },
     "./winston": {
-      "types": "./dist/winston.d.ts",
-      "default": "./dist/winston.js"
+      "import": {
+        "types": "./dist/winston.d.ts",
+        "default": "./dist/winston.js"
+      },
+      "require": {
+        "types": "./dist/cjs/winston.d.ts",
+        "default": "./dist/cjs/winston.js"
+      }
     },
     "./sentry": {
-      "types": "./dist/sentry.d.ts",
-      "default": "./dist/sentry.js"
+      "import": {
+        "types": "./dist/sentry.d.ts",
+        "default": "./dist/sentry.js"
+      },
+      "require": {
+        "types": "./dist/cjs/sentry.d.ts",
+        "default": "./dist/cjs/sentry.js"
+      }
     },
     "./http": {
-      "types": "./dist/http.d.ts",
-      "default": "./dist/http.js"
+      "import": {
+        "types": "./dist/http.d.ts",
+        "default": "./dist/http.js"
+      },
+      "require": {
+        "types": "./dist/cjs/http.d.ts",
+        "default": "./dist/cjs/http.js"
+      }
     },
     "./csv": {
-      "types": "./dist/csv.d.ts",
-      "default": "./dist/csv.js"
+      "import": {
+        "types": "./dist/csv.d.ts",
+        "default": "./dist/csv.js"
+      },
+      "require": {
+        "types": "./dist/cjs/csv.d.ts",
+        "default": "./dist/cjs/csv.js"
+      }
     },
     "./recording": {
-      "types": "./dist/recording.d.ts",
-      "default": "./dist/recording.js"
+      "import": {
+        "types": "./dist/recording.d.ts",
+        "default": "./dist/recording.js"
+      },
+      "require": {
+        "types": "./dist/cjs/recording.d.ts",
+        "default": "./dist/cjs/recording.js"
+      }
     },
     "./snapshot": {
-      "types": "./dist/snapshot.d.ts",
-      "default": "./dist/snapshot.js"
+      "import": {
+        "types": "./dist/snapshot.d.ts",
+        "default": "./dist/snapshot.js"
+      },
+      "require": {
+        "types": "./dist/cjs/snapshot.d.ts",
+        "default": "./dist/cjs/snapshot.js"
+      }
     },
     "./replay": {
-      "types": "./dist/replay.d.ts",
-      "default": "./dist/replay.js"
+      "import": {
+        "types": "./dist/replay.d.ts",
+        "default": "./dist/replay.js"
+      },
+      "require": {
+        "types": "./dist/cjs/replay.d.ts",
+        "default": "./dist/cjs/replay.js"
+      }
     },
     "./audit": {
-      "types": "./dist/audit.d.ts",
-      "default": "./dist/audit.js"
+      "import": {
+        "types": "./dist/audit.d.ts",
+        "default": "./dist/audit.js"
+      },
+      "require": {
+        "types": "./dist/cjs/audit.d.ts",
+        "default": "./dist/cjs/audit.js"
+      }
     },
     "./db": {
-      "types": "./dist/db.d.ts",
-      "default": "./dist/db.js"
+      "import": {
+        "types": "./dist/db.d.ts",
+        "default": "./dist/db.js"
+      },
+      "require": {
+        "types": "./dist/cjs/db.d.ts",
+        "default": "./dist/cjs/db.js"
+      }
     },
     "./fetch": {
-      "types": "./dist/fetch.d.ts",
-      "default": "./dist/fetch.js"
+      "import": {
+        "types": "./dist/fetch.d.ts",
+        "default": "./dist/fetch.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fetch.d.ts",
+        "default": "./dist/cjs/fetch.js"
+      }
     },
     "./middleware": {
-      "types": "./dist/middleware.d.ts",
-      "default": "./dist/middleware.js"
+      "import": {
+        "types": "./dist/middleware.d.ts",
+        "default": "./dist/middleware.js"
+      },
+      "require": {
+        "types": "./dist/cjs/middleware.d.ts",
+        "default": "./dist/cjs/middleware.js"
+      }
     },
     "./agent": {
-      "types": "./dist/agent.d.ts",
-      "default": "./dist/agent.js"
+      "import": {
+        "types": "./dist/agent.d.ts",
+        "default": "./dist/agent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/agent.d.ts",
+        "default": "./dist/cjs/agent.js"
+      }
     },
     "./pack": {
-      "types": "./dist/pack.d.ts",
-      "default": "./dist/pack.js"
+      "import": {
+        "types": "./dist/pack.d.ts",
+        "default": "./dist/pack.js"
+      },
+      "require": {
+        "types": "./dist/cjs/pack.d.ts",
+        "default": "./dist/cjs/pack.js"
+      }
     },
     "./gateway": {
       "types": "./dist/gateway/index.d.ts",
       "default": "./dist/gateway/index.js"
     },
     "./register": {
-      "types": "./dist/register.d.ts",
-      "default": "./dist/register.js"
+      "import": {
+        "types": "./dist/register.d.ts",
+        "default": "./dist/register.js"
+      },
+      "require": {
+        "types": "./dist/cjs/register.d.ts",
+        "default": "./dist/cjs/register.js"
+      }
     },
     "./spec/detectors.json": "./spec/detectors.json",
     "./package.json": "./package.json"
@@ -115,30 +267,15 @@
   "files": [
     "dist",
     "bin",
-    "docs/guide.md",
-    "spec/SPEC.md",
-    "spec/FLAREFLOW.md",
     "spec/detectors.json",
     "spec/detectors.schema.json",
-    "spec/conformance",
-    "docker/Dockerfile",
-    "docker/docker-compose.yml",
-    "docker/flare-gateway.example.json",
-    "bench/performance.mjs",
-    "bench/adversarial-runtime.mjs",
-    "bench/graph-vault.mjs",
-    "bench/agent-flow.mjs",
-    "bench/agent-flow-cases.json",
-    "bench/entities.mjs",
-    "bench/entities-cases.json",
     "README.md",
-    "CHANGELOG.md",
     "MIGRATION.md",
     "SECURITY.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/build.mjs",
     "test": "npm run build && node --test",
     "test:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s sdk/python/tests -t sdk/python",
     "spec:sync": "node scripts/sync-spec.mjs",

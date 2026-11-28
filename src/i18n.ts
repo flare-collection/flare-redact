@@ -87,17 +87,50 @@ export const MULTILANG_KEY_SET: ReadonlySet<string> = new Set(SECRET_KEYWORDS);
 const NORMALIZED_KEYWORDS: ReadonlySet<string> = new Set(SECRET_KEYWORDS.map(normalizeKeyName));
 
 /**
- * English names a field is sensitive under, compared against the normalised key.
+ * English names a field is sensitive under, compared against the normalised key
+ * (SPEC §9). Two shapes match:
+ *
+ * - the key ends with a credential word, glued or not: `password`, `secret`,
+ *   `token`, `credentials`, `cookie`, `passphrase`, `mnemonic`, or a two-word
+ *   name such as `api_key`, `private_key`, `session_id` or `card_number`, so
+ *   `db_password`, `DbPassword`, `accessToken`, `apiSecret` and
+ *   `aws_secret_access_key` all hit;
+ * - the key is, or ends in `_`, `-`, `.` or a space followed by, a short word
+ *   that is only safe as a whole word: `pass`, `auth`, `authorization`, `bearer`,
+ *   `csrf`, `xsrf`, `jwt`, `pin`, `otp`, `totp`, `hotp`, `cvv`, `cvv2`, `cvc`,
+ *   `ssn`, `dsn`, `creds`, `pwd`.
+ *
+ * Look-alikes such as `author`, `monkey`, `keyboard`, `publicKey`, `tokenizer`,
+ * `max_tokens` and `secret_name` do not end in one of these and stay readable.
  * Kept here rather than next to the detectors so key matching has one home.
  */
-export const SENSITIVE_KEY_RE =
-  /^(?:pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn)$/i;
+export const SENSITIVE_KEY_RE = new RegExp(
+  '^(?:' +
+    '[\\s\\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic' +
+    '|(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?' +
+    '|session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string' +
+    '|(?:seed|recovery)[_. -]?phrase)' +
+    '|(?:[\\s\\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp|totp|hotp|cvv2?|cvc|ssn|dsn|creds|pwd)' +
+    ')$',
+);
 
 /**
- * Whether a key is sensitive by name (SPEC §9): its normalised form is one of the
- * English names or one of the multilingual keywords.
+ * Keys that end in `token` but name a pagination cursor or a count, not a
+ * credential: `next_token`, `nextPageToken`, `continuation_token`, `max_token`.
+ * A key that matches this is not sensitive by name unless it is a keyword.
+ */
+export const NON_SECRET_TOKEN_KEY_RE =
+  /^[\s\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token$/;
+
+/**
+ * Whether a key is sensitive by name (SPEC §9): its normalised form matches the
+ * English rule above and is not a pagination token, or is one of the
+ * multilingual keywords.
  */
 export function isSensitiveKeyName(key: string): boolean {
   const name = normalizeKeyName(key);
-  return SENSITIVE_KEY_RE.test(name) || NORMALIZED_KEYWORDS.has(name);
+  return (
+    (SENSITIVE_KEY_RE.test(name) && !NON_SECRET_TOKEN_KEY_RE.test(name)) ||
+    NORMALIZED_KEYWORDS.has(name)
+  );
 }

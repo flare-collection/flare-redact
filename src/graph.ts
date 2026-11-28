@@ -29,6 +29,14 @@ function isAtomicObject(value: object): boolean {
  * Clone and transform a JavaScript object graph without losing cycles, shared
  * references, Map/Set contents, symbol metadata, or custom prototypes.
  */
+/**
+ * A value that a path rule already replaced. The walk that follows unwraps it
+ * without scanning it again, so a replacement is never redacted twice.
+ */
+export class PathHit {
+  constructor(readonly value: unknown) {}
+}
+
 export function mapGraph(
   input: unknown,
   mapString: StringMapper,
@@ -39,6 +47,7 @@ export function mapGraph(
   const walk = (value: unknown): unknown => {
     if (typeof value === 'string') return mapString(value);
     if (!value || typeof value !== 'object') return value;
+    if (value instanceof PathHit) return value.value;
     const cached = seen.get(value);
     if (cached !== undefined) return cached;
 
@@ -93,7 +102,7 @@ export function mapGraph(
       for (let i = 0; i < value.length; i++) {
         if (Object.prototype.hasOwnProperty.call(value, i)) out[i] = walk(value[i]);
       }
-      copyEnumerable(value, out, walk, mapSensitiveValue, new Set(['length', ...Object.keys(value).filter((k) => /^\d+$/.test(k))]));
+      copyEnumerable(value, out, walk, mapSensitiveValue, true);
       return out;
     }
 
@@ -106,21 +115,31 @@ export function mapGraph(
   return walk(input);
 }
 
+const INDEX = /^(?:0|[1-9][0-9]*)$/;
+
 function copyEnumerable(
   source: object,
   target: object,
   walk: (value: unknown) => unknown,
   mapSensitiveValue?: SensitiveValueMapper,
-  skip: Set<PropertyKey> = new Set(),
+  skipIndices = false,
 ): void {
+  // A plain target has no setters except __proto__, so an ordinary data
+  // property can be assigned instead of defined, which is several times faster.
+  const proto = Object.getPrototypeOf(target);
+  const plain = proto === Object.prototype || proto === null;
   for (const key of Reflect.ownKeys(source)) {
-    if (skip.has(key)) continue;
+    if (skipIndices && typeof key === 'string' && (key === 'length' || INDEX.test(key))) continue;
     const descriptor = Object.getOwnPropertyDescriptor(source, key);
     if (!descriptor?.enumerable || !('value' in descriptor)) continue;
     const raw = descriptor.value as unknown;
     const next = typeof key === 'string' && typeof raw === 'string' && mapSensitiveValue
       ? mapSensitiveValue(key, raw)
       : walk(raw);
-    Object.defineProperty(target, key, { ...descriptor, value: next });
+    if (plain && key !== '__proto__' && descriptor.writable && descriptor.configurable) {
+      (target as Record<PropertyKey, unknown>)[key] = next;
+    } else {
+      Object.defineProperty(target, key, { ...descriptor, value: next });
+    }
   }
 }

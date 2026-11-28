@@ -2,7 +2,7 @@
   "$schema": "./detectors.schema.json",
   "spec": "FRS-1",
   "id": "flare-redact/core",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "title": "flare-redact core detector pack",
   "description": "The portable profile of the flare-redact detector set. Every pattern is written in the FRS-1 regular-expression subset so the JavaScript, Python, Go, Rust, Java and .NET engines compile it to the same automaton and produce byte-identical output. See spec/SPEC.md.",
   "license": "MIT",
@@ -202,7 +202,7 @@
         "after": "word_dash"
       },
       "reject": [
-        "sk-(?:ant|or)-"
+        "sk-(?:ant|or|lf)-"
       ],
       "mask": {
         "type": "keepPrefix",
@@ -2522,6 +2522,512 @@
       "mask": {
         "type": "keepPrefix",
         "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "slack_app_token",
+      "label": "Slack app-level token",
+      "why": "Opens Socket Mode connections and acts as your Slack app in every workspace it is installed in.",
+      "pattern": "xapp-[0-9]-[A-Z0-9]{8,16}-[0-9]{8,16}-[A-Za-z0-9]{32,80}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "twitter_bearer_token",
+      "label": "X (Twitter) bearer token",
+      "why": "Calls the X API as your app, with its access level and rate limits.",
+      "pattern": "A{20,22}[B-Za-z0-9%][A-Za-z0-9%]{79,129}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.85
+    },
+    {
+      "id": "meta_access_token",
+      "label": "Meta (Facebook) access token",
+      "why": "Acts on the Graph API as the user, page or app it was issued to.",
+      "pattern": "EAA[A-Z0-9][A-Za-z0-9]{90,400}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.85
+    },
+    {
+      "id": "mapbox_secret_token",
+      "label": "Mapbox secret token",
+      "why": "Changes styles, tilesets and uploads on your Mapbox account.",
+      "pattern": "sk\\.eyJ[A-Za-z0-9_-]{10,600}\\.[A-Za-z0-9_-]{16,64}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "contentful_token",
+      "label": "Contentful management token",
+      "why": "Creates, edits and publishes content in your Contentful spaces.",
+      "pattern": "CFPAT-[A-Za-z0-9_-]{43}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "hubspot_token",
+      "label": "HubSpot private app token",
+      "why": "Reads and writes CRM records, contacts and deals in your HubSpot account.",
+      "pattern": "pat-(?:na|eu|ap)[0-9]-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "-",
+        "count": 2
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "sonarqube_token",
+      "label": "SonarQube token",
+      "why": "Runs analyses and reads code findings on your SonarQube server.",
+      "pattern": "sq[upa]_[0-9a-f]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "buildkite_token",
+      "label": "Buildkite API token",
+      "why": "Reads and changes pipelines, builds and agents in your Buildkite organization.",
+      "pattern": "bkua_[0-9a-f]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "plaid_token",
+      "label": "Plaid access token",
+      "why": "Reads the bank accounts and transactions of the user it was issued for.",
+      "pattern": "access-(?:sandbox|development|production)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "-",
+        "count": 2
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "braintree_token",
+      "label": "Braintree access token",
+      "why": "Charges cards and moves money through your Braintree merchant account.",
+      "pattern": "access_token\\$(?:production|sandbox)\\$[0-9a-z]{16}\\$[0-9a-f]{32}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "$",
+        "count": 2
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.95
+    },
+    {
+      "id": "shippo_token",
+      "label": "Shippo API token",
+      "why": "Buys shipping labels on your Shippo account.",
+      "pattern": "shippo_(?:live|test)_[0-9a-f]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "_",
+        "count": 2
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "langfuse_key",
+      "label": "Langfuse secret key",
+      "why": "Reads and writes the traces, prompts and evaluations in your Langfuse project.",
+      "pattern": "sk-lf-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.95
+    },
+    {
+      "id": "posthog_personal_key",
+      "label": "PostHog personal API key",
+      "why": "Reads and changes your PostHog projects, including captured events and recordings.",
+      "pattern": "phx_[A-Za-z0-9]{40,60}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "neon_api_key",
+      "label": "Neon API key",
+      "why": "Creates and deletes Neon projects, branches and databases.",
+      "pattern": "napi_[A-Za-z0-9]{40,80}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "typeform_token",
+      "label": "Typeform personal token",
+      "why": "Reads forms and every response collected on your Typeform account.",
+      "pattern": "tfp_[A-Za-z0-9_=-]{40,64}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "readme_key",
+      "label": "ReadMe API key",
+      "why": "Changes the API docs and reference on your ReadMe project.",
+      "pattern": "rdme_[a-z0-9]{70}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 5
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "prefect_key",
+      "label": "Prefect API key",
+      "why": "Runs and changes flows and deployments in your Prefect workspace.",
+      "pattern": "pnu_[A-Za-z0-9]{36}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "fcm_server_key",
+      "label": "Firebase Cloud Messaging server key",
+      "why": "Sends push notifications to every user of your app.",
+      "pattern": "AAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "azure_ad_client_secret",
+      "label": "Microsoft Entra client secret",
+      "why": "Signs in as your Entra ID (Azure AD) application and calls the APIs it was granted.",
+      "pattern": "[A-Za-z0-9_~.]{3}[0-9]Q~[A-Za-z0-9_~.-]{31,34}",
+      "boundary": {
+        "before": "word",
+        "after": "word_dash"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.9
+    },
+    {
+      "id": "firecrawl_key",
+      "label": "Firecrawl API key",
+      "why": "Crawls and scrapes pages on your Firecrawl plan.",
+      "pattern": "fc-[0-9a-f]{32}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.85
+    },
+    {
+      "id": "e2b_key",
+      "label": "E2B API key",
+      "why": "Starts code-execution sandboxes on your E2B account.",
+      "pattern": "e2b_[0-9a-f]{40}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 4
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "clickup_token",
+      "label": "ClickUp personal token",
+      "why": "Reads and changes the tasks and docs in your ClickUp workspaces.",
+      "pattern": "pk_[0-9]{6,12}_[A-Z0-9]{32}",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 3
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.9
+    },
+    {
+      "id": "flutterwave_key",
+      "label": "Flutterwave secret key",
+      "why": "Charges cards and sends payouts from your Flutterwave account.",
+      "pattern": "FLWSECK(?:_TEST)?-[0-9a-f]{32}-X",
+      "boundary": {
+        "before": "word",
+        "after": "word"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "-",
+        "count": 1
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.95
+    },
+    {
+      "id": "duffel_token",
+      "label": "Duffel access token",
+      "why": "Books and cancels flights and stays on your Duffel account.",
+      "pattern": "duffel_(?:test|live)_[A-Za-z0-9_=-]{43}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepThroughSeparator",
+        "separator": "_",
+        "count": 2
+      },
+      "default": true,
+      "tags": [
+        "secret"
+      ],
+      "risk": "critical",
+      "confidence": 0.92
+    },
+    {
+      "id": "frameio_token",
+      "label": "Frame.io developer token",
+      "why": "Reads and changes the projects and media in your Frame.io account.",
+      "pattern": "fio-u-[A-Za-z0-9_=-]{64}",
+      "boundary": {
+        "before": "word",
+        "after": "base64url"
+      },
+      "mask": {
+        "type": "keepPrefix",
+        "n": 6
       },
       "default": true,
       "tags": [

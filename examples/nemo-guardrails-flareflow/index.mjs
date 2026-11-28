@@ -11,7 +11,9 @@ const flow = createAgentFlow({
       capabilities: [{
         id: 'database-connection',
         sources: ['application.config'],
-        detectors: ['url_credentials'],
+        // A connectionString value is masked whole because of its key name
+        // (sensitive_key); a URL with credentials inside free text is url_credentials.
+        detectors: ['sensitive_key', 'url_credentials'],
         paths: ['/args/connectionString'],
         maxUses: 1,
       }],

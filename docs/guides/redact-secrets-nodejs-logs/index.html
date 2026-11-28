@@ -10,7 +10,11 @@
   <meta property="og:title" content="How to Redact Secrets from Node.js Logs">
   <meta property="og:description" content="Content-aware secret masking for Pino, Winston, console, HTTP, and log streams.">
   <meta property="og:url" content="https://flare-collection.github.io/flare-redact/guides/redact-secrets-nodejs-logs/">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://flare-collection.github.io/flare-redact/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="flare-redact: keep secrets and PII out of logs, LLM prompts and Sentry">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="../../site.css">
   <script type="application/ld+json">
   {
@@ -19,7 +23,7 @@
     "headline": "How to redact secrets from Node.js logs",
     "description": "A practical guide to content-aware secret redaction for Node.js logging.",
     "datePublished": "2026-08-04",
-    "dateModified": "2026-08-04",
+    "dateModified": "2026-11-27",
     "author": { "@type": "Person", "name": "Umud Hasanli", "url": "https://github.com/umudhasanli" },
     "publisher": { "@type": "Organization", "name": "Flare Collection", "url": "https://github.com/flare-collection" },
     "mainEntityOfPage": "https://flare-collection.github.io/flare-redact/guides/redact-secrets-nodejs-logs/",
@@ -45,7 +49,7 @@
     <p class="eyebrow">Node.js logging guide</p>
     <h1>How to redact secrets from Node.js logs</h1>
     <p class="lede">Sanitize a log record before serialization and transport, so API keys, credentials, authorization headers, and customer data never reach your log store.</p>
-    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated August 4, 2026 · Examples tested with Flare Redact 1.4</p>
+    <p class="meta">By <a href="https://github.com/umudhasanli">Umud Hasanli</a> · Updated November 27, 2026 · Examples tested with Flare Redact 1.12.1</p>
 
     <div class="answer"><strong>Short answer:</strong> redact at the logger boundary, before formatting or transport. Key-path rules protect fields you already know; content-aware scanning also catches a token pasted into <code>message</code>, <code>note</code>, an error, or another unexpected location.</div>
 
@@ -66,7 +70,7 @@ log.info({
   email: 'alice@example.com',
   authorization: 'Bearer private-token-value'
 }, 'checkout accepted');</code></pre>
-    <p>The formatter receives a redacted copy. It checks sensitive field names and the contents of every string, so protection is not limited to a manually maintained list of object paths.</p>
+    <p><code>pinoRedact()</code> returns pino options: hooks that redact the message and its printf arguments before pino formats them, and formatters that redact fields and child bindings. Pass the whole result, or spread it next to your own options. It checks sensitive field names and the contents of every string, so protection is not limited to a manually maintained list of object paths. <a href="../why-log-redaction-misses-errors/">Why the message needs its own hook</a>.</p>
 
     <h2>Winston secret redaction</h2>
     <pre><code>npm install flare-redact winston</code></pre>

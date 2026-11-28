@@ -124,6 +124,7 @@ pre {
   text-decoration: none;
 }
 .card:hover { border-color: rgba(165, 180, 252, 0.42); }
+.card.featured { grid-column: 1 / -1; }
 .card h2, .card h3 { margin: 0 0 8px; font-size: 20px; }
 .card p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.6; }
 .next {

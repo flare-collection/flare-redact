@@ -16,7 +16,8 @@ WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.cjs.json ./
+COPY scripts/build.mjs ./scripts/build.mjs
 COPY src ./src
 RUN npm run build
 

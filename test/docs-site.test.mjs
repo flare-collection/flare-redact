@@ -15,6 +15,8 @@ const pages = [
   'guides/mcp-tool-redaction/index.html',
   'guides/agent-information-flow/index.html',
   'guides/nemo-guardrails-flareflow/index.html',
+  'guides/why-log-redaction-misses-errors/index.html',
+  'guides/migrate-to-flare-redact/index.html',
 ];
 
 const readPage = async (relativePath) => ({

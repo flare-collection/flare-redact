@@ -421,9 +421,33 @@ identical pseudonyms for astral-plane input should mask those detectors instead.
   lowercasing only in İ and the final-sigma rule, both of which this form erases,
   so `ŞİFRE`, `GİZLİ`, `ΚΩΔΙΚΌΣ` and `APİ_KEY` are recognised by every engine.
   The default test is that the normalised key fully matches `SENSITIVE_KEY_RE`
-  (`password`, `secret`, `token`, `api_key`, `authorization`, `cookie`,
-  `session_id`, `credit_card`, `cvv`, `ssn`, …) or equals a multilingual keyword
-  in normalised form. A host-supplied list of key names is compared the same way.
+  and does not fully match `NON_SECRET_TOKEN_KEY_RE`, or equals a multilingual
+  keyword in normalised form:
+
+  ```
+  SENSITIVE_KEY_RE =
+    [\s\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic
+      |(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?
+      |session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string
+      |(?:seed|recovery)[_. -]?phrase)
+    |(?:[\s\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp
+      |totp|hotp|cvv2?|cvc|ssn|dsn|creds|pwd)
+  NON_SECRET_TOKEN_KEY_RE =
+    [\s\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token
+  ```
+
+  (line breaks are for reading; the pattern has none). The first branch is a key
+  that *ends* with a credential word whatever comes before it, so `db_password`,
+  `DbPassword`, `accessToken`, `apiSecret` and `aws_secret_access_key` match;
+  camel case needs no splitting because the key is already lower case. The second
+  branch takes short words only whole or after `_`, `-`, `.` or a space, so
+  `db_pass` and `user_pin` match while `compass` and `spin` do not. Look-alikes
+  such as `author`, `monkey`, `keyboard`, `publicKey`, `tokenizer`, `max_tokens`
+  and `secret_name` do not end in a listed word, and `NON_SECRET_TOKEN_KEY_RE`
+  keeps pagination cursors (`next_token`, `nextPageToken`) readable. `[\s\S]`
+  is used instead of `.` so that every engine treats line terminators in a key
+  the same way. A host-supplied list of key names is compared the same way as
+  the keywords: exact equality in normalised form.
   The finding is reported as detector `sensitive_key`, risk `critical`,
   confidence `0.98`.
 - **`allow`** — exact values (or a host regular expression) that are never

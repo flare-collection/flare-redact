@@ -90,10 +90,26 @@ public final class Keywords {
         NORMALIZED = Collections.unmodifiableSet(normalized);
     }
 
-    /** English names a field is sensitive under, compared against the normalised key. */
+    /**
+     * The English rule of SPEC §9, matched against the normalised key. A key is
+     * sensitive when it ends with a credential word, glued or not
+     * ({@code db_password}, {@code DbPassword}, {@code accessToken},
+     * {@code apiSecret}), or when it is, or ends in {@code _}, {@code -},
+     * {@code .} or a space followed by, a short word that is only safe whole
+     * ({@code pass}, {@code auth}, {@code pin}, {@code otp}, {@code cvv},
+     * {@code ssn}, {@code dsn}, {@code pwd} and the rest).
+     */
     private static final Pattern SENSITIVE_KEY = Pattern.compile(
-        "pass(?:word|wd)?|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key"
-            + "|auth(?:orization)?|cookie|session[_-]?id|refresh[_-]?token|credit[_-]?card|card[_-]?number|cvv|ssn");
+        "[\\s\\S]*(?:pass(?:word|wd|phrase)|secret|token|credentials?|cookies?|mnemonic"
+            + "|(?:api|access|secret|private|encryption|signing|master|client)[_. -]?keys?"
+            + "|session[_. -]?id|credit[_. -]?card|card[_. -]?number|connection[_. -]?string"
+            + "|(?:seed|recovery)[_. -]?phrase)"
+            + "|(?:[\\s\\S]*[_. -])?(?:pass|auth|authorization|bearer|csrf|xsrf|jwt|pin|otp|totp|hotp"
+            + "|cvv2?|cvc|ssn|dsn|creds|pwd)");
+
+    /** Keys ending in {@code token} that name a pagination cursor or a count, not a credential. */
+    private static final Pattern NON_SECRET_TOKEN_KEY = Pattern.compile(
+        "[\\s\\S]*(?:next|page|continuation|pagination|cursor|sync|resume|max)[_. -]?token");
 
     /** @return the multilingual key-name vocabulary, lower-cased and sorted */
     public static List<String> secretKeywords() {
@@ -124,6 +140,8 @@ public final class Keywords {
      */
     public static boolean isSensitiveKeyName(String name) {
         String normalized = normalizeKeyName(name);
-        return SENSITIVE_KEY.matcher(normalized).matches() || NORMALIZED.contains(normalized);
+        return (SENSITIVE_KEY.matcher(normalized).matches()
+                && !NON_SECRET_TOKEN_KEY.matcher(normalized).matches())
+            || NORMALIZED.contains(normalized);
     }
 }

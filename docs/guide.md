@@ -14,6 +14,8 @@ version. Coding assistants can read the same API in condensed form at
 - [Fluent Bit](#fluent-bit)
 - [The sidecar gateway](#the-sidecar-gateway)
 - [Redact anything](#redact-anything)
+- [Redact by path](#redact-by-path)
+- [Coming from fast-redact, pino redact, redact-secrets or deep-redact](#coming-from-fast-redact-pino-redact-redact-secrets-or-deep-redact)
 - [Integrate any SDK or framework](#integrate-any-sdk-or-framework)
 - [Redact prompts before they reach an LLM](#redact-prompts-before-they-reach-an-llm)
 - [Ways to hide a value](#ways-to-hide-a-value)
@@ -52,6 +54,19 @@ npm install flare-redact
 ```
 
 Node 20+, and it runs in the browser and edge runtimes too, with zero dependencies.
+Both module systems work:
+
+```js
+import { redact } from 'flare-redact';          // ES modules
+const { redact } = require('flare-redact');     // CommonJS, Jest, older bundlers
+import { redact } from 'flare-redact/lite';     // browsers and edge functions
+```
+
+`flare-redact/lite` is the same API without [free-text entity
+recognition](#free-text-pii-without-a-model), about 34 KB gzipped instead of 63 KB.
+Every secret detector and the pattern detectors for emails, cards, phones and IDs
+are in it; `entities: true` throws `ERR_ENTITIES_UNAVAILABLE` there, and the `llm`
+and `gdpr` presets run without entities.
 Upgrading from `0.9.x`? Read the [`1.0 migration guide`](../MIGRATION.md). Existing
 projects are not forced across the major version; upgrade explicitly with
 `npm install flare-redact@^1.0.0`.
@@ -187,11 +202,11 @@ first release after 1.9.1. Until it lands, or to pin a tag, install them from
 this repository:
 
 ```bash
-pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.12.1#subdirectory=sdk/python"
+pip install "flare-redact @ git+https://github.com/flare-collection/flare-redact@v1.13.0#subdirectory=sdk/python"
 ```
 
 ```toml
-flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.12.1" }
+flare-redact = { git = "https://github.com/flare-collection/flare-redact", tag = "v1.13.0" }
 ```
 
 ```python
@@ -350,6 +365,55 @@ redact({
 //   note:     'my aws key is AKIA***',    // found inside free text
 // }
 ```
+
+## Redact by path
+
+When you know where a value lives, name it. Path rules use the syntax of
+fast-redact and pino's `redact` option, plus `**` for any depth:
+
+```js
+redact(event, {
+  paths: [
+    'user.password',             // one property
+    'users.*.address',           // * is any one key or array index
+    'items[*].card',             // same, in bracket form
+    'req.headers["x-api-key"]',  // keys that are not identifiers
+    '**.email',                  // this key at any depth, the top level included
+  ],
+});
+```
+
+- The value at a path is masked whole, even when it is an object or a number.
+  `null` and `undefined` stay as they are.
+- `remove: true` deletes the property, or the array element, instead.
+- `mask` and `mode` apply as usual: `mask: '[REDACTED]'`, `mode: 'label'` gives
+  `[REDACTED:sensitive_path]`, a vault mints `[SENSITIVE_PATH_1]` and restores it.
+- Detectors and sensitive key names still run on everything else. For the old
+  behaviour only, pass `{ paths, detectors: [], redactKeys: false }`.
+- `scan` reports each matched value once as a `sensitive_path` finding.
+- The input is never changed, frozen objects included. Cycles are fine; a path
+  that is not there is skipped. A malformed path throws `ERR_INVALID_PATH`.
+
+Path rules are part of the JavaScript package. The Python, Go, Rust, Java and .NET
+engines take sensitive key names and detectors, not paths.
+
+## Coming from fast-redact, pino redact, redact-secrets or deep-redact
+
+| You have | In flare-redact |
+|---|---|
+| `fastRedact({ paths, censor })` | `compilePolicy({ paths, mask })`, then `policy.redact(obj)` |
+| `remove: true` | `remove: true` |
+| `serialize` | `redact()` returns a copy; call `JSON.stringify` yourself |
+| pino `redact: [...]` | keep it and spread `pinoRedact()` next to it, or move the list to `pinoRedact({ paths })` |
+| deep-redact `list: ['email']` | `paths: ['**.email']` |
+| redact-secrets / is-secret | nothing to set: key names such as `db_password` and `accessToken` are built in |
+
+The listed paths come out the same. The difference is everything you did not list:
+an email or a key inside a message, a token in a URL query, a password in an error
+string. [The migration guide](https://flare-collection.github.io/flare-redact/guides/migrate-to-flare-redact/)
+has tested before and after output for each library, and `bench/object-redactors.mjs`
+measures speed and coverage on your machine. fast-redact is faster when the paths
+are all you need; flare-redact reads every value, which costs more and catches more.
 
 ## Integrate any SDK or framework
 
@@ -1337,7 +1401,7 @@ not, as long as Node 20 or newer is on the PATH:
 ```yaml
 repos:
   - repo: https://github.com/flare-collection/flare-redact
-    rev: v1.12.1
+    rev: v1.13.0
     hooks:
       - id: flare-redact        # only the lines being added, like --staged
 ```
@@ -1402,7 +1466,7 @@ reports never echo the matched secret value:
   with:
     node-version: 24
 - name: Scan project text files
-  run: npx --yes --package flare-redact@1.12.1 flare-redact --scan . --exclude package-lock.json
+  run: npx --yes --package flare-redact@1.13.0 flare-redact --scan . --exclude package-lock.json
 ```
 
 The scan runs on the GitHub runner, reports safe file and source locations, and
@@ -1502,6 +1566,11 @@ On by default:
 | `airtable_pat` / `postman_key` / `linear_key` / `figma_token` / `notion_token` / `atlassian_token` | SaaS workspace tokens |
 | `doppler_token` / `supabase_key` / `netlify_token` / `mailgun_key` | platform API keys |
 | `mailchimp_key` / `brevo_key` / `resend_key` | email and marketing API keys |
+| `slack_app_token` / `twitter_bearer_token` / `meta_access_token` / `fcm_server_key` | app tokens: Slack app-level (`xapp-…`), X bearer, Meta Graph (`EAA…`), Firebase Cloud Messaging server keys |
+| `langfuse_key` / `posthog_personal_key` / `neon_api_key` / `firecrawl_key` / `e2b_key` / `prefect_key` | AI, data and analytics platform keys (`sk-lf-…`, `phx_…`, `napi_…`, `fc-…`, `e2b_…`, `pnu_…`) |
+| `plaid_token` / `braintree_token` / `shippo_token` / `flutterwave_key` / `duffel_token` | payment, shipping and travel API secrets |
+| `mapbox_secret_token` / `contentful_token` / `hubspot_token` / `typeform_token` / `clickup_token` / `readme_key` / `frameio_token` | SaaS API tokens (`sk.eyJ…`, `CFPAT-…`, `pat-na1-…`, `tfp_…`, `pk_…`, `rdme_…`, `fio-u-…`) |
+| `sonarqube_token` / `buildkite_token` / `azure_ad_client_secret` | CI and identity secrets: SonarQube (`squ_…`), Buildkite (`bkua_…`), Microsoft Entra client secrets |
 
 Opt in with `enable`:
 
@@ -1515,8 +1584,14 @@ Opt in with `enable`:
 | `entities` | people, addresses, phones, personal dates, account numbers, handles, personal URLs and secrets in prose, without a model ([details](#free-text-pii-without-a-model)) |
 | `phone` | E.164 and formatted national numbers (`+90 532 123 45 67`, `(555) 123-4567`, `0532 123 45 67`); digit-count validated, date-safe |
 
-Plus object values whose **key name** is sensitive (`password`, `token`,
-`authorization`, `cookie`, `cvv`, …) are masked regardless of content.
+Plus object values whose **key name** is sensitive are masked regardless of
+content. A key counts when it ends in a credential word (`db_password`,
+`accessToken`, `aws_secret_access_key`, `SENTRY_DSN`, `x-api-key`, `set-cookie`)
+or is one (`pin`, `otp`, `cvv`, `ssn`), in snake, camel, kebab or upper case and
+in 24 languages. Look-alikes stay readable: `max_tokens`, `nextPageToken`,
+`author`, `publicKey`, `secret_name`, `passport`. Check a name with
+`isSensitiveKeyName('apiSecret')`; the rule is the same in all six engines
+([spec](../spec/SPEC.md)).
 
 ## Multilingual secret vocabulary and IDs
 
@@ -1671,10 +1746,12 @@ redactStream(opts?): Transform                  // chunk-safe + bounded multilin
 // opts
 // {
 //   only?, enable?, disable?, custom?,   // which detectors run
+//   detectors?: Detector[],              // replace the built-in set (e.g. a loaded pack)
 //   mode?: 'mask' | 'label' | 'hash' | 'pseudonym' | 'surrogate',
 //   transformSecret?, mask?, minConfidence?, refineConfidence?, semanticProvider?, limits?,
 //   includeValues?: boolean,                // scan only; unsafe raw values
 //   redactKeys?: boolean | RegExp | string[],
+//   paths?: string[], remove?: boolean,       // JavaScript only: mask or delete by path
 //   allow?: RegExp | string[],
 //   terms?: string[] | { term: replacement }, termsCaseSensitive?,
 // }

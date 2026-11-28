@@ -1,6 +1,6 @@
 # flare-redact: full reference for LLMs
 
-Zero-dependency secret & PII redaction for JavaScript/TypeScript. ESM-only. Node >= 20, browser, edge, Bun, Deno. MIT license. Current major: 1.x.
+Zero-dependency secret & PII redaction for JavaScript/TypeScript. ESM and CommonJS. Node >= 20, browser, edge, Bun, Deno. MIT license. Current major: 1.x.
 
 ## Install and quick start
 
@@ -17,6 +17,11 @@ redact('User alice@corp.com paid with 4242 4242 4242 4242');
 // Objects and arrays keep their shape; detection reads content, not field names.
 redact({ note: 'my aws key is AKIAIOSFODNN7EXAMPLE', password: 'hunter2' });
 // → { note: 'my aws key is AKIA***', password: '***' }
+```
+
+```js
+const { redact } = require('flare-redact');   // CommonJS works the same way
+import { redact } from 'flare-redact/lite';   // browsers/edge: same API, no entity recognition, ~34 KB gzipped
 ```
 
 ## Core API (from 'flare-redact')
@@ -54,6 +59,9 @@ openVault(envelope, password): Promise<Array<[placeholder, original]>>
   refineConfidence?: boolean,  // learned classifier adjusts generic detectors (e.g. high_entropy)
   includeValues?: boolean,     // scan only: include raw matched values (unsafe for logs)
   redactKeys?: boolean | RegExp | string[],  // sensitive object-key handling (default on)
+  paths?: string[],      // mask values at these paths whole: 'a.b', 'list.*.x', 'items[*].card', 'h["x-api-key"]', '**.email'
+  remove?: boolean,      // with paths: delete the property or array element instead of masking
+  detectors?: Detector[],  // replace the built-in detector set (e.g. a loaded FRS-1 pack)
   allow?: RegExp | string[],   // never redact these exact values
   terms?: string[] | Record<string, string>, // custom words to always catch
   semanticProvider?: { detect(text): SemanticFinding[] | Promise<...> }, // plug local NER
@@ -63,9 +71,13 @@ openVault(envelope, password): Promise<Array<[placeholder, original]>>
 }
 ```
 
+Path rules use fast-redact / pino `redact` syntax plus `**` (any depth). They run before detectors, report as `sensitive_path`, honour `mask`/`mode`/vaults, never mutate input, and throw `ERR_INVALID_PATH` on bad syntax. JavaScript only; the other five engines use key names and detectors. Migrating: `fastRedact({ paths, censor })` → `compilePolicy({ paths, mask })`; deep-redact `list: ['email']` → `paths: ['**.email']`; pino `redact` can stay, add `...pinoRedact()`.
+
+Sensitive key names: a key is masked when it ends in a credential word (`db_password`, `accessToken`, `aws_secret_access_key`, `SENTRY_DSN`, `x-api-key`) or is one (`pin`, `otp`, `cvv`, `ssn`), plus keywords in 24 languages. `max_tokens`, `nextPageToken`, `author`, `publicKey`, `secret_name` stay readable. `isSensitiveKeyName(key)` exposes the rule.
+
 ## Detectors
 
-Default-on (no config): private_key (PEM), aws_access_key, aws_secret_key (in assignments), github_token, gitlab_token, slack_token, stripe_key, stripe_webhook_secret, anthropic_key (sk-ant-…), openai_key, openrouter_key, google_api_key, gcp_service_account, gcp_refresh_token, sendgrid_key, twilio_key, npm_token, jwt, bearer_token, basic_auth, url_credentials, generic_assignment (password/secret keywords in 24 languages), email, obfuscated_email, credit_card (Luhn), iban (mod-97), huggingface_token, vault_token (HashiCorp), groq_key, xai_key, perplexity_key, replicate_token, databricks_token, airtable_pat, postman_key, linear_key, figma_token, notion_token, doppler_token, supabase_key, netlify_token, mailgun_key, discord_bot_token, discord_webhook, telegram_bot_token, shopify_token, square_token, digitalocean_token, azure_storage_key, sentry_dsn, new_relic_key, slack_webhook, google_oauth_secret, aws_bedrock_key, langsmith_key, pinecone_key, tavily_key, pypi_token, rubygems_key, dockerhub_token, jfrog_token, atlassian_token, grafana_token, sentry_auth_token, dynatrace_token, heroku_api_key, flyio_token, planetscale_token, pulumi_token, terraform_cloud_token, onepassword_token, age_secret_key, alibaba_access_key, mailchimp_key, brevo_key, resend_key.
+Default-on (no config): private_key (PEM), aws_access_key, aws_secret_key (in assignments), github_token, gitlab_token, slack_token, stripe_key, stripe_webhook_secret, anthropic_key (sk-ant-…), openai_key, openrouter_key, google_api_key, gcp_service_account, gcp_refresh_token, sendgrid_key, twilio_key, npm_token, jwt, bearer_token, basic_auth, url_credentials, generic_assignment (password/secret keywords in 24 languages), email, obfuscated_email, credit_card (Luhn), iban (mod-97), huggingface_token, vault_token (HashiCorp), groq_key, xai_key, perplexity_key, replicate_token, databricks_token, airtable_pat, postman_key, linear_key, figma_token, notion_token, doppler_token, supabase_key, netlify_token, mailgun_key, discord_bot_token, discord_webhook, telegram_bot_token, shopify_token, square_token, digitalocean_token, azure_storage_key, sentry_dsn, new_relic_key, slack_webhook, google_oauth_secret, aws_bedrock_key, langsmith_key, pinecone_key, tavily_key, pypi_token, rubygems_key, dockerhub_token, jfrog_token, atlassian_token, grafana_token, sentry_auth_token, dynatrace_token, heroku_api_key, flyio_token, planetscale_token, pulumi_token, terraform_cloud_token, onepassword_token, age_secret_key, alibaba_access_key, mailchimp_key, brevo_key, resend_key, slack_app_token, twitter_bearer_token, meta_access_token, mapbox_secret_token, contentful_token, hubspot_token, sonarqube_token, buildkite_token, plaid_token, braintree_token, shippo_token, langfuse_key, posthog_personal_key, neon_api_key, typeform_token, readme_key, prefect_key, fcm_server_key, azure_ad_client_secret, firecrawl_key, e2b_key, clickup_token, flutterwave_key, duffel_token, frameio_token.
 
 Free-text PII without a model (opt-in: `enable: ['entities']`): private_person, private_address, private_phone, private_date, account_number, private_handle, private_url, secret. These are the privacy-filter labels. The recogniser uses cue phrases in 24 languages, name lists, address/phone/date shapes, context scoring and propagation to later mentions. `recognizeEntities(text, { labels, minConfidence, propagate })` returns spans; `createEntityRecognizer()` from `flare-redact/entities` returns it as a semanticProvider. It is rules, not a trained model: a name with no cue and no list match is missed.
 
@@ -157,9 +169,9 @@ https://flare-collection.github.io/flare-redact/guides/nemo-guardrails-flareflow
 ## Integrations
 
 ```js
-// pino:    logger never sees the secrets
+// pino: pass the whole result (hooks and formatters); formatters alone miss msg and printf arguments
 import { pinoRedact } from 'flare-redact/pino';
-const logger = pino({ formatters: pinoRedact().formatters });
+const logger = pino(pinoRedact());   // or pino({ ...pinoRedact(), level: 'debug' })
 
 // winston
 import { winstonRedact } from 'flare-redact/winston';
