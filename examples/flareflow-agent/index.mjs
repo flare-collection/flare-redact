@@ -9,7 +9,9 @@ const flow = createAgentFlow({
       capabilities: [{
         id: 'database-connection',
         sources: ['postgres.result'],
-        detectors: ['url_credentials'],
+        // A connectionString value is masked whole because of its key name
+        // (sensitive_key); a URL with credentials inside free text is url_credentials.
+        detectors: ['sensitive_key', 'url_credentials'],
         paths: ['/args/connectionString'],
         maxUses: 2,
       }],
@@ -25,7 +27,7 @@ const databaseResult = {
 const safeResult = flow.protectForModel('postgres.result', databaseResult);
 assert.match(
   safeResult.connectionString,
-  /^\[FR_FLOW_[a-f0-9]{32}\]db\.internal\/prod$/,
+  /^\[FR_FLOW_[a-f0-9]{32}\]$/,
 );
 assert.doesNotMatch(safeResult.connectionString, /demo-password/);
 

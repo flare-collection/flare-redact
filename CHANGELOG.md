@@ -23,6 +23,11 @@ This is a change in output: values under such keys are now masked whole. Check
 a name with `isSensitiveKeyName(key)`. To keep a value readable, add it to
 `allow`; to use your own key rule, pass a RegExp as `redactKeys`.
 
+FlareFlow follows the same rule: a value under such a key is protected whole
+as `sensitive_key`. A capability for a `connectionString` argument that names
+only `url_credentials` now denies the call (it fails closed, nothing leaks);
+add `sensitive_key` to its `detectors`, as the examples and guides now do.
+
 ### Added: path rules (JavaScript)
 
 `redact(obj, { paths: [...] })` masks the values at those paths whole, objects

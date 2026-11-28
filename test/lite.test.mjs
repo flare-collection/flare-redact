@@ -7,7 +7,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import { redact, scan } from '../dist/index.js';
 
@@ -23,8 +22,9 @@ const asksForEntities = (options = {}) =>
 const cases = corpus.cases.filter((c) => !asksForEntities(c.options) && !(c.checks ?? []).includes('vault'));
 
 function runLite(script) {
-  const lite = fileURLToPath(new URL('../dist/lite.js', import.meta.url));
-  const pack = fileURLToPath(new URL('../dist/pack.js', import.meta.url));
+  // import() takes URLs: a bare Windows path such as D:\a\dist reads as scheme "d:".
+  const lite = new URL('../dist/lite.js', import.meta.url).href;
+  const pack = new URL('../dist/pack.js', import.meta.url).href;
   const source = `
     const lite = await import(${JSON.stringify(lite)});
     const { loadPack } = await import(${JSON.stringify(pack)});
